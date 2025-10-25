@@ -48,3 +48,11 @@ export type ProfessorProfile = {
     schoolName?: string;
     schoolYear?: string;
 }
+
+export type Attendance = {
+  id: string; // e.g., studentId_yyyy-MM
+  studentId: string;
+  departmentId: string;
+  month: string; // "yyyy-MM" format
+  records: { [day: number]: 'present' | 'absent' | 'justified' | 'no-outfit' };
+};

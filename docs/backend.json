@@ -89,26 +89,34 @@
     "Attendance": {
       "title": "Attendance",
       "type": "object",
-      "description": "Represents the attendance record of a student.",
+      "description": "Represents the monthly attendance record of a student.",
       "properties": {
         "studentId": {
           "type": "string",
-          "description": "Reference to Student. (Relationship: Student 1:N Attendance)"
+          "description": "Reference to Student."
         },
-        "date": {
+        "departmentId": {
           "type": "string",
-          "description": "Date of the attendance record.",
-          "format": "date-time"
+          "description": "Reference to Department."
         },
-        "status": {
+        "month": {
           "type": "string",
-          "description": "Attendance status (present, excused, unexcused, late)."
+          "description": "The month of the record in 'YYYY-MM' format."
+        },
+        "records": {
+          "type": "object",
+          "description": "An object where keys are days of the month and values are the attendance status.",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["present", "absent", "justified", "no-outfit"]
+          }
         }
       },
       "required": [
         "studentId",
-        "date",
-        "status"
+        "departmentId",
+        "month",
+        "records"
       ]
     },
     "EvaluationCriteria": {
@@ -223,7 +231,7 @@
           "description": "The wilaya (province/state) for the institution."
         },
         "schoolName": {
-          "type": "string",
+          "type": "string",_
           "description": "The name of the school."
         },
         "schoolYear": {
@@ -262,7 +270,7 @@
       "schema": {
         "$ref": "#/backend/entities/Attendance"
       },
-      "description": "Stores attendance records. No authentication is needed."
+      "description": "Stores attendance records. The ID is a composite of studentId and month (yyyy-MM)."
     },
     "/evaluation_criteria/{evaluationCriteriaId}": {
       "schema": {
