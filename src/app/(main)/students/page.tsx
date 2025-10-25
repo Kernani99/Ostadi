@@ -31,7 +31,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 
 const studentSchema = z.object({
@@ -245,6 +245,18 @@ export default function StudentsPage() {
     );
   }, [students, searchTerm]);
 
+  const handleDelete = (studentId: string) => {
+    if (confirm('هل أنت متأكد من أنك تريد حذف هذا التلميذ؟')) {
+        const studentDocRef = doc(firestore, 'students', studentId);
+        deleteDocumentNonBlocking(studentDocRef);
+    }
+  };
+
+  const handleEdit = (studentId: string) => {
+    // TODO: Implement edit functionality
+    alert(`Edit student with ID: ${studentId}`);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-2">
@@ -317,10 +329,10 @@ export default function StudentsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700">
+                    <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => handleEdit(student.id)}>
                       <Pencil className="h-5 w-5" />
                     </Button>
-                     <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700">
+                     <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(student.id)}>
                       <Trash2 className="h-5 w-5" />
                     </Button>
                   </TableCell>
@@ -332,5 +344,3 @@ export default function StudentsPage() {
     </div>
   );
 }
-
-    
