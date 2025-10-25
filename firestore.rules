@@ -1,32 +1,28 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset is in PROTOTYPING mode. It prioritizes a secure authorization model
- *              while minimizing data validation to allow for rapid schema iteration.
+ * @fileOverview Firestore Security Rules for the application.
  *
  * Core Philosophy:
- *   - Unauthenticated access is disallowed unless explicitly permitted.
- *   - Data validation is minimized to accelerate development. Only authorization and
- *     relational integrity are validated.
+ * This ruleset prioritizes security by default. It leans towards open read access where the data model explicitly permits it.
+ * For professor profiles, it requires authentication.
  *
  * Data Structure:
- *   - Data is stored in a flat structure with top-level collections for each entity.
- *   - No user-specific data trees are implemented.
+ * The database contains collections for institutions, departments, students, attendance, evaluation criteria, grades, and professor profiles.
  *
  * Key Security Decisions:
- *   - Listing operations are generally open, assuming data is intended for public consumption.
- *   - Write operations are disallowed unless rules are explicitly defined.
- *   - The professor_profile collection might require authentication based on its description.
+ * - Unauthenticated read access is permitted for institutions, departments, students, attendance, evaluation criteria, and grades collections.
+ * - listing on user scoped subcollections is allowed by default for the owner.
+ * - Authentication is required for reading professor profiles, and writes are disallowed until further requirements are defined.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows public read access to institution data. Write access is denied.
+     * @description Allows anyone to read institution data. Writes are disallowed.
      * @path /institutions/{institutionId}
-     * @allow (get, list) Allow anyone to read institution data.
-     * @deny (create, update, delete) Deny anyone to write institution data.
-     * @principle Allows public reads; prohibits writes.
+     * @allow (get, list)
+     * @deny (create, update, delete)
+     * @principle Allows public read access for institutions.
      */
     match /institutions/{institutionId} {
       allow get, list: if true;
@@ -34,11 +30,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to department data. Write access is denied.
+     * @description Allows anyone to read department data. Writes are disallowed.
      * @path /departments/{departmentId}
-     * @allow (get, list) Allow anyone to read department data.
-     * @deny (create, update, delete) Deny anyone to write department data.
-     * @principle Allows public reads; prohibits writes.
+     * @allow (get, list)
+     * @deny (create, update, delete)
+     * @principle Allows public read access for departments.
      */
     match /departments/{departmentId} {
       allow get, list: if true;
@@ -46,11 +42,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to student data. Write access is denied.
+     * @description Allows anyone to read student data. Writes are disallowed.
      * @path /students/{studentId}
-     * @allow (get, list) Allow anyone to read student data.
-     * @deny (create, update, delete) Deny anyone to write student data.
-     * @principle Allows public reads; prohibits writes.
+     * @allow (get, list)
+     * @deny (create, update, delete)
+     * @principle Allows public read access for students.
      */
     match /students/{studentId} {
       allow get, list: if true;
@@ -58,11 +54,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to attendance data. Write access is denied.
+     * @description Allows anyone to read attendance data. Writes are disallowed.
      * @path /attendances/{attendanceId}
-     * @allow (get, list) Allow anyone to read attendance data.
-     * @deny (create, update, delete) Deny anyone to write attendance data.
-     * @principle Allows public reads; prohibits writes.
+     * @allow (get, list)
+     * @deny (create, update, delete)
+     * @principle Allows public read access for attendance records.
      */
     match /attendances/{attendanceId} {
       allow get, list: if true;
@@ -70,11 +66,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to evaluation criteria data. Write access is denied.
+     * @description Allows anyone to read evaluation criteria data. Writes are disallowed.
      * @path /evaluation_criteria/{evaluationCriteriaId}
-     * @allow (get, list) Allow anyone to read evaluation criteria data.
-     * @deny (create, update, delete) Deny anyone to write evaluation criteria data.
-     * @principle Allows public reads; prohibits writes.
+     * @allow (get, list)
+     * @deny (create, update, delete)
+     * @principle Allows public read access for evaluation criteria.
      */
     match /evaluation_criteria/{evaluationCriteriaId} {
       allow get, list: if true;
@@ -82,11 +78,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows public read access to grade data. Write access is denied.
+     * @description Allows anyone to read grade data. Writes are disallowed.
      * @path /grades/{gradeId}
-     * @allow (get, list) Allow anyone to read grade data.
-     * @deny (create, update, delete) Deny anyone to write grade data.
-     * @principle Allows public reads; prohibits writes.
+     * @allow (get, list)
+     * @deny (create, update, delete)
+     * @principle Allows public read access for grades.
      */
     match /grades/{gradeId} {
       allow get, list: if true;
@@ -94,21 +90,23 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows only authenticated users to read professor profile data. Write access is denied.
+     * @description Allows only authenticated users to read professor profile data. Writes are disallowed.
      * @path /professor_profile/{profileId}
-     * @allow (get) Allow anyone to read the data if they are authenticated.
-     * @allow (list) Allow anyone to list the data if they are authenticated.
-     * @deny (create, update, delete) Deny anyone to write professor profile data.
-     * @principle Requires authentication for reads; prohibits writes.
+     * @allow (get)
+     * @deny (create, update, delete, list)
+     * @principle Requires authentication to read professor profiles and restricts write access.
      */
     match /professor_profile/{profileId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow get: if isSignedIn();
+      allow create, update, delete, list: if false;
     }
-  }
 
-  // Helper function to determine if a user is signed in.
-  function isSignedIn() {
-    return request.auth != null;
+    /**
+     * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
   }
 }
