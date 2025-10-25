@@ -1,4 +1,5 @@
 
+
 export type Student = {
   id: string;
   studentId: string;
@@ -57,3 +58,20 @@ export type Attendance = {
   month: string; // "yyyy-MM" format
   records: { [week: number]: 'present' | 'absent' | 'justified' | 'no-outfit' };
 };
+
+export type AttendanceReport = {
+    // Define the structure for your reports here
+};
+
+export type GeneralStats = {
+    totalStudents: number;
+    totalDepartments: number;
+    totalAbsences: number;
+    totalAbsencePercentage: number;
+    attendancePercentage: number;
+    schoolDays: number;
+    averageAbsencePerStudent: number;
+    monthlyAbsenceDistribution: { name: string; total: number }[];
+    weeklyAbsenceDistribution: { name: string; total: number }[];
+};
+

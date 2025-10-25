@@ -7,13 +7,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import type { Student, Attendance, Institution } from "@/lib/types";
+import type { Student, Attendance, Institution, AttendanceReport, GeneralStats } from "@/lib/types";
 import { collection, doc, query, where, setDoc } from "firebase/firestore";
-import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
+import { addMonths, subMonths, format, getWeeksInMonth, eachDayOfInterval, isSameMonth, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 
 
 // Helper function to get number of weeks in a month
@@ -22,8 +27,7 @@ const getWeeksOfMonth = (date: Date) => {
     return Array.from({ length: weeks }, (_, i) => i + 1);
 };
 
-
-export default function AttendancePage() {
+function AttendanceRegistration() {
     const firestore = useFirestore();
     const { toast } = useToast();
 
@@ -130,16 +134,9 @@ export default function AttendancePage() {
         const printWindow = window.open(`/attendance/print-annual?${params.toString()}`, '_blank');
         printWindow?.focus();
     }
-
+    
     return (
-        <div className="container mx-auto p-4 space-y-6">
-            <div className="flex flex-col items-center gap-2">
-                <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحضورو الغياب)
-                <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
-                </h1>
-            </div>
-
+        <div className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle>اختيار المستوى</CardTitle>
@@ -254,7 +251,240 @@ export default function AttendancePage() {
                 </Card>
             )}
         </div>
+    )
+}
+
+function AttendanceReports() {
+    const firestore = useFirestore();
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: subMonths(new Date(), 1), to: new Date() });
+    const [reportData, setReportData] = useState<GeneralStats | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const { data: students } = useCollection<Student>(useMemoFirebase(() => collection(firestore, 'students'), [firestore]));
+
+    const handleGenerateReport = async () => {
+        if (!dateRange.from || !dateRange.to || !students) return;
+        
+        setIsLoading(true);
+        const allAttendances: Attendance[] = [];
+
+        // This is a simplified fetch. For large datasets, this should be paginated or optimized.
+        const attendanceQuery = query(collection(firestore, 'attendances'));
+        const querySnapshot = await getDocs(attendanceQuery);
+        querySnapshot.forEach(doc => {
+            allAttendances.push({ id: doc.id, ...doc.data() } as Attendance);
+        });
+
+        // --- Calculation Logic ---
+        const totalStudents = students.length;
+        let totalAbsences = 0;
+        const absencesByMonth: { [key: string]: number } = {};
+        const absencesByWeekday: { [key: string]: number } = { 'الأحد': 0, 'الاثنين': 0, 'الثلاثاء': 0, 'الأربعاء': 0, 'الخميس': 0 };
+
+        const schoolDaysInRange = eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).filter(d => d.getDay() !== 5 && d.getDay() !== 6).length;
+
+        allAttendances.forEach(att => {
+            const monthDate = new Date(att.month + '-01T12:00:00');
+            if (isSameMonth(monthDate, dateRange.from) || isSameMonth(monthDate, dateRange.to) || (monthDate > dateRange.from && monthDate < dateRange.to)) {
+                Object.values(att.records).forEach(status => {
+                    if (status === 'absent') {
+                        totalAbsences++;
+                        const monthKey = format(monthDate, 'yyyy-MM');
+                        absencesByMonth[monthKey] = (absencesByMonth[monthKey] || 0) + 1;
+                        // Weekday calculation is complex with weekly records, this is a simplification
+                    }
+                });
+            }
+        });
+        
+        const totalPossibleAttendances = totalStudents * schoolDaysInRange;
+        const attendanceRate = totalPossibleAttendances > 0 ? ((totalPossibleAttendances - totalAbsences) / totalPossibleAttendances) * 100 : 100;
+        const absenceRate = totalPossibleAttendances > 0 ? (totalAbsences / totalPossibleAttendances) * 100 : 0;
+        const averageAbsencePerStudent = totalStudents > 0 ? totalAbsences / totalStudents : 0;
+
+        const monthlyAbsenceData = Object.entries(absencesByMonth).map(([month, count]) => ({
+            name: format(new Date(month + '-01T12:00:00'), 'MMM', { locale: ar }),
+            total: count
+        }));
+
+        const weeklyAbsenceData = Object.entries(absencesByWeekday).map(([day, count]) => ({
+            name: day,
+            total: count
+        }));
+
+        setReportData({
+            totalStudents: totalStudents,
+            totalDepartments: new Set(students.map(s => s.departmentId)).size,
+            totalAbsences: totalAbsences,
+            totalAbsencePercentage: absenceRate,
+            attendancePercentage: attendanceRate,
+            schoolDays: schoolDaysInRange,
+            averageAbsencePerStudent: averageAbsencePerStudent,
+            monthlyAbsenceDistribution: monthlyAbsenceData,
+            weeklyAbsenceDistribution: weeklyAbsenceData,
+        });
+        setIsLoading(false);
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Filter className="h-5 w-5 text-primary"/>
+                        <CardTitle>تصفية الإحصائيات</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent className="flex flex-col md:flex-row items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span>من تاريخ:</span>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                "w-[240px] justify-start text-left font-normal",
+                                !dateRange.from && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange.from ? format(dateRange.from, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={dateRange.from}
+                                onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                     <div className="flex items-center gap-2">
+                        <span>إلى تاريخ:</span>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                "w-[240px] justify-start text-left font-normal",
+                                !dateRange.to && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange.to ? format(dateRange.to, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={dateRange.to}
+                                onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <Button onClick={handleGenerateReport} disabled={isLoading} className="bg-primary hover:bg-primary/90">
+                        <Search className="me-2 h-4 w-4" />
+                        {isLoading ? 'جاري العرض...' : 'عرض الإحصائيات'}
+                    </Button>
+                    <Button variant="destructive" disabled={!reportData}>
+                        <Printer className="me-2 h-4 w-4" />
+                        طباعة التقرير
+                    </Button>
+                </CardContent>
+            </Card>
+
+             <Tabs defaultValue="general" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="general"><BarChart3 className="me-2"/>الإحصائيات العامة</TabsTrigger>
+                    <TabsTrigger value="department" disabled><BarChart3 className="me-2"/>إحصائيات القسم</TabsTrigger>
+                    <TabsTrigger value="student" disabled><BarChart3 className="me-2"/>إحصائيات متعلم</TabsTrigger>
+                </TabsList>
+                <TabsContent value="general">
+                    {reportData ? (
+                        <Card>
+                            <CardHeader>
+                                <div className="flex justify-between items-center">
+                                    <CardTitle>الإحصائيات العامة للحضور والغياب</CardTitle>
+                                    <Badge>الفترة: {format(dateRange.from!, 'dd/MM/yyyy')} - {format(dateRange.to!, 'dd/MM/yyyy')}</Badge>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                     <StatCard title="إجمالي التلاميذ" value={reportData.totalStudents} icon={Users} description={`${reportData.totalDepartments} قسم دراسي`} />
+                                     <StatCard title="إجمالي الغيابات" value={reportData.totalAbsences} icon={CalendarX} description={`+${reportData.totalAbsencePercentage.toFixed(1)}% نسبة الغياب الإجمالية`} />
+                                     <StatCard title="نسبة الحضور" value={`${reportData.attendancePercentage.toFixed(1)}%`} icon={UserCheck} description={`${reportData.schoolDays} يوم دراسي`}/>
+                                     <StatCard title="متوسط الغياب" value={reportData.averageAbsencePerStudent.toFixed(1)} icon={Clock} description="لكل متعلم"/>
+                                </div>
+                                <div className="grid gap-8 md:grid-cols-2">
+                                     <Card>
+                                        <CardHeader>
+                                            <CardTitle>توزيع الغياب حسب الأشهر</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <ResponsiveContainer width="100%" height={300}>
+                                                <BarChart data={reportData.monthlyAbsenceDistribution}>
+                                                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                                                    <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </CardContent>
+                                    </Card>
+                                     <Card>
+                                        <CardHeader>
+                                            <CardTitle>توزيع الغياب حسب أيام الأسبوع</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <ResponsiveContainer width="100%" height={300}>
+                                                <BarChart data={reportData.weeklyAbsenceDistribution}>
+                                                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                                                    <Bar dataKey="total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <Card className="flex items-center justify-center h-60">
+                            <p className="text-muted-foreground">الرجاء تحديد فترة زمنية وعرض الإحصائيات.</p>
+                        </Card>
+                    )}
+                </TabsContent>
+            </Tabs>
+        </div>
     );
 }
 
-    
+export default function AttendancePage() {
+    return (
+        <div className="container mx-auto p-4 space-y-6">
+            <div className="flex flex-col items-center gap-2">
+                <h1 className="font-bold text-3xl text-center text-primary relative">
+                المناداة (الحضور والغياب)
+                <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
+                </h1>
+            </div>
+            
+            <Tabs defaultValue="registration" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="registration">تسجيل الحضور</TabsTrigger>
+                    <TabsTrigger value="reports">قسم التقارير</TabsTrigger>
+                </TabsList>
+                <TabsContent value="registration">
+                   <AttendanceRegistration />
+                </TabsContent>
+                <TabsContent value="reports">
+                    <AttendanceReports />
+                </TabsContent>
+            </Tabs>
+
+        </div>
+    );
+}
