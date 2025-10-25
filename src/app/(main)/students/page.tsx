@@ -1,15 +1,15 @@
 'use client';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore } from "@/firebase";
-import { PlusCircle, Upload, Download, Search, Trash2, Pencil, UserPlus, FileDown, FileUp, FileText } from "lucide-react";
-import { collection, doc, query, where } from "firebase/firestore";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Printer } from "lucide-react";
+import { collection, doc, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
-import { Student } from "@/lib/types";
-import { useMemo, useState } from "react";
+import type { Student } from "@/lib/types";
+import { useMemo, useState, type FC, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,19 +19,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 
 const studentSchema = z.object({
@@ -46,7 +55,13 @@ const studentSchema = z.object({
 
 type StudentFormValues = z.infer<typeof studentSchema>;
 
-const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) => {
+interface StudentFormProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    student?: Student | null; 
+}
+
+const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
@@ -54,7 +69,10 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
 
     const form = useForm<StudentFormValues>({
         resolver: zodResolver(studentSchema),
-        defaultValues: {
+        defaultValues: student ? {
+            ...student,
+            dateOfBirth: student.dateOfBirth || '',
+        } : {
             firstName: '',
             lastName: '',
             dateOfBirth: '',
@@ -63,12 +81,43 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
         }
     });
 
+    useEffect(() => {
+        if (student) {
+            form.reset({
+                ...student,
+                dateOfBirth: student.dateOfBirth || '',
+            });
+        } else {
+            form.reset({
+                 firstName: '',
+                lastName: '',
+                dateOfBirth: '',
+                level: '',
+                institutionId: '',
+                gender: undefined,
+                status: undefined,
+            });
+        }
+    }, [student, form, open]);
+    
+
     const onSubmit = (data: StudentFormValues) => {
-        addDocumentNonBlocking(collection(firestore, 'students'), data);
-        toast({
-            title: "تم الحفظ بنجاح",
-            description: `تمت إضافة التلميذ ${data.firstName} ${data.lastName}.`,
-        });
+        if (student) {
+            // Update existing student
+            const studentDocRef = doc(firestore, 'students', student.id);
+            setDocumentNonBlocking(studentDocRef, data, { merge: true });
+            toast({
+                title: "تم التحديث بنجاح",
+                description: `تم تحديث بيانات التلميذ ${data.firstName} ${data.lastName}.`,
+            });
+        } else {
+            // Add new student
+            addDocumentNonBlocking(collection(firestore, 'students'), data);
+            toast({
+                title: "تم الحفظ بنجاح",
+                description: `تمت إضافة التلميذ ${data.firstName} ${data.lastName}.`,
+            });
+        }
         form.reset();
         onOpenChange(false);
     };
@@ -77,9 +126,9 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>إضافة تلميذ جديد</DialogTitle>
+                    <DialogTitle>{student ? 'تعديل بيانات التلميذ' : 'إضافة تلميذ جديد'}</DialogTitle>
                     <DialogDescription>
-                        أدخل تفاصيل التلميذ الجديد هنا. انقر على "حفظ" عند الانتهاء.
+                       {student ? 'قم بتحديث التفاصيل أدناه.' : 'أدخل تفاصيل التلميذ الجديد هنا. انقر على "حفظ" عند الانتهاء.'}
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -129,7 +178,7 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">الجنس</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value}>
                                         <FormControl>
                                             <SelectTrigger className="col-span-3">
                                                 <SelectValue placeholder="اختر الجنس" />
@@ -150,7 +199,7 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المستوى</FormLabel>
-                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                     <Select onValueChange={field.onChange} value={field.value}>
                                         <FormControl>
                                             <SelectTrigger className="col-span-3">
                                                 <SelectValue placeholder="اختر المستوى" />
@@ -174,7 +223,7 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">المؤسسة</FormLabel>
-                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                     <Select onValueChange={field.onChange} value={field.value}>
                                         <FormControl>
                                             <SelectTrigger className="col-span-3">
                                                 <SelectValue placeholder="اختر المؤسسة" />
@@ -196,7 +245,7 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
                             render={({ field }) => (
                                 <FormItem className="grid grid-cols-4 items-center gap-4">
                                     <FormLabel className="text-right">الحالة</FormLabel>
-                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                     <Select onValueChange={field.onChange} value={field.value}>
                                         <FormControl>
                                             <SelectTrigger className="col-span-3">
                                                 <SelectValue placeholder="اختر الحالة" />
@@ -212,7 +261,7 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
                             )}
                         />
                         <DialogFooter>
-                            <Button type="submit">حفظ التلميذ</Button>
+                            <Button type="submit">{student ? 'حفظ التعديلات' : 'حفظ التلميذ'}</Button>
                         </DialogFooter>
                     </form>
                 </Form>
@@ -224,13 +273,18 @@ const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (ope
 
 export default function StudentsPage() {
   const firestore = useFirestore();
+  const { toast } = useToast();
   const studentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
   const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
   const { data: institutions } = useCollection(institutionsQuery);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [isFormOpen, setFormOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
 
 
   const institutionMap = useMemo(() => {
@@ -245,16 +299,106 @@ export default function StudentsPage() {
     );
   }, [students, searchTerm]);
 
-  const handleDelete = (studentId: string) => {
-    if (confirm('هل أنت متأكد من أنك تريد حذف هذا التلميذ؟')) {
-        const studentDocRef = doc(firestore, 'students', studentId);
-        deleteDocumentNonBlocking(studentDocRef);
+  const handleAddNew = () => {
+    setSelectedStudent(null);
+    setFormOpen(true);
+  };
+
+  const handleEdit = (student: Student) => {
+    setSelectedStudent(student);
+    setFormOpen(true);
+  };
+  
+  const handleDelete = (student: Student) => {
+      setStudentToDelete(student);
+      setDeleteAlertOpen(true);
+  };
+  
+  const confirmDelete = () => {
+      if (studentToDelete) {
+          const studentDocRef = doc(firestore, 'students', studentToDelete.id);
+          deleteDocumentNonBlocking(studentDocRef);
+          toast({ title: "تم الحذف", description: `تم حذف التلميذ ${studentToDelete.firstName} ${studentToDelete.lastName}.` });
+      }
+      setDeleteAlertOpen(false);
+      setStudentToDelete(null);
+  };
+
+  const handleSelectStudent = (studentId: string) => {
+    setSelectedStudents(prev => {
+        const newSelection = new Set(prev);
+        if (newSelection.has(studentId)) {
+            newSelection.delete(studentId);
+        } else {
+            newSelection.add(studentId);
+        }
+        return newSelection;
+    });
+  };
+
+  const handleSelectAll = () => {
+      if (selectedStudents.size === filteredStudents.length) {
+          setSelectedStudents(new Set());
+      } else {
+          setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
+      }
+  };
+
+  const handleDeleteSelected = () => {
+    if (confirm(`هل أنت متأكد من أنك تريد حذف ${selectedStudents.size} تلميذ/تلاميذ؟`)) {
+        const batch = writeBatch(firestore);
+        selectedStudents.forEach(id => {
+            const studentDocRef = doc(firestore, 'students', id);
+            batch.delete(studentDocRef);
+        });
+        batch.commit().then(() => {
+             toast({ title: "تم الحذف", description: `تم حذف ${selectedStudents.size} تلميذ/تلاميذ بنجاح.` });
+             setSelectedStudents(new Set());
+        }).catch(err => {
+            console.error(err);
+            toast({ title: "خطأ", description: "حدث خطأ أثناء حذف التلاميذ.", variant: "destructive" });
+        });
     }
   };
 
-  const handleEdit = (studentId: string) => {
-    // TODO: Implement edit functionality
-    alert(`Edit student with ID: ${studentId}`);
+  const exportToCSV = (data: Student[], fileName: string) => {
+    const csvRows = [
+        // Headers
+        ['اللقب', 'الإسم', 'المستوى', 'الجنس', 'المؤسسة', 'الحالة'].join(','),
+    ];
+
+    // Data rows
+    data.forEach(student => {
+        const row = [
+            `"${student.lastName}"`,
+            `"${student.firstName}"`,
+            `"${student.level ?? ''}"`,
+            `"${student.gender === 'male' ? 'ذكر' : 'أنثى'}"`,
+            `"${institutionMap.get(student.institutionId) ?? ''}"`,
+            `"${student.status === 'active' ? 'يمارس' : 'معفي'}"`,
+        ].join(',');
+        csvRows.push(row);
+    });
+
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportSelected = () => {
+    const selectedData = students?.filter(s => selectedStudents.has(s.id)) || [];
+    if (selectedData.length > 0) {
+        exportToCSV(selectedData, 'selected_students.csv');
+    } else {
+        toast({ title: "لا توجد بيانات", description: "الرجاء تحديد التلاميذ للتصدير." });
+    }
   };
 
   return (
@@ -268,19 +412,35 @@ export default function StudentsPage() {
 
       <Card className="shadow-md">
         <CardContent className="p-4 flex flex-wrap items-center gap-2">
-            <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+            <Button onClick={handleAddNew} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
               <UserPlus className="me-2" />
               تسجيل تلميذ
             </Button>
-            <StudentForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
+            <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
            <Button variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileText className="me-2" />
-            ت نموذج Excel
+            تحميل نموذج Excel
           </Button>
           <Button variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-            <FileDown className="me-2" />
+            <FileUp className="me-2" />
             استيراد
           </Button>
+          {selectedStudents.size > 0 && (
+             <>
+                <Button variant="destructive" onClick={handleDeleteSelected} className="rounded-full">
+                    <Trash2 className="me-2" />
+                    حذف المحدد ({selectedStudents.size})
+                </Button>
+                <Button variant="outline" onClick={handleExportSelected} className="rounded-full">
+                    <Printer className="me-2" />
+                    طباعة المحدد ({selectedStudents.size})
+                </Button>
+                 <Button variant="outline" onClick={handleExportSelected} className="rounded-full">
+                    <FileDown className="me-2" />
+                    تصدير المحدد ({selectedStudents.size})
+                </Button>
+            </>
+          )}
           <div className="relative ms-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input 
@@ -298,7 +458,11 @@ export default function StudentsPage() {
             <TableHeader className="bg-primary text-primary-foreground">
               <TableRow>
                 <TableHead className="w-[50px] text-center">
-                    <Checkbox />
+                    <Checkbox 
+                        checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                    />
                 </TableHead>
                 <TableHead className="text-white">#</TableHead>
                 <TableHead className="text-white">الإسم الكامل</TableHead>
@@ -312,9 +476,13 @@ export default function StudentsPage() {
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={8} className="text-center">جاري تحميل التلاميذ...</TableCell></TableRow>}
               {!isLoading && filteredStudents?.map((student, index) => (
-                <TableRow key={student.id} className="hover:bg-muted/50">
+                <TableRow key={student.id} className="hover:bg-muted/50" data-state={selectedStudents.has(student.id) ? "selected" : ""}>
                    <TableCell className="text-center">
-                    <Checkbox />
+                    <Checkbox
+                        checked={selectedStudents.has(student.id)}
+                        onCheckedChange={() => handleSelectStudent(student.id)}
+                        aria-label={`Select student ${student.firstName}`}
+                    />
                   </TableCell>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell className="font-medium">{student.lastName} {student.firstName}</TableCell>
@@ -329,10 +497,10 @@ export default function StudentsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => handleEdit(student.id)}>
+                    <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700" onClick={() => handleEdit(student)}>
                       <Pencil className="h-5 w-5" />
                     </Button>
-                     <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(student.id)}>
+                     <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(student)}>
                       <Trash2 className="h-5 w-5" />
                     </Button>
                   </TableCell>
@@ -341,6 +509,21 @@ export default function StudentsPage() {
             </TableBody>
           </Table>
       </div>
+
+       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>هل أنت متأكد من الحذف؟</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        هذا الإجراء لا يمكن التراجع عنه. سيؤدي هذا إلى حذف بيانات التلميذ بشكل دائم.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDelete}>تأكيد الحذف</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }

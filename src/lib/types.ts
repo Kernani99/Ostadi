@@ -8,6 +8,7 @@ export type Student = {
   level: string;
   institutionId: string;
   status: 'active' | 'exempt';
+  departmentId?: string; // Added for group management
 };
 
 export type Department = {
