@@ -79,16 +79,9 @@ export default function AttendancePage() {
 
     const handleAttendanceChange = async (student: Student, week: number, status: string) => {
         const studentId = student.id;
-        const departmentId = student.departmentId; // student object contains departmentId
-
-        if (!departmentId) {
-             toast({
-                title: "خطأ",
-                description: "لا يمكن تسجيل الحضور. التلميذ غير معين في أي قسم.",
-                variant: "destructive"
-             });
-            return;
-        };
+        // The student object might not have a departmentId if they are unassigned.
+        // We'll save it if it exists, otherwise we can save `null` or an empty string.
+        const departmentId = student.departmentId || null; 
         
         const attendanceId = `${studentId}_${monthStr}`;
         const attendanceRef = doc(firestore, 'attendances', attendanceId);
@@ -143,7 +136,7 @@ export default function AttendancePage() {
         <div className="container mx-auto p-4 space-y-6">
             <div className="flex flex-col items-center gap-2">
                 <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحضور والغياب)
+                المناداة (الحضوضر والغياب)
                 <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
                 </h1>
             </div>
@@ -264,5 +257,7 @@ export default function AttendancePage() {
         </div>
     );
 }
+
+    
 
     
