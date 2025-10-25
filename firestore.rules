@@ -1,95 +1,98 @@
 /**
- * @fileoverview Firestore Security Rules for the STAPS Manager application.
+ * @fileoverview Firestore Security Rules for the Attendance Tracking App.
  *
  * Core Philosophy:
- * This ruleset configures a public-read, public-write database. Since the application lacks any user authentication,
- * all data is accessible to everyone.
+ * This ruleset is in prototyping mode and prioritizes ease of data access for rapid development.
+ * As such, read access is generally open, but write access is completely restricted.
+ * This is NOT suitable for production and must be updated with proper authorization logic.
  *
  * Data Structure:
- * - /institutions/{institutionId}: Stores institution data.
- * - /departments/{departmentId}: Stores department data.
- * - /students/{studentId}: Stores student data.
- * - /attendances/{attendanceId}: Stores attendance records.
- * - /evaluation_criteria/{evaluationCriteriaId}: Stores evaluation criteria.
- * - /grades/{gradeId}: Stores grades.
+ * The Firestore database contains several top-level collections, including:
+ * - /institutions/{institutionId}
+ * - /departments/{departmentId}
+ * - /students/{studentId}
+ * - /attendances/{attendanceId}
+ * - /evaluation_criteria/{evaluationCriteriaId}
+ * - /grades/{gradeId}
  *
  * Key Security Decisions:
- * - No user authentication is used, therefore all data read and write operations are open to the public.
+ * - All collections are publicly readable.
+ * - All write operations (create, update, delete) are denied. This will be changed after the prototyping phase.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows anyone to read and write institution data.
+     * @description Allows anyone to read institution data, but prevents any writes.
      * @path /institutions/{institutionId}
-     * @allow (get, list)
-     * @allow (create, update, delete)
-     * @principle Allows open access to institution data.
+     * @allow (get, list): Any user can read the data.
+     * @deny (create, update, delete): No one can write data.
+     * @principle Allows open reads for prototyping but restricts all writes.
      */
     match /institutions/{institutionId} {
       allow get, list: if true;
-      allow create, update, delete: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows anyone to read and write department data.
+     * @description Allows anyone to read department data, but prevents any writes.
      * @path /departments/{departmentId}
-     * @allow (get, list)
-     * @allow (create, update, delete)
-     * @principle Allows open access to department data.
+     * @allow (get, list): Any user can read the data.
+     * @deny (create, update, delete): No one can write data.
+     * @principle Allows open reads for prototyping but restricts all writes.
      */
     match /departments/{departmentId} {
       allow get, list: if true;
-      allow create, update, delete: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows anyone to read and write student data.
+     * @description Allows anyone to read student data, but prevents any writes.
      * @path /students/{studentId}
-     * @allow (get, list)
-     * @allow (create, update, delete)
-     * @principle Allows open access to student data.
+     * @allow (get, list): Any user can read the data.
+     * @deny (create, update, delete): No one can write data.
+     * @principle Allows open reads for prototyping but restricts all writes.
      */
     match /students/{studentId} {
       allow get, list: if true;
-      allow create, update, delete: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows anyone to read and write attendance data.
+     * @description Allows anyone to read attendance data, but prevents any writes.
      * @path /attendances/{attendanceId}
-     * @allow (get, list)
-     * @allow (create, update, delete)
-     * @principle Allows open access to attendance data.
+     * @allow (get, list): Any user can read the data.
+     * @deny (create, update, delete): No one can write data.
+     * @principle Allows open reads for prototyping but restricts all writes.
      */
     match /attendances/{attendanceId} {
       allow get, list: if true;
-      allow create, update, delete: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows anyone to read and write evaluation criteria data.
+     * @description Allows anyone to read evaluation criteria data, but prevents any writes.
      * @path /evaluation_criteria/{evaluationCriteriaId}
-     * @allow (get, list)
-     * @allow (create, update, delete)
-     * @principle Allows open access to evaluation criteria data.
+     * @allow (get, list): Any user can read the data.
+     * @deny (create, update, delete): No one can write data.
+     * @principle Allows open reads for prototyping but restricts all writes.
      */
     match /evaluation_criteria/{evaluationCriteriaId} {
       allow get, list: if true;
-      allow create, update, delete: if true;
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Allows anyone to read and write grade data.
+     * @description Allows anyone to read grade data, but prevents any writes.
      * @path /grades/{gradeId}
-     * @allow (get, list)
-     * @allow (create, update, delete)
-     * @principle Allows open access to grade data.
+     * @allow (get, list): Any user can read the data.
+     * @deny (create, update, delete): No one can write data.
+     * @principle Allows open reads for prototyping but restricts all writes.
      */
     match /grades/{gradeId} {
       allow get, list: if true;
-      allow create, update, delete: if true;
+      allow create, update, delete: if false;
     }
   }
 }
