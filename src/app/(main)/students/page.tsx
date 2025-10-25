@@ -286,10 +286,10 @@ export default function StudentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [levelFilter, setLevelFilter] = useState('');
-  const [genderFilter, setGenderFilter] = useState('');
-  const [institutionFilter, setInstitutionFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('all');
+  const [genderFilter, setGenderFilter] = useState('all');
+  const [institutionFilter, setInstitutionFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const [isFormOpen, setFormOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -318,10 +318,10 @@ export default function StudentsPage() {
     if (!students) return [];
     return students.filter(student =>
       (`${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (levelFilter === '' || student.level === levelFilter) &&
-      (genderFilter === '' || student.gender === genderFilter) &&
-      (institutionFilter === '' || student.institutionId === institutionFilter) &&
-      (statusFilter === '' || student.status === statusFilter)
+      (levelFilter === 'all' || student.level === levelFilter) &&
+      (genderFilter === 'all' || student.gender === genderFilter) &&
+      (institutionFilter === 'all' || student.institutionId === institutionFilter) &&
+      (statusFilter === 'all' || student.status === statusFilter)
     );
   }, [students, searchTerm, levelFilter, genderFilter, institutionFilter, statusFilter]);
 
@@ -546,7 +546,7 @@ export default function StudentsPage() {
                 <Select value={levelFilter} onValueChange={setLevelFilter}>
                     <SelectTrigger><SelectValue placeholder="فلترة حسب المستوى" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">الكل</SelectItem>
+                        <SelectItem value="all">الكل</SelectItem>
                         <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
                         <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
                         <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
@@ -557,7 +557,7 @@ export default function StudentsPage() {
                 <Select value={genderFilter} onValueChange={setGenderFilter}>
                     <SelectTrigger><SelectValue placeholder="فلترة حسب الجنس" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">الكل</SelectItem>
+                        <SelectItem value="all">الكل</SelectItem>
                         <SelectItem value="male">ذكر</SelectItem>
                         <SelectItem value="female">أنثى</SelectItem>
                     </SelectContent>
@@ -565,7 +565,7 @@ export default function StudentsPage() {
                  <Select value={institutionFilter} onValueChange={setInstitutionFilter}>
                     <SelectTrigger><SelectValue placeholder="فلترة حسب المؤسسة" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">الكل</SelectItem>
+                        <SelectItem value="all">الكل</SelectItem>
                         {institutions?.map(inst => (
                             <SelectItem key={inst.id} value={inst.id}>
                                 {inst.name}
@@ -576,16 +576,16 @@ export default function StudentsPage() {
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger><SelectValue placeholder="فلترة حسب الحالة" /></SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">الكل</SelectItem>
+                        <SelectItem value="all">الكل</SelectItem>
                         <SelectItem value="active">يمارس</SelectItem>
                         <SelectItem value="exempt">معفي</SelectItem>
                     </SelectContent>
                 </Select>
                  <Button onClick={() => {
-                     setLevelFilter('');
-                     setGenderFilter('');
-                     setInstitutionFilter('');
-                     setStatusFilter('');
+                     setLevelFilter('all');
+                     setGenderFilter('all');
+                     setInstitutionFilter('all');
+                     setStatusFilter('all');
                      setSearchTerm('');
                  }} variant="ghost">إلغاء الفلاتر</Button>
             </div>
