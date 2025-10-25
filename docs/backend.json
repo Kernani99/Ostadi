@@ -153,6 +153,72 @@
         "evaluationCriteriaId",
         "grade"
       ]
+    },
+    "ProfessorProfile": {
+      "title": "ProfessorProfile",
+      "type": "object",
+      "description": "Stores the professor's technical card information.",
+      "properties": {
+        "lastName": {
+          "type": "string"
+        },
+        "firstName": {
+          "type": "string"
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "format": "date"
+        },
+        "placeOfBirth": {
+          "type": "string"
+        },
+        "maritalStatus": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "phoneNumber": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "rank": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "appointmentDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "confirmationDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "grade": {
+          "type": "string"
+        },
+        "certificateName": {
+          "type": "string"
+        },
+        "certificateNumber": {
+          "type": "string"
+        },
+        "specialization": {
+          "type": "string"
+        },
+        "issuingInstitution": {
+          "type": "string"
+        },
+        "certificationDate": {
+          "type": "string",
+          "format": "date"
+        }
+      }
     }
   },
   "auth": {
@@ -197,6 +263,12 @@
         "$ref": "#/backend/entities/Grade"
       },
       "description": "Stores grades. No authentication is needed."
+    },
+    "/professor_profile/{profileId}": {
+      "schema": {
+        "$ref": "#/backend/entities/ProfessorProfile"
+      },
+      "description": "Stores the professor's profile data. Authentication might be required."
     }
   }
 }

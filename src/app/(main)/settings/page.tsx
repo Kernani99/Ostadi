@@ -5,12 +5,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useAuth, useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore } from "@/firebase";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Institution } from "@/lib/types";
 import { collection, doc } from "firebase/firestore";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2, CreditCard } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
@@ -83,6 +84,20 @@ export default function SettingsPage() {
           <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
         </h1>
       </div>
+      
+      <Card className="shadow-lg">
+        <CardHeader>
+            <CardTitle className="text-xl">البطاقة الفنية</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <Link href="/settings/technical-card">
+              <Button className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+                <CreditCard className="me-2" />
+                تعديل البطاقة الفنية
+              </Button>
+            </Link>
+        </CardContent>
+      </Card>
 
       <Card className="shadow-lg">
         <CardHeader className="flex flex-row items-center justify-between">
