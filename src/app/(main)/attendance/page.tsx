@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Attendance, Institution, AttendanceReport, GeneralStats } from "@/lib/types";
-import { collection, doc, query, where, setDoc } from "firebase/firestore";
+import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth, eachDayOfInterval, isSameMonth, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon } from "lucide-react";
@@ -19,6 +19,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
+import { StatCard } from "@/components/dashboard/stat-card";
+import { Badge } from "@/components/ui/badge";
 
 
 // Helper function to get number of weeks in a month
@@ -409,7 +411,7 @@ function AttendanceReports() {
                             <CardHeader>
                                 <div className="flex justify-between items-center">
                                     <CardTitle>الإحصائيات العامة للحضور والغياب</CardTitle>
-                                    <Badge>الفترة: {format(dateRange.from!, 'dd/MM/yyyy')} - {format(dateRange.to!, 'dd/MM/yyyy')}</Badge>
+                                    <Badge>الفترة: {dateRange.from ? format(dateRange.from, 'dd/MM/yyyy') : ''} - {dateRange.to ? format(dateRange.to, 'dd/MM/yyyy') : ''}</Badge>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-6">
@@ -467,7 +469,7 @@ export default function AttendancePage() {
         <div className="container mx-auto p-4 space-y-6">
             <div className="flex flex-col items-center gap-2">
                 <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحضور والغياب)
+                المناداة (الحضورو الغياب)
                 <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
                 </h1>
             </div>

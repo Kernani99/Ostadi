@@ -75,3 +75,4 @@ export type GeneralStats = {
     weeklyAbsenceDistribution: { name: string; total: number }[];
 };
 
+
