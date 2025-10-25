@@ -367,6 +367,7 @@ export default function StudentsPage() {
     const dataToExport = data.map(student => ({
       'اللقب': student.lastName,
       'الإسم': student.firstName,
+      'تاريخ الميلاد': student.dateOfBirth ?? '',
       'المستوى': student.level ?? '',
       'الجنس': student.gender === 'male' ? 'ذكر' : 'أنثى',
       'المؤسسة': institutionMap.get(student.institutionId) ?? '',
@@ -544,6 +545,7 @@ export default function StudentsPage() {
                 </TableHead>
                 <TableHead className="text-white">#</TableHead>
                 <TableHead className="text-white">الإسم الكامل</TableHead>
+                <TableHead className="text-white">تاريخ الميلاد</TableHead>
                 <TableHead className="text-white">المستوى</TableHead>
                 <TableHead className="text-white">الجنس</TableHead>
                 <TableHead className="text-white">المؤسسة</TableHead>
@@ -552,7 +554,7 @@ export default function StudentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={8} className="text-center">جاري تحميل التلاميذ...</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={9} className="text-center">جاري تحميل التلاميذ...</TableCell></TableRow>}
               {!isLoading && filteredStudents?.map((student, index) => (
                 <TableRow key={student.id} className="hover:bg-muted/50" data-state={selectedStudents.has(student.id) ? "selected" : ""}>
                    <TableCell className="text-center">
@@ -564,6 +566,7 @@ export default function StudentsPage() {
                   </TableCell>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell className="font-medium">{student.lastName} {student.firstName}</TableCell>
+                  <TableCell>{student.dateOfBirth || 'غير محدد'}</TableCell>
                   <TableCell>{student.level ?? 'غير محدد'}</TableCell>
                   <TableCell>
                     {student.gender === 'male' ? 'ذكر' : 'أنثى'}
