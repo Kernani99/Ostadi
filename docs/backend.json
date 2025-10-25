@@ -8,10 +8,15 @@
         "name": {
           "type": "string",
           "description": "Name of the institution."
+        },
+        "municipality": {
+          "type": "string",
+          "description": "Municipality where the institution is located."
         }
       },
       "required": [
-        "name"
+        "name",
+        "municipality"
       ]
     },
     "Department": {

@@ -19,4 +19,5 @@ export type Department = {
 export type Institution = {
   id:string;
   name: string;
+  municipality: string;
 };
