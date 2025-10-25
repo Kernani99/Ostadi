@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import type { Student, Department, Institution, Attendance } from "@/lib/types";
+import type { Student, Attendance, Institution } from "@/lib/types";
 import { collection, doc, query, where, setDoc } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -48,7 +48,6 @@ export default function AttendancePage() {
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
     const monthStr = format(currentDate, 'yyyy-MM');
-    // We need to fetch attendance for all students found, as we don't have a single departmentId anymore
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const attendanceQuery = useMemoFirebase(() =>
@@ -61,7 +60,10 @@ export default function AttendancePage() {
         const map = new Map<string, { [week: number]: string }>();
         if (!attendances) return map;
         attendances.forEach(att => {
-            map.set(att.studentId, att.records);
+            // Ensure records is an object before setting
+            if (typeof att.records === 'object' && att.records !== null) {
+                map.set(att.studentId, att.records);
+            }
         });
         return map;
     }, [attendances]);
@@ -79,8 +81,6 @@ export default function AttendancePage() {
 
     const handleAttendanceChange = async (student: Student, week: number, status: string) => {
         const studentId = student.id;
-        // The student object might not have a departmentId if they are unassigned.
-        // We'll save it if it exists, otherwise we can save `null` or an empty string.
         const departmentId = student.departmentId || null; 
         
         const attendanceId = `${studentId}_${monthStr}`;
@@ -122,21 +122,20 @@ export default function AttendancePage() {
             });
             return;
         }
-        // This needs a dedicated print page that filters by institution and level,
-        // similar to the students print page. For now, we'll just log a message.
-        // A full implementation would require a new route e.g., /attendance/print-level
-        console.log("Printing for institution:", selectedInstitution, "and level:", selectedLevel);
-        toast({
-            title: "ميزة الطباعة قيد التطوير",
-            description: "سيتم تفعيل طباعة سجل الحضور قريباً.",
-        });
+       
+        const params = new URLSearchParams();
+        params.set('institutionId', selectedInstitution);
+        params.set('level', selectedLevel);
+       
+        const printWindow = window.open(`/attendance/print-annual?${params.toString()}`, '_blank');
+        printWindow?.focus();
     }
 
     return (
         <div className="container mx-auto p-4 space-y-6">
             <div className="flex flex-col items-center gap-2">
                 <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحضوضر والغياب)
+                المناداة (الحضور والغياب)
                 <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
                 </h1>
             </div>
@@ -257,7 +256,3 @@ export default function AttendancePage() {
         </div>
     );
 }
-
-    
-
-    
