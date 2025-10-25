@@ -23,7 +23,7 @@ export default function PrintDepartmentsPage() {
         const map = new Map<string, Student[]>();
         
         departments.forEach(dept => {
-          map.set(dept.id, allStudents.filter(s => s.departmentId === dept.id));
+          map.set(dept.id, allStudents.filter(s => s.departmentId === dept.id).sort((a, b) => a.lastName.localeCompare(b.lastName)));
         });
 
         return map;
@@ -32,13 +32,13 @@ export default function PrintDepartmentsPage() {
     
     useEffect(() => {
         if (!isLoadingDepts && !isLoadingStudents) {
-            setTimeout(() => window.print(), 500); // Delay print to allow rendering
+            setTimeout(() => window.print(), 1000); // Delay print to allow rendering
         }
     }, [isLoadingDepts, isLoadingStudents]);
     
     if (isLoadingDepts || isLoadingStudents) {
         return (
-            <div className="flex h-screen items-center justify-center">
+            <div className="flex h-screen items-center justify-center font-body">
                 <Loader2 className="h-8 w-8 animate-spin" />
                 <p className="ms-2">جاري تجهيز القائمة للطباعة...</p>
             </div>
@@ -46,15 +46,16 @@ export default function PrintDepartmentsPage() {
     }
 
     return (
-        <html lang="ar" dir="rtl">
+        <>
             <head>
                 <title>طباعة قائمة الأفواج</title>
                 <style>{`
-                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
                     body {
                         font-family: 'Cairo', sans-serif;
                         direction: rtl;
                         margin: 2rem;
+                        background-color: #fff;
+                        color: #000;
                     }
                     h1 {
                         text-align: center;
@@ -101,15 +102,19 @@ export default function PrintDepartmentsPage() {
                     }
                      @media print {
                         body {
-                            margin: 0;
+                            margin: 1in;
                         }
                         .department {
                             border: 1px solid #aaa;
                         }
+                        @page {
+                          size: A4;
+                          margin: 1in;
+                        }
                     }
                 `}</style>
             </head>
-            <body>
+            <div>
                 <h1>قائمة الأفواج</h1>
                 {departments && departments.length > 0 ? (
                     <div>
@@ -137,9 +142,7 @@ export default function PrintDepartmentsPage() {
                 ) : (
                     <p>لا توجد أفواج لعرضها.</p>
                 )}
-            </body>
-        </html>
+            </div>
+        </>
     );
 }
-
-    
