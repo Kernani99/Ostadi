@@ -1,13 +1,35 @@
+'use client'
 import { StatCard } from "@/components/dashboard/stat-card";
-import { departments, institutions, students } from "@/lib/data";
-import { Building, Building2, GraduationCap, User, Users } from "lucide-react";
+import { useCollection, useFirestore } from "@/firebase";
+import { Building, Building2, Users, User } from "lucide-react";
+import { collection } from 'firebase/firestore'
+import { useMemoFirebase } from "@/firebase/provider";
+
 
 export default function DashboardPage() {
-  const totalStudents = students.length;
-  const totalMales = students.filter((s) => s.gender === "male").length;
-  const totalFemales = students.filter((s) => s.gender === "female").length;
-  const totalDepartments = departments.length;
-  const totalInstitutions = institutions.length;
+  const firestore = useFirestore();
+
+  const studentsQuery = useMemoFirebase(() => {
+    return collection(firestore, 'students')
+  }, [firestore])
+  const { data: students } = useCollection(studentsQuery);
+
+  const departmentsQuery = useMemoFirebase(() => {
+    return collection(firestore, 'departments')
+  }, [firestore])
+  const { data: departments } = useCollection(departmentsQuery);
+
+  const institutionsQuery = useMemoFirebase(() => {
+    return collection(firestore, 'institutions')
+  }, [firestore])
+  const { data: institutions } = useCollection(institutionsQuery);
+
+
+  const totalStudents = students?.length ?? 0;
+  const totalMales = students?.filter((s) => s.gender === "male").length ?? 0;
+  const totalFemales = students?.filter((s) => s.gender === "female").length ?? 0;
+  const totalDepartments = departments?.length ?? 0;
+  const totalInstitutions = institutions?.length ?? 0;
 
   return (
     <div>

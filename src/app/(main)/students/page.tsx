@@ -1,11 +1,18 @@
+'use client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { students } from "@/lib/data";
+import { useCollection, useFirestore } from "@/firebase";
 import { PlusCircle, Upload, Download } from "lucide-react";
+import { collection } from "firebase/firestore";
+import { useMemoFirebase } from "@/firebase/provider";
 
 export default function StudentsPage() {
+  const firestore = useFirestore();
+  const studentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
+  const { data: students, isLoading } = useCollection(studentsQuery);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center">
@@ -42,16 +49,17 @@ export default function StudentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {students.map((student) => (
-                <TableRow key={student.studentId}>
-                  <TableCell className="font-medium">{student.name}</TableCell>
+              {isLoading && <TableRow><TableCell colSpan={5}>جاري تحميل التلاميذ...</TableCell></TableRow>}
+              {!isLoading && students?.map((student) => (
+                <TableRow key={student.id}>
+                  <TableCell className="font-medium">{student.firstName} {student.lastName}</TableCell>
                   <TableCell>
                     <Badge variant={student.gender === 'male' ? 'default' : 'secondary'}>
                       {student.gender === 'male' ? 'ذكر' : 'أنثى'}
                     </Badge>
                   </TableCell>
-                  <TableCell>{student.performanceScore}%</TableCell>
-                  <TableCell>{student.attendanceRate * 100}%</TableCell>
+                  <TableCell>0%</TableCell>
+                  <TableCell>0%</TableCell>
                   <TableCell className="text-start">
                     <Button variant="ghost" size="icon">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>

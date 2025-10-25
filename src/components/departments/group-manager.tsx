@@ -6,7 +6,6 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { suggestOptimalGroupDivision } from "@/ai/flows/suggest-optimal-group-division";
 import type { SuggestOptimalGroupDivisionOutput } from "@/ai/flows/suggest-optimal-group-division";
-import { students, departments } from "@/lib/data";
 import type { Student } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +35,10 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Users } from "lucide-react";
+import { useCollection, useFirestore } from "@/firebase";
+import { collection, query, where } from "firebase/firestore";
+import { useMemoFirebase } from "@/firebase/provider";
+import { Badge } from "../ui/badge";
 
 const formSchema = z.object({
   departmentId: z.string().min(1, { message: "الرجاء اختيار قسم." }),
@@ -49,6 +52,22 @@ export function GroupManager() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SuggestOptimalGroupDivisionOutput | null>(null);
   const { toast } = useToast();
+  const firestore = useFirestore();
+
+  const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
+  const { data: departments } = useCollection(departmentsQuery);
+
+  const studentsInDepartmentQuery = useMemoFirebase(() => {
+    if (!selectedDepartment) return null;
+    return query(collection(firestore, 'students'), where('departmentId', '==', selectedDepartment))
+  }, [firestore, selectedDepartment]);
+
+  const { data: studentsInSelectedDepartment } = useCollection<Omit<Student, 'studentId'>>(studentsInDepartmentQuery);
+
+  const allStudentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
+  const { data: allStudents } = useCollection<Omit<Student, 'studentId'>>(allStudentsQuery);
+  const studentMap = useMemoFirebase(() => new Map(allStudents?.map(s => [s.id, s])), [allStudents]);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,29 +76,21 @@ export function GroupManager() {
       numberOfGroups: 2,
     },
   });
-
-  const studentsInSelectedDepartment = selectedDepartment
-    ? students.filter((s) => s.departmentId === selectedDepartment)
-    : [];
   
-  const studentMap = new Map(students.map(s => [s.studentId, s]));
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setResult(null);
 
-    const department = departments.find(d => d.id === values.departmentId);
+    const department = departments?.find(d => d.id === values.departmentId);
     if (!department) {
         toast({ title: "خطأ", description: "القسم المحدد غير موجود.", variant: "destructive" });
         setIsLoading(false);
         return;
     }
 
-    const studentsToGroup: Student[] = students.filter(
-      (s) => s.departmentId === values.departmentId
-    );
+    const studentsToGroup = studentsInSelectedDepartment;
 
-    if (studentsToGroup.length < values.numberOfGroups) {
+    if (!studentsToGroup || studentsToGroup.length < values.numberOfGroups) {
       toast({
         title: "خطأ في الإدخال",
         description: "عدد التلاميذ في القسم أقل من عدد الأفواج المطلوب.",
@@ -93,11 +104,11 @@ export function GroupManager() {
       const divisionResult = await suggestOptimalGroupDivision({
         departmentName: department.name,
         studentData: studentsToGroup.map(s => ({
-            studentId: s.studentId,
-            performanceScore: s.performanceScore,
-            attendanceRate: s.attendanceRate,
+            studentId: s.id,
+            performanceScore: 0, // Placeholder
+            attendanceRate: 0, // Placeholder
             gender: s.gender,
-            otherFactors: s.otherFactors
+            otherFactors: '' // Placeholder
         })),
         numberOfGroups: values.numberOfGroups,
       });
@@ -149,7 +160,7 @@ export function GroupManager() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {departments.map((dept) => (
+                          {departments?.map((dept) => (
                             <SelectItem key={dept.id} value={dept.id}>
                               {dept.name}
                             </SelectItem>
@@ -182,13 +193,13 @@ export function GroupManager() {
                       تلاميذ القسم المحدد
                     </CardTitle>
                     <CardDescription>
-                      سيتم تقسيم هؤلاء التلاميذ ({studentsInSelectedDepartment.length} تلميذ/ة) إلى أفواج.
+                      سيتم تقسيم هؤلاء التلاميذ ({studentsInSelectedDepartment?.length || 0} تلميذ/ة) إلى أفواج.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {studentsInSelectedDepartment.map(s => (
-                        <Badge key={s.studentId} variant="secondary">{s.name}</Badge>
+                      {studentsInSelectedDepartment?.map(s => (
+                        <Badge key={s.id} variant="secondary">{s.firstName} {s.lastName}</Badge>
                       ))}
                     </div>
                   </CardContent>
@@ -227,12 +238,15 @@ export function GroupManager() {
                             <CardTitle>الفوج {index + 1}</CardTitle>
                         </CardHeader>
                         <CardContent className="flex flex-col gap-2">
-                            {group.map(studentId => (
-                                <div key={studentId} className="flex items-center justify-between p-2 bg-background rounded-md">
-                                    <span>{studentMap.get(studentId)?.name || studentId}</span>
-                                    <Badge variant="outline">{studentMap.get(studentId)?.performanceScore}%</Badge>
-                                </div>
-                            ))}
+                            {group.map(studentId => {
+                                const student = studentMap.get(studentId);
+                                return (
+                                  <div key={studentId} className="flex items-center justify-between p-2 bg-background rounded-md">
+                                      <span>{student ? `${student.firstName} ${student.lastName}` : studentId}</span>
+                                      <Badge variant="outline">0%</Badge>
+                                  </div>
+                                )
+                            })}
                         </CardContent>
                     </Card>
                 ))}

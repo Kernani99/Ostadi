@@ -1,10 +1,9 @@
 export type Student = {
+  id: string;
   studentId: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   gender: 'male' | 'female';
-  performanceScore: number;
-  attendanceRate: number;
-  otherFactors?: string;
   departmentId: string;
 };
 
@@ -15,6 +14,6 @@ export type Department = {
 };
 
 export type Institution = {
-  id: string;
+  id:string;
   name: string;
 };
