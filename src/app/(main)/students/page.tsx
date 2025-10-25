@@ -542,7 +542,7 @@ export default function StudentsPage() {
                 />
             </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 items-center gap-2">
                 <Select value={levelFilter} onValueChange={setLevelFilter}>
                     <SelectTrigger><SelectValue placeholder="فلترة حسب المستوى" /></SelectTrigger>
                     <SelectContent>
@@ -581,6 +581,7 @@ export default function StudentsPage() {
                         <SelectItem value="exempt">معفي</SelectItem>
                     </SelectContent>
                 </Select>
+                <div className="flex items-center gap-2">
                  <Button onClick={() => {
                      setLevelFilter('all');
                      setGenderFilter('all');
@@ -588,6 +589,10 @@ export default function StudentsPage() {
                      setStatusFilter('all');
                      setSearchTerm('');
                  }} variant="ghost">إلغاء الفلاتر</Button>
+                  <Badge variant="secondary" className="px-3 py-1">
+                    العدد: {filteredStudents.length}
+                  </Badge>
+                </div>
             </div>
         </CardContent>
       </Card>
@@ -668,5 +673,3 @@ export default function StudentsPage() {
     </div>
   );
 }
-
-    
