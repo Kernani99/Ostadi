@@ -29,10 +29,35 @@ export default function PrintDepartmentsPage() {
         return map;
 
     }, [allStudents, departments]);
+
+    const departmentsByLevel = useMemo(() => {
+      if (!departments) return new Map<string, Department[]>();
+  
+      const grouped = departments.reduce((acc, dept) => {
+          const level = dept.level || 'غير محدد';
+          if (!acc.has(level)) {
+              acc.set(level, []);
+          }
+          acc.get(level)!.push(dept);
+          return acc;
+      }, new Map<string, Department[]>());
+  
+      const levelOrder = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي', 'غير محدد'];
+      
+      const sortedGrouped = new Map<string, Department[]>();
+      levelOrder.forEach(level => {
+          if(grouped.has(level)) {
+              // Sort departments within each level by name
+              const sortedDepts = grouped.get(level)!.sort((a, b) => a.name.localeCompare(b.name));
+              sortedGrouped.set(level, sortedDepts);
+          }
+      });
+  
+      return sortedGrouped;
+    }, [departments]);
     
     useEffect(() => {
         if (!isLoadingDepts && !isLoadingStudents && (departments?.length ?? 0) > 0) {
-            // A short delay to ensure content is rendered before print dialog opens
             const timer = setTimeout(() => {
                 window.print();
             }, 500);
@@ -58,7 +83,7 @@ export default function PrintDepartmentsPage() {
     }
 
     return (
-        <div className="p-8">
+        <div className="p-8 bg-white text-black font-body">
             <style jsx global>{`
                 @media print {
                     body {
@@ -69,36 +94,48 @@ export default function PrintDepartmentsPage() {
                         display: none;
                     }
                     @page {
-                        size: A4;
-                        margin: 0.75in;
+                        size: A4 portrait;
+                        margin: 0.5in;
                     }
-                }
-                .department {
-                    page-break-inside: avoid;
+                    .page-break-before {
+                        page-break-before: always;
+                    }
+                    .department-card {
+                        page-break-inside: avoid;
+                    }
                 }
             `}</style>
             <h1 className="text-center text-3xl font-bold mb-8 pb-4 border-b-2 border-black">
                 قائمة الأفواج
             </h1>
             
-            <div className="space-y-8">
-                {departments.map(dept => (
-                    <div key={dept.id} className="department border border-gray-300 rounded-lg overflow-hidden">
-                        <div className="department-header bg-gray-100 p-3 flex justify-between font-bold text-xl">
-                            <span>{dept.name}</span>
-                            <span>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</span>
-                        </div>
-                        <div className="student-list p-4 columns-2 gap-8">
-                            {studentsByDepartment.get(dept.id)?.length > 0 ? (
-                                studentsByDepartment.get(dept.id)?.map((student, index) => (
-                                    <div key={student.id} className="student-item flex justify-between py-1 border-b border-gray-200">
-                                       <span className="student-name">{index + 1}. {student.lastName} {student.firstName}</span>
-                                       <span className="student-gender text-gray-600">{student.gender === 'male' ? 'ذكر' : 'أنثى'}</span>
+            <div className="space-y-10">
+                {Array.from(departmentsByLevel.entries()).map(([level, depts]) => (
+                    <div key={level}>
+                        <h2 className="text-2xl font-bold text-center mb-6 p-2 bg-gray-200 rounded-md">
+                            أفواج {level}
+                        </h2>
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                            {depts.map(dept => (
+                                <div key={dept.id} className="department-card border border-gray-400 rounded-lg overflow-hidden break-inside-avoid-column">
+                                    <div className="department-header bg-gray-100 p-2 text-center font-bold text-lg border-b border-gray-400">
+                                        <span>{dept.name} ( العدد: {studentsByDepartment.get(dept.id)?.length || 0} )</span>
                                     </div>
-                                ))
-                            ) : (
-                                <p className="text-gray-500">لا يوجد تلاميذ في هذا الفوج.</p>
-                            )}
+                                    <div className="student-list p-2">
+                                        {studentsByDepartment.get(dept.id)?.length > 0 ? (
+                                            <ol className="list-decimal list-inside text-sm space-y-1">
+                                                {studentsByDepartment.get(dept.id)?.map((student) => (
+                                                    <li key={student.id} className="student-item">
+                                                        {student.lastName} {student.firstName}
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                        ) : (
+                                            <p className="text-gray-500 text-center p-4">لا يوجد تلاميذ.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 ))}
@@ -106,5 +143,3 @@ export default function PrintDepartmentsPage() {
         </div>
     );
 }
-
-    
