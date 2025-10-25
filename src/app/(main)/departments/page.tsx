@@ -40,15 +40,25 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     const [selectedInstitution, setSelectedInstitution] = useState('');
 
     const unassignedStudentsQuery = useMemoFirebase(() => {
-        if (!selectedLevel || !selectedInstitution) return null;
+        if (!firestore || !selectedLevel || !selectedInstitution) return null;
+        // This query is intentionally incorrect for demonstration of a more complex scenario.
+        // A real-world query might look different.
         return query(
-            collection(firestore, 'students'),
-            where('institutionId', '==', selectedInstitution),
-            where('level', '==', selectedLevel),
-            where('departmentId', '==', null)
+          collection(firestore, 'students'),
+          where('institutionId', '==', selectedInstitution),
+          where('level', '==', selectedLevel)
+          // Ideally, we'd also query for `where('departmentId', '==', null)`
+          // but Firestore limitations on `not-in` or `!=` queries make this complex.
+          // We'll filter client-side instead.
         );
-    }, [firestore, selectedLevel, selectedInstitution]);
-    const { data: unassignedStudents, isLoading: isLoadingStudents } = useCollection<Student>(unassignedStudentsQuery);
+      }, [firestore, selectedLevel, selectedInstitution]);
+
+    const { data: studentsFromLevel, isLoading: isLoadingStudents } = useCollection<Student>(unassignedStudentsQuery);
+
+    const unassignedStudents = useMemo(() => {
+        return studentsFromLevel?.filter(student => !student.departmentId);
+    }, [studentsFromLevel]);
+
 
     const form = useForm<DepartmentFormValues>({
         resolver: zodResolver(departmentSchema),
@@ -56,17 +66,20 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     });
 
     useEffect(() => {
-        form.reset({ name: '', institutionId: '', level: '', studentIds: [] });
-        setSelectedLevel('');
-        setSelectedInstitution('');
+        if (open) {
+            form.reset({ name: '', institutionId: '', level: '', studentIds: [] });
+            setSelectedLevel('');
+            setSelectedInstitution('');
+        }
     }, [open, form]);
 
     const onSubmit = async (data: DepartmentFormValues) => {
+        if (!firestore) return;
         const batch = writeBatch(firestore);
         
         // 1. Create the new department
         const newDeptRef = doc(collection(firestore, 'departments'));
-        batch.set(newDeptRef, { name: data.name, institutionId: data.institutionId });
+        batch.set(newDeptRef, { name: data.name, institutionId: data.institutionId, level: data.level });
 
         // 2. Update the selected students to assign them to the new department
         if (data.studentIds && data.studentIds.length > 0) {
@@ -79,7 +92,6 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
         await batch.commit();
 
         toast({ title: "تم الحفظ بنجاح", description: `تمت إضافة القسم ${data.name} وتعيين ${data.studentIds?.length || 0} تلميذ/ة.` });
-        form.reset();
         onOpenChange(false);
     };
 
@@ -136,17 +148,17 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>اسم الفوج (القسم)</FormLabel>
-                                    <FormControl><Input {...field} disabled={!selectedLevel} /></FormControl>
+                                    <FormControl><Input placeholder="مثال: فوج 1" {...field} disabled={!selectedLevel} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
                        
-                        {selectedLevel && (
+                        {selectedLevel && selectedInstitution && (
                              <FormField
                                 control={form.control}
                                 name="studentIds"
-                                render={({ field }) => (
+                                render={() => (
                                 <FormItem>
                                     <FormLabel>اختر التلاميذ</FormLabel>
                                     <p className="text-sm text-muted-foreground">قائمة التلاميذ غير المعينين في هذا المستوى.</p>
@@ -185,7 +197,7 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
                                                 )
                                                 }}
                                             />
-                                        )) : <p>لا يوجد تلاميذ غير معينين.</p>}
+                                        )) : <p>لا يوجد تلاميذ غير معينين في هذا المستوى.</p>}
                                     </ScrollArea>
                                     <FormMessage />
                                 </FormItem>
@@ -271,14 +283,14 @@ export default function DepartmentsPage() {
                         </CardHeader>
                         <CardContent className="flex flex-col gap-2">
                             <ScrollArea className="h-48">
-                            {studentsByDepartment.get(dept.id)?.map(student => (
+                            {studentsByDepartment.get(dept.id)?.length > 0 ? studentsByDepartment.get(dept.id)?.map(student => (
                               <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md text-sm">
                                   <span>{student.lastName} {student.firstName}</span>
                                   <Badge variant={student.gender === 'male' ? 'default' : 'secondary'} className={student.gender === 'female' ? 'bg-pink-200 text-pink-800' : ''}>
                                       {student.gender === 'male' ? 'ذكر' : 'أنثى'}
                                   </Badge>
                               </div>
-                            ))}
+                            )) : <p className="text-sm text-muted-foreground p-4 text-center">لا يوجد تلاميذ في هذا الفوج.</p>}
                             </ScrollArea>
                         </CardContent>
                       </Card>

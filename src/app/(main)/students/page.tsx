@@ -113,15 +113,19 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     
 
     const onSubmit = (data: StudentFormValues) => {
+        const finalData = {
+            ...data,
+            departmentId: data.departmentId === '' ? null : data.departmentId
+        };
         if (student) {
             const studentDocRef = doc(firestore, 'students', student.id);
-            setDocumentNonBlocking(studentDocRef, data, { merge: true });
+            setDocumentNonBlocking(studentDocRef, finalData, { merge: true });
             toast({
                 title: "تم التحديث بنجاح",
                 description: `تم تحديث بيانات التلميذ ${data.firstName} ${data.lastName}.`,
             });
         } else {
-            addDocumentNonBlocking(collection(firestore, 'students'), data);
+            addDocumentNonBlocking(collection(firestore, 'students'), finalData);
             toast({
                 title: "تم الحفظ بنجاح",
                 description: `تمت إضافة التلميذ ${data.firstName} ${data.lastName}.`,
@@ -250,10 +254,10 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>القسم (اختياري)</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value}>
+                                     <Select onValueChange={field.onChange} value={field.value ?? ''}>
                                         <FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl>
                                         <SelectContent>
-                                            <SelectItem value="">بلا قسم</SelectItem>
+                                            <SelectItem value="___none___">بلا قسم</SelectItem>
                                             {departments?.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
@@ -446,7 +450,7 @@ export default function StudentsPage() {
                     dateOfBirth: row['تاريخ الميلاد'] || '',
                     gender: (row['الجنس'] === 'ذكر' ? 'male' : (row['الجنس'] === 'أنثى' ? 'female' : 'male')),
                     level: row['المستوى'] || '',
-                    institutionId: institutionsMapByName.get(row['المؤسسة']?.toString().toLowerCase()) || row['المؤسسة'] || '',
+                    institutionId: institutionsMapByName.get(String(row['المؤسسة'] || '').toLowerCase()) || '',
                     status: (row['الحالة'] === 'يمارس' ? 'active' : (row['الحالة'] === 'معفي' ? 'exempt' : 'active')),
                 };
 
