@@ -1,10 +1,9 @@
-
 'use client';
 
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useDoc, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import { collection } from "firebase/firestore";
-import type { Student, Department } from "@/lib/types";
+import { collection, doc } from "firebase/firestore";
+import type { Student, Department, ProfessorProfile } from "@/lib/types";
 import { useMemo, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -17,6 +16,9 @@ export default function PrintDepartmentsPage() {
     const allStudentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
     const { data: allStudents, isLoading: isLoadingStudents } = useCollection<Student>(allStudentsQuery);
     
+    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const { data: profileData, isLoading: isLoadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
+
     const studentsByDepartment = useMemo(() => {
         if (!allStudents || !departments) return new Map<string, Student[]>();
         
@@ -57,15 +59,17 @@ export default function PrintDepartmentsPage() {
     }, [departments]);
     
     useEffect(() => {
-        if (!isLoadingDepts && !isLoadingStudents && (departments?.length ?? 0) > 0) {
+        if (!isLoadingDepts && !isLoadingStudents && !isLoadingProfile && (departments?.length ?? 0) > 0) {
             const timer = setTimeout(() => {
                 window.print();
             }, 500);
             return () => clearTimeout(timer);
         }
-    }, [isLoadingDepts, isLoadingStudents, departments]);
+    }, [isLoadingDepts, isLoadingStudents, isLoadingProfile, departments]);
     
-    if (isLoadingDepts || isLoadingStudents) {
+    const isLoading = isLoadingDepts || isLoadingStudents || isLoadingProfile;
+
+    if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin" />
@@ -81,6 +85,8 @@ export default function PrintDepartmentsPage() {
             </div>
         )
     }
+
+    const professorName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
 
     return (
         <div className="p-8 bg-white text-black font-body">
@@ -105,11 +111,15 @@ export default function PrintDepartmentsPage() {
                     }
                 }
             `}</style>
-            <h1 className="text-center text-3xl font-bold mb-8 pb-4 border-b-2 border-black">
-                قائمة الأفواج
-            </h1>
+             <header className="text-center mb-10 space-y-2">
+                <h1 className="text-xl font-bold">مديرية التربية لولاية: {profileData?.wilaya || '...'}</h1>
+                <h2 className="text-lg font-semibold">المدرسة الابتدائية: {profileData?.schoolName || '...'}</h2>
+                <h3 className="text-base">السنة الدراسية: {profileData?.schoolYear || '...'}</h3>
+                <h3 className="text-base">الأستاذ: {professorName || '...'}</h3>
+                <h1 className="text-2xl font-bold mt-4 underline decoration-double">قائمة الأفواج</h1>
+            </header>
             
-            <div className="space-y-10">
+            <main className="space-y-10">
                 {Array.from(departmentsByLevel.entries()).map(([level, depts]) => (
                     <div key={level}>
                         <h2 className="text-2xl font-bold text-center mb-6 p-2 bg-gray-200 rounded-md">
@@ -124,9 +134,9 @@ export default function PrintDepartmentsPage() {
                                     <div className="student-list p-2">
                                         {studentsByDepartment.get(dept.id)?.length > 0 ? (
                                             <ol className="list-decimal list-inside text-sm space-y-1">
-                                                {studentsByDepartment.get(dept.id)?.map((student) => (
+                                                {studentsByDepartment.get(dept.id)?.map((student, index) => (
                                                     <li key={student.id} className="student-item">
-                                                        {student.lastName} {student.firstName}
+                                                        {index + 1}- {student.lastName} {student.firstName}
                                                     </li>
                                                 ))}
                                             </ol>
@@ -139,7 +149,17 @@ export default function PrintDepartmentsPage() {
                         </div>
                     </div>
                 ))}
-            </div>
+            </main>
+            <footer className="mt-16 pt-8 text-center">
+                <div className="flex justify-around">
+                    <div className="flex-1">
+                        <h4 className="font-bold text-lg">إمضاء المفتش</h4>
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="font-bold text-lg">إمضاء المدير</h4>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 }

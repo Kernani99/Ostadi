@@ -217,6 +217,18 @@
         "certificationDate": {
           "type": "string",
           "format": "date"
+        },
+        "wilaya": {
+          "type": "string",
+          "description": "The wilaya (province/state) for the institution."
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "The name of the school."
+        },
+        "schoolYear": {
+          "type": "string",
+          "description": "The current school year (e.g., 2023-2024)."
         }
       }
     }

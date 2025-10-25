@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useDoc, useFirestore, useUser } from "@/firebase";
+import { useDoc, useFirestore } from "@/firebase";
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { doc } from "firebase/firestore";
 import { useEffect } from "react";
@@ -34,11 +34,19 @@ const technicalCardSchema = z.object({
     specialization: z.string().optional(),
     issuingInstitution: z.string().optional(),
     certificationDate: z.string().optional(),
+    wilaya: z.string().optional(),
+    schoolName: z.string().optional(),
+    schoolYear: z.string().optional(),
 });
 
 type TechnicalCardFormValues = z.infer<typeof technicalCardSchema>;
 
 const formSections = {
+    "معلومات المؤسسة والطباعة": {
+        wilaya: "الولاية",
+        schoolName: "اسم المدرسة",
+        schoolYear: "السنة الدراسية",
+    },
     "البيانات الشخصية": {
         lastName: "اللقب",
         firstName: "الإسم",

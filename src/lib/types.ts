@@ -24,4 +24,27 @@ export type Institution = {
   municipality: string;
 };
 
-    
+export type ProfessorProfile = {
+    id: string;
+    lastName?: string;
+    firstName?: string;
+    dateOfBirth?: string;
+    placeOfBirth?: string;
+    maritalStatus?: string;
+    address?: string;
+    phoneNumber?: string;
+    email?: string;
+    rank?: string;
+    title?: string;
+    appointmentDate?: string;
+    confirmationDate?: string;
+    grade?: string;
+    certificateName?: string;
+    certificateNumber?: string;
+    specialization?: string;
+    issuingInstitution?: string;
+    certificationDate?: string;
+    wilaya?: string;
+    schoolName?: string;
+    schoolYear?: string;
+}
