@@ -115,7 +115,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const onSubmit = (data: StudentFormValues) => {
         const finalData = {
             ...data,
-            departmentId: data.departmentId === '' ? null : data.departmentId
+            departmentId: data.departmentId === '___none___' ? null : data.departmentId
         };
         if (student) {
             const studentDocRef = doc(firestore, 'students', student.id);
@@ -566,7 +566,11 @@ export default function StudentsPage() {
                     <SelectTrigger><SelectValue placeholder="فلترة حسب المؤسسة" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="">الكل</SelectItem>
-                        {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
+                        {institutions?.map(inst => (
+                            <SelectItem key={inst.id} value={inst.id}>
+                                {inst.name}
+                            </SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
