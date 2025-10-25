@@ -222,33 +222,38 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     );
 }
 
+const editDepartmentSchema = z.object({
+  name: z.string().min(1, "اسم القسم مطلوب"),
+});
+type EditDepartmentFormValues = z.infer<typeof editDepartmentSchema>;
+
 // Component to edit department name
 function EditDepartmentForm({ department, open, onOpenChange }: { department: Department | null, open: boolean, onOpenChange: (open: boolean) => void }) {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const [name, setName] = useState('');
-    const [isSubmitting, setSubmitting] = useState(false);
+    
+    const form = useForm<EditDepartmentFormValues>({
+        resolver: zodResolver(editDepartmentSchema),
+        defaultValues: { name: '' }
+    });
 
     useEffect(() => {
         if (department) {
-            setName(department.name);
+            form.reset({ name: department.name });
         }
-    }, [department]);
+    }, [department, form, open]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!department || !name.trim()) return;
-        setSubmitting(true);
+    const onSubmit = async (data: EditDepartmentFormValues) => {
+        if (!department) return;
+        
         const deptRef = doc(firestore, 'departments', department.id);
         try {
-            await updateDoc(deptRef, { name: name.trim() });
-            toast({ title: "تم التحديث بنجاح", description: `تم تغيير اسم القسم إلى ${name.trim()}.` });
+            await updateDoc(deptRef, { name: data.name });
+            toast({ title: "تم التحديث بنجاح", description: `تم تغيير اسم القسم إلى ${data.name}.` });
             onOpenChange(false);
         } catch (error) {
             console.error("Error updating department:", error);
             toast({ title: "خطأ", description: "لم نتمكن من تحديث اسم القسم.", variant: "destructive" });
-        } finally {
-            setSubmitting(false);
         }
     };
 
@@ -258,20 +263,29 @@ function EditDepartmentForm({ department, open, onOpenChange }: { department: De
                 <DialogHeader>
                     <DialogTitle>تعديل اسم الفوج</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <FormItem>
-                        <FormLabel>اسم الفوج الجديد</FormLabel>
-                        <FormControl>
-                            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="أدخل الاسم الجديد" />
-                        </FormControl>
-                    </FormItem>
-                    <DialogFooter>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-                            حفظ التعديل
-                        </Button>
-                    </DialogFooter>
-                </form>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>اسم الفوج الجديد</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="أدخل الاسم الجديد" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                                {form.formState.isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                                حفظ التعديل
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
             </DialogContent>
         </Dialog>
     );
