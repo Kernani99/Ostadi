@@ -1,5 +1,8 @@
-// This layout is intentionally minimal to allow the page to render a full HTML document.
 
+import "@/app/globals.css";
+
+// This layout is intentionally minimal.
+// The page itself will render a full HTML document.
 export default function PrintAnnualLayout({
   children,
 }: {
