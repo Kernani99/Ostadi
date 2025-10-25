@@ -407,7 +407,7 @@ export default function DepartmentsPage() {
   const { toast } = useToast();
 
   const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
-  const { data: departments } = useCollection<Department>(departmentsQuery);
+  const { data: departments, isLoading: isLoadingDepartments } = useCollection<Department>(departmentsQuery);
 
   const allStudentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
   const { data: allStudents } = useCollection<Student>(allStudentsQuery);
@@ -429,6 +429,31 @@ export default function DepartmentsPage() {
 
     return map;
   }, [allStudents, departments]);
+
+  const departmentsByLevel = useMemo(() => {
+    if (!departments) return new Map<string, Department[]>();
+
+    const grouped = departments.reduce((acc, dept) => {
+        const level = dept.level || 'غير محدد';
+        if (!acc.has(level)) {
+            acc.set(level, []);
+        }
+        acc.get(level)!.push(dept);
+        return acc;
+    }, new Map<string, Department[]>());
+
+    const levelOrder = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي', 'غير محدد'];
+    
+    const sortedGrouped = new Map<string, Department[]>();
+    levelOrder.forEach(level => {
+        if(grouped.has(level)) {
+            sortedGrouped.set(level, grouped.get(level)!);
+        }
+    });
+
+    return sortedGrouped;
+  }, [departments]);
+
 
   const handleOpenEditModal = (dept: Department) => {
     setDepartmentToEdit(dept);
@@ -486,7 +511,7 @@ export default function DepartmentsPage() {
         <CardHeader className="flex-row items-center justify-between">
           <div className="flex flex-col">
             <CardTitle>قائمة الأقسام (الأفواج)</CardTitle>
-            <CardDescription>هنا يمكنك عرض وإدارة جميع الأفواج.</CardDescription>
+            <CardDescription>هنا يمكنك عرض وإدارة جميع الأفواج مجمعة حسب المستوى.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={handlePrint} variant="outline" size="icon">
@@ -502,37 +527,48 @@ export default function DepartmentsPage() {
           <EditDepartmentForm department={departmentToEdit} open={isEditModalOpen} onOpenChange={setEditModalOpen} allStudents={allStudents} />
         </CardHeader>
         <CardContent>
-            {departments && departments.length > 0 ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {departments.map(dept => (
-                      <Card key={dept.id} className="flex flex-col">
-                        <CardHeader className="flex-row justify-between items-start">
-                            <div>
-                                <CardTitle className="text-lg">{dept.name}</CardTitle>
-                                <CardDescription>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</CardDescription>
-                            </div>
-                             <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(dept)}>
-                                    <Pencil className="h-4 w-4 text-blue-600"/>
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDeleteAlert(dept)}>
-                                    <Trash2 className="h-4 w-4 text-red-600"/>
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="flex flex-col gap-2 flex-grow">
-                            <ScrollArea className="h-48">
-                            {studentsByDepartment.get(dept.id)?.length > 0 ? studentsByDepartment.get(dept.id)?.map(student => (
-                              <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md text-sm">
-                                  <span>{student.lastName} {student.firstName}</span>
-                                  <Badge variant={student.gender === 'male' ? 'default' : 'secondary'} className={student.gender === 'female' ? 'bg-pink-200 text-pink-800' : ''}>
-                                      {student.gender === 'male' ? 'ذكر' : 'أنثى'}
-                                  </Badge>
-                              </div>
-                            )) : <p className="text-sm text-muted-foreground p-4 text-center">لا يوجد تلاميذ في هذا الفوج.</p>}
-                            </ScrollArea>
-                        </CardContent>
-                      </Card>
+            {isLoadingDepartments ? (
+                 <p className="text-muted-foreground text-center py-8">جاري تحميل الأقسام...</p>
+            ) : departments && departments.length > 0 ? (
+                <div className="space-y-8">
+                    {Array.from(departmentsByLevel.entries()).map(([level, depts]) => (
+                      <div key={level}>
+                          <h2 className="text-xl font-bold text-primary mb-4 pb-2 border-b-2 border-primary/20">
+                            أفواج {level}
+                          </h2>
+                          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {depts.map(dept => (
+                                <Card key={dept.id} className="flex flex-col">
+                                    <CardHeader className="flex-row justify-between items-start">
+                                        <div>
+                                            <CardTitle className="text-lg">{dept.name}</CardTitle>
+                                            <CardDescription>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</CardDescription>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(dept)}>
+                                                <Pencil className="h-4 w-4 text-blue-600"/>
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDeleteAlert(dept)}>
+                                                <Trash2 className="h-4 w-4 text-red-600"/>
+                                            </Button>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="flex flex-col gap-2 flex-grow">
+                                        <ScrollArea className="h-48">
+                                        {(studentsByDepartment.get(dept.id)?.length ?? 0) > 0 ? studentsByDepartment.get(dept.id)?.map(student => (
+                                        <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md text-sm">
+                                            <span>{student.lastName} {student.firstName}</span>
+                                            <Badge variant={student.gender === 'male' ? 'default' : 'secondary'} className={student.gender === 'female' ? 'bg-pink-200 text-pink-800' : ''}>
+                                                {student.gender === 'male' ? 'ذكر' : 'أنثى'}
+                                            </Badge>
+                                        </div>
+                                        )) : <p className="text-sm text-muted-foreground p-4 text-center">لا يوجد تلاميذ في هذا الفوج.</p>}
+                                        </ScrollArea>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                          </div>
+                      </div>
                     ))}
                 </div>
             ) : (
