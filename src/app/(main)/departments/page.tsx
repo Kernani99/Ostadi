@@ -222,74 +222,178 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     );
 }
 
+
 const editDepartmentSchema = z.object({
   name: z.string().min(1, "اسم القسم مطلوب"),
+  studentIds: z.array(z.string()).optional(),
 });
 type EditDepartmentFormValues = z.infer<typeof editDepartmentSchema>;
 
-// Component to edit department name
-function EditDepartmentForm({ department, open, onOpenChange }: { department: Department | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+function EditDepartmentForm({ department, open, onOpenChange, allStudents }: { department: Department | null, open: boolean, onOpenChange: (open: boolean) => void, allStudents: Student[] | null }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     
     const form = useForm<EditDepartmentFormValues>({
         resolver: zodResolver(editDepartmentSchema),
-        defaultValues: { name: '' }
+        defaultValues: { name: '', studentIds: [] }
     });
 
-    useEffect(() => {
-        if (department) {
-            form.reset({ name: department.name });
+    const { studentsInDept, unassignedStudentsInLevel, isLoadingStudents } = useMemo(() => {
+        if (!department || !allStudents) {
+            return { studentsInDept: [], unassignedStudentsInLevel: [], isLoadingStudents: true };
         }
-    }, [department, form, open]);
+        
+        const studentsInDept = allStudents.filter(s => s.departmentId === department.id);
+        const unassignedStudentsInLevel = allStudents.filter(s => 
+            s.institutionId === department.institutionId && 
+            s.level === department.level &&
+            !s.departmentId
+        );
+
+        return { studentsInDept, unassignedStudentsInLevel, isLoadingStudents: false };
+    }, [department, allStudents]);
+
+    useEffect(() => {
+        if (department && open) {
+            const studentIdsInDept = studentsInDept.map(s => s.id);
+            form.reset({ name: department.name, studentIds: studentIdsInDept });
+        }
+    }, [department, studentsInDept, form, open]);
 
     const onSubmit = async (data: EditDepartmentFormValues) => {
-        if (!department) return;
-        
+        if (!department || !firestore) return;
+
+        const batch = writeBatch(firestore);
         const deptRef = doc(firestore, 'departments', department.id);
+
+        // 1. Update department name if changed
+        if (department.name !== data.name) {
+            batch.update(deptRef, { name: data.name });
+        }
+
+        const initialStudentIds = new Set(studentsInDept.map(s => s.id));
+        const newStudentIds = new Set(data.studentIds || []);
+
+        // 2. Students to be removed from the department
+        for (const studentId of initialStudentIds) {
+            if (!newStudentIds.has(studentId)) {
+                const studentRef = doc(firestore, 'students', studentId);
+                batch.update(studentRef, { departmentId: null });
+            }
+        }
+
+        // 3. Students to be added to the department
+        for (const studentId of newStudentIds) {
+            if (!initialStudentIds.has(studentId)) {
+                const studentRef = doc(firestore, 'students', studentId);
+                batch.update(studentRef, { departmentId: department.id });
+            }
+        }
+
         try {
-            await updateDoc(deptRef, { name: data.name });
-            toast({ title: "تم التحديث بنجاح", description: `تم تغيير اسم القسم إلى ${data.name}.` });
+            await batch.commit();
+            toast({ title: "تم التحديث بنجاح", description: `تم تحديث بيانات القسم ${data.name}.` });
             onOpenChange(false);
         } catch (error) {
             console.error("Error updating department:", error);
-            toast({ title: "خطأ", description: "لم نتمكن من تحديث اسم القسم.", variant: "destructive" });
+            toast({ title: "خطأ", description: "لم نتمكن من تحديث القسم.", variant: "destructive" });
         }
     };
 
+    const availableStudents = useMemo(() => {
+        return [...studentsInDept, ...unassignedStudentsInLevel].sort((a, b) => a.lastName.localeCompare(b.lastName));
+    }, [studentsInDept, unassignedStudentsInLevel]);
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>تعديل اسم الفوج</DialogTitle>
+                    <DialogTitle>تعديل الفوج</DialogTitle>
+                     <DialogDescription>قم بتعديل اسم الفوج أو قائمة التلاميذ.</DialogDescription>
                 </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
+                {department ? (
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>اسم الفوج</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="اسم الفوج" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            
+                            <FormField
+                                control={form.control}
+                                name="studentIds"
+                                render={() => (
                                 <FormItem>
-                                    <FormLabel>اسم الفوج الجديد</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="أدخل الاسم الجديد" {...field} />
-                                    </FormControl>
+                                    <div className="mb-2">
+                                        <FormLabel>تلاميذ الفوج</FormLabel>
+                                        <p className="text-sm text-muted-foreground">حدد التلاميذ الذين ينتمون لهذا الفوج.</p>
+                                    </div>
+                                    <ScrollArea className="h-60 rounded-md border p-4">
+                                        {isLoadingStudents ? <p>جاري تحميل التلاميذ...</p> : 
+                                         availableStudents.length > 0 ?
+                                         availableStudents.map((student) => (
+                                            <FormField
+                                                key={student.id}
+                                                control={form.control}
+                                                name="studentIds"
+                                                render={({ field }) => {
+                                                return (
+                                                    <FormItem
+                                                        key={student.id}
+                                                        className="flex flex-row items-start space-x-3 space-y-0 rtl:space-x-reverse my-2"
+                                                    >
+                                                        <FormControl>
+                                                            <Checkbox
+                                                                checked={field.value?.includes(student.id)}
+                                                                onCheckedChange={(checked) => {
+                                                                    return checked
+                                                                    ? field.onChange([...(field.value || []), student.id])
+                                                                    : field.onChange(
+                                                                        field.value?.filter(
+                                                                            (value) => value !== student.id
+                                                                        )
+                                                                        )
+                                                                }}
+                                                            />
+                                                        </FormControl>
+                                                        <FormLabel className="font-normal">
+                                                            {student.lastName} {student.firstName}
+                                                            {studentsInDept.some(s => s.id === student.id) ? '' : <span className="text-xs text-muted-foreground"> (غير معين)</span>}
+                                                        </FormLabel>
+                                                    </FormItem>
+                                                )
+                                                }}
+                                            />
+                                        )) : <p>لا يوجد تلاميذ متاحون في هذا المستوى.</p>}
+                                    </ScrollArea>
                                     <FormMessage />
                                 </FormItem>
-                            )}
-                        />
-                        <DialogFooter>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
-                                {form.formState.isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-                                حفظ التعديل
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </Form>
+                                )}
+                            />
+
+                            <DialogFooter>
+                                <Button type="submit" disabled={form.formState.isSubmitting}>
+                                    {form.formState.isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                                    حفظ التعديلات
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                ) : <p>جاري تحميل بيانات القسم...</p>}
             </DialogContent>
         </Dialog>
     );
 }
+
 
 
 // Main component for the departments page
@@ -395,7 +499,7 @@ export default function DepartmentsPage() {
             </Button>
           </div>
           <AddDepartmentForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
-          <EditDepartmentForm department={departmentToEdit} open={isEditModalOpen} onOpenChange={setEditModalOpen} />
+          <EditDepartmentForm department={departmentToEdit} open={isEditModalOpen} onOpenChange={setEditModalOpen} allStudents={allStudents} />
         </CardHeader>
         <CardContent>
             {departments && departments.length > 0 ? (

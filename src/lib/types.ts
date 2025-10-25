@@ -15,6 +15,7 @@ export type Department = {
   id: string;
   name: string;
   institutionId: string;
+  level: string;
 };
 
 export type Institution = {
@@ -22,3 +23,5 @@ export type Institution = {
   name: string;
   municipality: string;
 };
+
+    
