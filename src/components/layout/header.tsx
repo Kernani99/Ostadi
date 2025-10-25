@@ -21,7 +21,6 @@ const navItems = [
   { href: "/students", label: "التلاميذ", icon: Users },
   { href: "/departments", label: "الأقسام", icon: Building2 },
   { href: "/attendance", label: "المناداة", icon: ClipboardList },
-  { href: "/reports", label: "التقارير", icon: BarChartHorizontalBig },
   { href: "/settings", label: "الإعدادات", icon: Settings },
 ];
 

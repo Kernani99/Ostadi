@@ -4,11 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore } from "@/firebase";
-import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText } from "lucide-react";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, User } from "lucide-react";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
-import type { Student } from "@/lib/types";
+import type { Student, Department, Institution } from "@/lib/types";
 import { useMemo, useState, type FC, useEffect, useRef } from "react";
 import * as XLSX from 'xlsx';
 import {
@@ -43,6 +43,7 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 const studentSchema = z.object({
   firstName: z.string().min(1, { message: "الإسم مطلوب" }),
@@ -52,6 +53,7 @@ const studentSchema = z.object({
   level: z.string().min(1, { message: "المستوى مطلوب" }),
   institutionId: z.string().min(1, { message: "المؤسسة مطلوبة" }),
   status: z.enum(['active', 'exempt'], { required_error: "الحالة مطلوبة" }),
+  departmentId: z.string().optional(),
 });
 
 type StudentFormValues = z.infer<typeof studentSchema>;
@@ -66,45 +68,52 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const firestore = useFirestore();
     const { toast } = useToast();
     const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
-    const { data: institutions } = useCollection(institutionsQuery);
+    const { data: institutions } = useCollection<Institution>(institutionsQuery);
+    const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
+    const { data: departments } = useCollection<Department>(departmentsQuery);
 
     const form = useForm<StudentFormValues>({
         resolver: zodResolver(studentSchema),
         defaultValues: student ? {
             ...student,
             dateOfBirth: student.dateOfBirth || '',
+            departmentId: student.departmentId || '',
         } : {
             firstName: '',
             lastName: '',
             dateOfBirth: '',
             level: '',
             institutionId: '',
+            departmentId: '',
         }
     });
 
     useEffect(() => {
-        if (student) {
-            form.reset({
-                ...student,
-                dateOfBirth: student.dateOfBirth || '',
-            });
-        } else {
-            form.reset({
-                 firstName: '',
-                lastName: '',
-                dateOfBirth: '',
-                level: '',
-                institutionId: '',
-                gender: undefined,
-                status: undefined,
-            });
+        if (open) {
+            if (student) {
+                form.reset({
+                    ...student,
+                    dateOfBirth: student.dateOfBirth || '',
+                    departmentId: student.departmentId || '',
+                });
+            } else {
+                form.reset({
+                    firstName: '',
+                    lastName: '',
+                    dateOfBirth: '',
+                    level: '',
+                    institutionId: '',
+                    gender: undefined,
+                    status: undefined,
+                    departmentId: '',
+                });
+            }
         }
     }, [student, form, open]);
     
 
     const onSubmit = (data: StudentFormValues) => {
         if (student) {
-            // Update existing student
             const studentDocRef = doc(firestore, 'students', student.id);
             setDocumentNonBlocking(studentDocRef, data, { merge: true });
             toast({
@@ -112,20 +121,18 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                 description: `تم تحديث بيانات التلميذ ${data.firstName} ${data.lastName}.`,
             });
         } else {
-            // Add new student
             addDocumentNonBlocking(collection(firestore, 'students'), data);
             toast({
                 title: "تم الحفظ بنجاح",
                 description: `تمت إضافة التلميذ ${data.firstName} ${data.lastName}.`,
             });
         }
-        form.reset();
         onOpenChange(false);
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{student ? 'تعديل بيانات التلميذ' : 'إضافة تلميذ جديد'}</DialogTitle>
                     <DialogDescription>
@@ -133,17 +140,15 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
                         <FormField
                             control={form.control}
                             name="lastName"
                             render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">اللقب</FormLabel>
-                                    <FormControl>
-                                        <Input {...field} className="col-span-3" />
-                                    </FormControl>
-                                    <FormMessage className="col-span-4" />
+                                <FormItem>
+                                    <FormLabel>اللقب</FormLabel>
+                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -151,12 +156,10 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             control={form.control}
                             name="firstName"
                             render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">الإسم</FormLabel>
-                                    <FormControl>
-                                        <Input {...field} className="col-span-3" />
-                                    </FormControl>
-                                    <FormMessage className="col-span-4" />
+                                <FormItem>
+                                    <FormLabel>الإسم</FormLabel>
+                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -164,12 +167,10 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             control={form.control}
                             name="dateOfBirth"
                             render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">تاريخ الميلاد</FormLabel>
-                                    <FormControl>
-                                        <Input {...field} type="date" className="col-span-3" />
-                                    </FormControl>
-                                    <FormMessage className="col-span-4" />
+                                <FormItem>
+                                    <FormLabel>تاريخ الميلاد</FormLabel>
+                                    <FormControl><Input {...field} type="date" /></FormControl>
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -177,20 +178,16 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             control={form.control}
                             name="gender"
                             render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">الجنس</FormLabel>
+                                <FormItem>
+                                    <FormLabel>الجنس</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger className="col-span-3">
-                                                <SelectValue placeholder="اختر الجنس" />
-                                            </SelectTrigger>
-                                        </FormControl>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر الجنس" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             <SelectItem value="male">ذكر</SelectItem>
                                             <SelectItem value="female">أنثى</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <FormMessage className="col-span-4" />
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -198,14 +195,10 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             control={form.control}
                             name="level"
                             render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">المستوى</FormLabel>
+                                <FormItem>
+                                    <FormLabel>المستوى</FormLabel>
                                      <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger className="col-span-3">
-                                                <SelectValue placeholder="اختر المستوى" />
-                                            </SelectTrigger>
-                                        </FormControl>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
                                             <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
@@ -214,7 +207,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                                             <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <FormMessage className="col-span-4" />
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -222,21 +215,15 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             control={form.control}
                             name="institutionId"
                             render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">المؤسسة</FormLabel>
+                                <FormItem>
+                                    <FormLabel>المؤسسة</FormLabel>
                                      <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger className="col-span-3">
-                                                <SelectValue placeholder="اختر المؤسسة" />
-                                            </SelectTrigger>
-                                        </FormControl>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl>
                                         <SelectContent>
-                                            {institutions?.map(inst => (
-                                                <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
-                                            ))}
+                                            {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
-                                    <FormMessage className="col-span-4" />
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -244,24 +231,37 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             control={form.control}
                             name="status"
                             render={({ field }) => (
-                                <FormItem className="grid grid-cols-4 items-center gap-4">
-                                    <FormLabel className="text-right">الحالة</FormLabel>
+                                <FormItem>
+                                    <FormLabel>الحالة</FormLabel>
                                      <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger className="col-span-3">
-                                                <SelectValue placeholder="اختر الحالة" />
-                                            </SelectTrigger>
-                                        </FormControl>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl>
                                         <SelectContent>
                                             <SelectItem value="active">يمارس</SelectItem>
                                             <SelectItem value="exempt">معفي</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <FormMessage className="col-span-4" />
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
-                        <DialogFooter>
+                         <FormField
+                            control={form.control}
+                            name="departmentId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>القسم (اختياري)</FormLabel>
+                                     <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="">بلا قسم</SelectItem>
+                                            {departments?.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter className="col-span-1 md:col-span-2">
                             <Button type="submit">{student ? 'حفظ التعديلات' : 'حفظ التلميذ'}</Button>
                         </DialogFooter>
                     </form>
@@ -278,7 +278,7 @@ export default function StudentsPage() {
   const studentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
   const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
-  const { data: institutions } = useCollection(institutionsQuery);
+  const { data: institutions } = useCollection<Institution>(institutionsQuery);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -287,6 +287,17 @@ export default function StudentsPage() {
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+
+  const stats = useMemo(() => {
+    if (!students) return { total: 0, males: 0, females: 0, active: 0, exempt: 0 };
+    return {
+        total: students.length,
+        males: students.filter(s => s.gender === 'male').length,
+        females: students.filter(s => s.gender === 'female').length,
+        active: students.filter(s => s.status === 'active').length,
+        exempt: students.filter(s => s.status === 'exempt').length,
+    }
+  }, [students]);
 
 
   const institutionMap = useMemo(() => {
@@ -370,7 +381,7 @@ export default function StudentsPage() {
       'تاريخ الميلاد': student.dateOfBirth ?? '',
       'المستوى': student.level ?? '',
       'الجنس': student.gender === 'male' ? 'ذكر' : 'أنثى',
-      'المؤسسة': institutionMap.get(student.institutionId) ?? '',
+      'المؤسسة': institutionMap.get(student.institutionId) ?? student.institutionId,
       'الحالة': student.status === 'active' ? 'يمارس' : 'معفي',
     }));
 
@@ -412,46 +423,27 @@ export default function StudentsPage() {
             const workbook = XLSX.read(data, { type: 'binary' });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
-            const importedStudents: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-            // Assuming first row is headers
-            const headers = importedStudents[0];
-            const dataRows = importedStudents.slice(1);
+            const importedStudents: any[] = XLSX.utils.sheet_to_json(worksheet);
 
             const batch = writeBatch(firestore);
             let count = 0;
             
             const institutionsMapByName = new Map(institutions?.map(inst => [inst.name.toLowerCase(), inst.id]));
 
-            dataRows.forEach(row => {
-                const studentData:any = {};
-                headers.forEach((header: string, index: number) => {
-                    const normalizedHeader = header.trim().toLowerCase();
-                    if(normalizedHeader === 'اللقب') studentData.lastName = row[index];
-                    else if(normalizedHeader === 'الإسم') studentData.firstName = row[index];
-                    else if(normalizedHeader === 'تاريخ الميلاد') studentData.dateOfBirth = row[index];
-                    else if(normalizedHeader === 'الجنس') studentData.gender = row[index] === 'ذكر' ? 'male' : 'female';
-                    else if(normalizedHeader === 'المستوى') studentData.level = row[index];
-                    else if(normalizedHeader === 'المؤسسة') {
-                        // Support both ID and name for institution
-                        const instValue = row[index]?.toString().toLowerCase();
-                        studentData.institutionId = institutionsMapByName.get(instValue) || instValue;
-                    }
-                    else if(normalizedHeader === 'الحالة') studentData.status = row[index] === 'يمارس' ? 'active' : 'exempt';
-                });
+            importedStudents.forEach(row => {
+                const studentData = {
+                    lastName: row['اللقب'] || '',
+                    firstName: row['الإسم'] || '',
+                    dateOfBirth: row['تاريخ الميلاد'] || '',
+                    gender: (row['الجنس'] === 'ذكر' ? 'male' : (row['الجنس'] === 'أنثى' ? 'female' : 'male')),
+                    level: row['المستوى'] || '',
+                    institutionId: institutionsMapByName.get(row['المؤسسة']?.toString().toLowerCase()) || row['المؤسسة'] || '',
+                    status: (row['الحالة'] === 'يمارس' ? 'active' : (row['الحالة'] === 'معفي' ? 'exempt' : 'active')),
+                };
 
-                // Basic validation
                 if (studentData.firstName && studentData.lastName && studentData.institutionId) {
                     const newStudentRef = doc(collection(firestore, 'students'));
-                    batch.set(newStudentRef, {
-                      firstName: studentData.firstName || '',
-                      lastName: studentData.lastName || '',
-                      dateOfBirth: studentData.dateOfBirth || '',
-                      gender: studentData.gender === 'male' || studentData.gender === 'female' ? studentData.gender : 'male',
-                      level: studentData.level || '',
-                      institutionId: studentData.institutionId || '',
-                      status: studentData.status === 'active' || studentData.status === 'exempt' ? studentData.status : 'active',
-                    });
+                    batch.set(newStudentRef, studentData);
                     count++;
                 }
             });
@@ -461,7 +453,7 @@ export default function StudentsPage() {
                     toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ.` });
                 }).catch(err => {
                     console.error(err);
-                    toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ. تأكد من صحة معرفات المؤسسة.", variant: "destructive" });
+                    toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ. تأكد من صحة أسماء المؤسسات.", variant: "destructive" });
                 });
             } else {
                 toast({ title: "لا توجد بيانات صالحة للاستيراد", description: "يرجى التحقق من تنسيق الملف ومحتواه.", variant: "destructive" });
@@ -472,10 +464,8 @@ export default function StudentsPage() {
         }
     };
     reader.readAsBinaryString(file);
-    
-    // Reset file input
     if(fileInputRef.current) fileInputRef.current.value = '';
-};
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -486,6 +476,14 @@ export default function StudentsPage() {
         </h1>
       </div>
 
+       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <StatCard title="إجمالي التلاميذ" value={stats.total} icon={Users} />
+            <StatCard title="عدد الذكور" value={stats.males} icon={User} />
+            <StatCard title="عدد الإناث" value={stats.females} icon={User} />
+            <StatCard title="التلاميذ الممارسون" value={stats.active} icon={Activity} />
+            <StatCard title="التلاميذ المعفيون" value={stats.exempt} icon={ShieldOff} />
+        </div>
+
       <Card className="shadow-md">
         <CardContent className="p-4 flex flex-wrap items-center gap-2">
             <Button onClick={handleAddNew} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
@@ -495,11 +493,11 @@ export default function StudentsPage() {
             <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
            <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileText className="me-2" />
-            تحميل الكل
+            تحميل الكل (Excel)
           </Button>
           <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileUp className="me-2" />
-            استيراد
+            استيراد (Excel)
           </Button>
           <input 
             type="file" 
