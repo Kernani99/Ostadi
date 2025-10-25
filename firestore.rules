@@ -1,142 +1,97 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset is in prototyping mode, data shape validation will be skipped.
+ * @description This ruleset configures access control for a school management application.
  *
  * Core Philosophy:
- * All collections are publicly readable. Write access requires authentication.
+ * The application is currently configured for public read and write access, due to the user request to disable authentication.
  *
  * Data Structure:
- * - /institutions/{institutionId}: Stores institution data.
- * - /departments/{departmentId}: Stores department data.
- * - /students/{studentId}: Stores student data.
- * - /attendances/{attendanceId}: Stores attendance records.
- * - /evaluation_criteria/{evaluationCriteriaId}: Stores evaluation criteria.
- * - /grades/{gradeId}: Stores grades.
- * - /professor_profile/{profileId}: Stores professor profile data.
+ * The Firestore database contains collections for institutions, departments, students, attendances, evaluation criteria, grades, and professor profiles.
+ * There are no user-scoped subcollections.
  *
  * Key Security Decisions:
- * - Public read access is enabled for all collections.
- * - All write operations require the user to be authenticated.
+ * All read and write operations are currently open to all users, including unauthenticated users.
  *
- * Access Control Pattern: Public Read with Authenticated Writes. All collections follow this pattern.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows anyone to read institution data, but only authenticated users can write.
+     * @description Allows read and write access to the institutions collection for all users.
      * @path /institutions/{institutionId}
-     * @allow (get, list): Any user can read.
-     * @allow (create, update, delete): Only authenticated users can write.
-     * @deny (create, update, delete): If the user is not authenticated.
-     * @principle Allows public reads with authenticated writes.
+     * @allow (get, list, create, update, delete) Any user can read or write institution data.
+     * @principle Grants public access to institution data.
      */
     match /institutions/{institutionId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read department data, but only authenticated users can write.
+     * @description Allows read and write access to the departments collection for all users.
      * @path /departments/{departmentId}
-     * @allow (get, list): Any user can read.
-     * @allow (create, update, delete): Only authenticated users can write.
-     * @deny (create, update, delete): If the user is not authenticated.
-     * @principle Allows public reads with authenticated writes.
+     * @allow (get, list, create, update, delete) Any user can read or write department data.
+     * @principle Grants public access to department data.
      */
     match /departments/{departmentId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read student data, but only authenticated users can write.
+     * @description Allows read and write access to the students collection for all users.
      * @path /students/{studentId}
-     * @allow (get, list): Any user can read.
-     * @allow (create, update, delete): Only authenticated users can write.
-     * @deny (create, update, delete): If the user is not authenticated.
-     * @principle Allows public reads with authenticated writes.
+     * @allow (get, list, create, update, delete) Any user can read or write student data.
+     * @principle Grants public access to student data.
      */
     match /students/{studentId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read attendance data, but only authenticated users can write.
+     * @description Allows read and write access to the attendances collection for all users.
      * @path /attendances/{attendanceId}
-     * @allow (get, list): Any user can read.
-     * @allow (create, update, delete): Only authenticated users can write.
-     * @deny (create, update, delete): If the user is not authenticated.
-     * @principle Allows public reads with authenticated writes.
+     * @allow (get, list, create, update, delete) Any user can read or write attendance data.
+     * @principle Grants public access to attendance data.
      */
     match /attendances/{attendanceId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read evaluation criteria data, but only authenticated users can write.
+     * @description Allows read and write access to the evaluation_criteria collection for all users.
      * @path /evaluation_criteria/{evaluationCriteriaId}
-     * @allow (get, list): Any user can read.
-     * @allow (create, update, delete): Only authenticated users can write.
-     * @deny (create, update, delete): If the user is not authenticated.
-     * @principle Allows public reads with authenticated writes.
+     * @allow (get, list, create, update, delete) Any user can read or write evaluation criteria data.
+     * @principle Grants public access to evaluation criteria data.
      */
     match /evaluation_criteria/{evaluationCriteriaId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read grade data, but only authenticated users can write.
+     * @description Allows read and write access to the grades collection for all users.
      * @path /grades/{gradeId}
-     * @allow (get, list): Any user can read.
-     * @allow (create, update, delete): Only authenticated users can write.
-     * @deny (create, update, delete): If the user is not authenticated.
-     * @principle Allows public reads with authenticated writes.
+     * @allow (get, list, create, update, delete) Any user can read or write grade data.
+     * @principle Grants public access to grade data.
      */
     match /grades/{gradeId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read professor profile data, but only authenticated users can write.
+     * @description Allows read and write access to the professor_profile collection for all users.
      * @path /professor_profile/{profileId}
-     * @allow (get, list): Any user can read.
-     * @allow (create, update, delete): Only authenticated users can write.
-     * @deny (create, update, delete): If the user is not authenticated.
-     * @principle Allows public reads with authenticated writes.
+     * @allow (get, list, create, update, delete) Any user can read or write professor profile data.
+     * @principle Grants public access to professor profile data.
      */
     match /professor_profile/{profileId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && resource != null;
-      allow delete: if isSignedIn() && resource != null;
-    }
-
-    // ===================== Helper functions =====================
-
-    /**
-     * @description Checks if the user is signed in.
-     * @return True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
+      allow create, update, delete: if true;
     }
   }
 }
