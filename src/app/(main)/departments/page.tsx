@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from "@/components/ui/button";
@@ -7,20 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore } from "@/firebase";
-import { collection, doc, query, where, writeBatch, getDocs } from "firebase/firestore";
+import { collection, doc, query, where, writeBatch, getDocs, updateDoc } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Department, Institution } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Users, UserPlus } from "lucide-react";
+import { Loader2, Users, UserPlus, Trash2, Pencil, Printer } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
+import Link from 'next/link';
 
 // Schema for adding a new department
 const departmentSchema = z.object({
@@ -39,31 +40,31 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     const [selectedLevel, setSelectedLevel] = useState('');
     const [selectedInstitution, setSelectedInstitution] = useState('');
 
+    const form = useForm<DepartmentFormValues>({
+        resolver: zodResolver(departmentSchema),
+        defaultValues: { name: '', institutionId: '', level: '', studentIds: [] }
+    });
+    
     const unassignedStudentsQuery = useMemoFirebase(() => {
         if (!firestore || !selectedLevel || !selectedInstitution) return null;
-        // This query is intentionally incorrect for demonstration of a more complex scenario.
-        // A real-world query might look different.
         return query(
           collection(firestore, 'students'),
           where('institutionId', '==', selectedInstitution),
           where('level', '==', selectedLevel)
-          // Ideally, we'd also query for `where('departmentId', '==', null)`
-          // but Firestore limitations on `not-in` or `!=` queries make this complex.
-          // We'll filter client-side instead.
         );
       }, [firestore, selectedLevel, selectedInstitution]);
 
     const { data: studentsFromLevel, isLoading: isLoadingStudents } = useCollection<Student>(unassignedStudentsQuery);
 
+     const allDepartmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
+     const { data: allDepartments } = useCollection<Department>(allDepartmentsQuery);
+
     const unassignedStudents = useMemo(() => {
-        return studentsFromLevel?.filter(student => !student.departmentId);
+        if (!studentsFromLevel) return [];
+        // Further filter out students who already have a departmentId
+        return studentsFromLevel.filter(student => !student.departmentId);
     }, [studentsFromLevel]);
 
-
-    const form = useForm<DepartmentFormValues>({
-        resolver: zodResolver(departmentSchema),
-        defaultValues: { name: '', institutionId: '', level: '', studentIds: [] }
-    });
 
     useEffect(() => {
         if (open) {
@@ -111,7 +112,7 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>المؤسسة</FormLabel>
-                                        <Select onValueChange={(value) => { field.onChange(value); setSelectedInstitution(value); }} value={field.value}>
+                                        <Select onValueChange={(value) => { field.onChange(value); setSelectedInstitution(value); form.setValue('level', ''); setSelectedLevel(''); }} value={field.value}>
                                             <FormControl><SelectTrigger><SelectValue placeholder="اختر مؤسسة" /></SelectTrigger></FormControl>
                                             <SelectContent>
                                                 {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
@@ -160,8 +161,10 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
                                 name="studentIds"
                                 render={() => (
                                 <FormItem>
-                                    <FormLabel>اختر التلاميذ</FormLabel>
-                                    <p className="text-sm text-muted-foreground">قائمة التلاميذ غير المعينين في هذا المستوى.</p>
+                                    <div className="mb-2">
+                                        <FormLabel>اختر التلاميذ</FormLabel>
+                                        <p className="text-sm text-muted-foreground">قائمة التلاميذ غير المعينين في هذا المستوى.</p>
+                                    </div>
                                     <ScrollArea className="h-60 rounded-md border p-4">
                                         {isLoadingStudents ? <p>جاري تحميل التلاميذ...</p> : 
                                          unassignedStudents && unassignedStudents.length > 0 ?
@@ -219,11 +222,71 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     );
 }
 
+// Component to edit department name
+function EditDepartmentForm({ department, open, onOpenChange }: { department: Department | null, open: boolean, onOpenChange: (open: boolean) => void }) {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [name, setName] = useState('');
+    const [isSubmitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (department) {
+            setName(department.name);
+        }
+    }, [department]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!department || !name.trim()) return;
+        setSubmitting(true);
+        const deptRef = doc(firestore, 'departments', department.id);
+        try {
+            await updateDoc(deptRef, { name: name.trim() });
+            toast({ title: "تم التحديث بنجاح", description: `تم تغيير اسم القسم إلى ${name.trim()}.` });
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error updating department:", error);
+            toast({ title: "خطأ", description: "لم نتمكن من تحديث اسم القسم.", variant: "destructive" });
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>تعديل اسم الفوج</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <FormItem>
+                        <FormLabel>اسم الفوج الجديد</FormLabel>
+                        <FormControl>
+                            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="أدخل الاسم الجديد" />
+                        </FormControl>
+                    </FormItem>
+                    <DialogFooter>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                            حفظ التعديل
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 // Main component for the departments page
 export default function DepartmentsPage() {
   const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [departmentToEdit, setDepartmentToEdit] = useState<Department | null>(null);
+  const [departmentToDelete, setDepartmentToDelete] = useState<Department | null>(null);
+  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
   const { data: departments } = useCollection<Department>(departmentsQuery);
@@ -247,9 +310,50 @@ export default function DepartmentsPage() {
     });
 
     return map;
-
   }, [allStudents, departments]);
 
+  const handleOpenEditModal = (dept: Department) => {
+    setDepartmentToEdit(dept);
+    setEditModalOpen(true);
+  }
+
+  const handleOpenDeleteAlert = (dept: Department) => {
+    setDepartmentToDelete(dept);
+    setDeleteAlertOpen(true);
+  }
+
+  const confirmDelete = async () => {
+    if (!departmentToDelete || !firestore) return;
+
+    const studentsInDept = studentsByDepartment.get(departmentToDelete.id) || [];
+    const batch = writeBatch(firestore);
+
+    // Delete the department document
+    const deptRef = doc(firestore, 'departments', departmentToDelete.id);
+    batch.delete(deptRef);
+
+    // Unassign students from this department
+    studentsInDept.forEach(student => {
+        const studentRef = doc(firestore, 'students', student.id);
+        batch.update(studentRef, { departmentId: null });
+    });
+
+    try {
+        await batch.commit();
+        toast({ title: "تم الحذف", description: `تم حذف القسم ${departmentToDelete.name} بنجاح.` });
+    } catch (error) {
+        console.error("Error deleting department:", error);
+        toast({ title: "خطأ", description: "حدث خطأ أثناء حذف القسم.", variant: "destructive" });
+    } finally {
+        setDeleteAlertOpen(false);
+        setDepartmentToDelete(null);
+    }
+  };
+  
+  const handlePrint = () => {
+    const printWindow = window.open('/departments/print', '_blank');
+    printWindow?.focus();
+  }
 
   return (
     <div className="container mx-auto p-4 space-y-8">
@@ -266,22 +370,39 @@ export default function DepartmentsPage() {
             <CardTitle>قائمة الأقسام (الأفواج)</CardTitle>
             <CardDescription>هنا يمكنك عرض وإدارة جميع الأفواج.</CardDescription>
           </div>
-          <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
-            <UserPlus className="me-2"/>
-            إضافة فوج
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handlePrint} variant="outline" size="icon">
+                <Printer className="h-5 w-5"/>
+                <span className="sr-only">طباعة</span>
+            </Button>
+            <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+                <UserPlus className="me-2"/>
+                إضافة فوج
+            </Button>
+          </div>
           <AddDepartmentForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
+          <EditDepartmentForm department={departmentToEdit} open={isEditModalOpen} onOpenChange={setEditModalOpen} />
         </CardHeader>
         <CardContent>
             {departments && departments.length > 0 ? (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {departments.map(dept => (
-                      <Card key={dept.id}>
-                        <CardHeader>
-                            <CardTitle className="text-lg">{dept.name}</CardTitle>
-                            <CardDescription>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</CardDescription>
+                      <Card key={dept.id} className="flex flex-col">
+                        <CardHeader className="flex-row justify-between items-start">
+                            <div>
+                                <CardTitle className="text-lg">{dept.name}</CardTitle>
+                                <CardDescription>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</CardDescription>
+                            </div>
+                             <div className="flex gap-1">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(dept)}>
+                                    <Pencil className="h-4 w-4 text-blue-600"/>
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDeleteAlert(dept)}>
+                                    <Trash2 className="h-4 w-4 text-red-600"/>
+                                </Button>
+                            </div>
                         </CardHeader>
-                        <CardContent className="flex flex-col gap-2">
+                        <CardContent className="flex flex-col gap-2 flex-grow">
                             <ScrollArea className="h-48">
                             {studentsByDepartment.get(dept.id)?.length > 0 ? studentsByDepartment.get(dept.id)?.map(student => (
                               <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md text-sm">
@@ -301,6 +422,23 @@ export default function DepartmentsPage() {
             )}
         </CardContent>
       </Card>
+      
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>هل أنت متأكد من الحذف؟</AlertDialogTitle>
+                <AlertDialogDescription>
+                    هذا الإجراء لا يمكن التراجع عنه. سيؤدي هذا إلى حذف الفوج بشكل دائم، وسيتم إلغاء تعيين التلاميذ منه.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDelete}>تأكيد الحذف</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
+    
