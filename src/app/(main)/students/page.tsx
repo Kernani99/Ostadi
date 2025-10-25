@@ -4,12 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore } from "@/firebase";
-import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Printer } from "lucide-react";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText } from "lucide-react";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
 import type { Student } from "@/lib/types";
-import { useMemo, useState, type FC, useEffect } from "react";
+import { useMemo, useState, type FC, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,7 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
+import Papa from 'papaparse';
 
 const studentSchema = z.object({
   firstName: z.string().min(1, { message: "الإسم مطلوب" }),
@@ -278,6 +279,7 @@ export default function StudentsPage() {
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
   const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
   const { data: institutions } = useCollection(institutionsQuery);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setFormOpen] = useState(false);
@@ -361,13 +363,23 @@ export default function StudentsPage() {
     }
   };
 
+  const downloadCSV = (content: string, fileName: string) => {
+    const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const exportToCSV = (data: Student[], fileName: string) => {
     const csvRows = [
-        // Headers
         ['اللقب', 'الإسم', 'المستوى', 'الجنس', 'المؤسسة', 'الحالة'].join(','),
     ];
 
-    // Data rows
     data.forEach(student => {
         const row = [
             `"${student.lastName}"`,
@@ -379,27 +391,76 @@ export default function StudentsPage() {
         ].join(',');
         csvRows.push(row);
     });
-
-    const csvString = csvRows.join('\n');
-    const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    
+    downloadCSV(csvRows.join('\n'), fileName);
   };
 
   const handleExportSelected = () => {
     const selectedData = students?.filter(s => selectedStudents.has(s.id)) || [];
     if (selectedData.length > 0) {
-        exportToCSV(selectedData, 'selected_students.csv');
+        exportToCSV(selectedData, 'قائمة_التلاميذ_المحددين.csv');
     } else {
         toast({ title: "لا توجد بيانات", description: "الرجاء تحديد التلاميذ للتصدير." });
     }
   };
+  
+    const handleDownloadTemplate = () => {
+        const headers = ['firstName', 'lastName', 'dateOfBirth', 'gender', 'level', 'institutionId', 'status'].join(',');
+        downloadCSV(headers, 'template.csv');
+    };
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const importedStudents = results.data as any[];
+                const batch = writeBatch(firestore);
+                let count = 0;
+
+                importedStudents.forEach(studentData => {
+                    // Basic validation
+                    if (studentData.firstName && studentData.lastName && studentData.institutionId) {
+                        const newStudentRef = doc(collection(firestore, 'students'));
+                        batch.set(newStudentRef, {
+                          firstName: studentData.firstName || '',
+                          lastName: studentData.lastName || '',
+                          dateOfBirth: studentData.dateOfBirth || '',
+                          gender: studentData.gender === 'male' || studentData.gender === 'female' ? studentData.gender : 'male',
+                          level: studentData.level || '',
+                          institutionId: studentData.institutionId || '',
+                           status: studentData.status === 'active' || studentData.status === 'exempt' ? studentData.status : 'active',
+                        });
+                        count++;
+                    }
+                });
+
+                if (count > 0) {
+                    batch.commit().then(() => {
+                        toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ.` });
+                    }).catch(err => {
+                        console.error(err);
+                        toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ.", variant: "destructive" });
+                    });
+                } else {
+                    toast({ title: "لا توجد بيانات صالحة للاستيراد", variant: "destructive" });
+                }
+            },
+            error: (error) => {
+                 toast({ title: "خطأ في قراءة الملف", description: error.message, variant: "destructive" });
+            }
+        });
+        
+        // Reset file input
+        event.target.value = '';
+    };
 
   return (
     <div className="flex flex-col gap-6">
@@ -417,23 +478,26 @@ export default function StudentsPage() {
               تسجيل تلميذ
             </Button>
             <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
-           <Button variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+           <Button onClick={handleDownloadTemplate} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileText className="me-2" />
-            تحميل نموذج Excel
+            تحميل نموذج
           </Button>
-          <Button variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+          <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileUp className="me-2" />
             استيراد
           </Button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileImport}
+            className="hidden" 
+            accept=".csv"
+          />
           {selectedStudents.size > 0 && (
              <>
                 <Button variant="destructive" onClick={handleDeleteSelected} className="rounded-full">
                     <Trash2 className="me-2" />
                     حذف المحدد ({selectedStudents.size})
-                </Button>
-                <Button variant="outline" onClick={handleExportSelected} className="rounded-full">
-                    <Printer className="me-2" />
-                    طباعة المحدد ({selectedStudents.size})
                 </Button>
                  <Button variant="outline" onClick={handleExportSelected} className="rounded-full">
                     <FileDown className="me-2" />
@@ -527,3 +591,5 @@ export default function StudentsPage() {
     </div>
   );
 }
+
+    
