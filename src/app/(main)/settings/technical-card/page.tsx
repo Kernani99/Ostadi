@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -93,7 +94,12 @@ export default function TechnicalCardPage() {
     }, [profileData, form]);
 
     function onSubmit(data: TechnicalCardFormValues) {
-        setDocumentNonBlocking(profileDocRef, data, { merge: true });
+        // Sanitize data: replace undefined with empty strings
+        const sanitizedData = Object.fromEntries(
+            Object.entries(data).map(([key, value]) => [key, value === undefined ? '' : value])
+        );
+
+        setDocumentNonBlocking(profileDocRef, sanitizedData, { merge: true });
         toast({
             title: "تم الحفظ بنجاح",
             description: "تم تحديث بيانات البطاقة الفنية.",
