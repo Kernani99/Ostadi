@@ -1,0 +1,277 @@
+{
+  "entities": {
+    "Institution": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Institution",
+      "type": "object",
+      "description": "Represents an educational institution.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the institution."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the institution."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Department": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Department",
+      "type": "object",
+      "description": "Represents a department within an institution.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the department."
+        },
+        "institutionId": {
+          "type": "string",
+          "description": "Reference to Institution. (Relationship: Institution 1:N Department)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the department."
+        }
+      },
+      "required": [
+        "id",
+        "institutionId",
+        "name"
+      ]
+    },
+    "Student": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Student",
+      "type": "object",
+      "description": "Represents a student enrolled in a department.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the student."
+        },
+        "departmentId": {
+          "type": "string",
+          "description": "Reference to Department. (Relationship: Department 1:N Student)"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name of the student."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the student."
+        },
+        "gender": {
+          "type": "string",
+          "description": "Gender of the student (male/female)."
+        }
+      },
+      "required": [
+        "id",
+        "departmentId",
+        "firstName",
+        "lastName",
+        "gender"
+      ]
+    },
+    "Attendance": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Attendance",
+      "type": "object",
+      "description": "Represents the attendance record of a student.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the attendance record."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N Attendance)"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the attendance record.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Attendance status (present, excused, unexcused, late)."
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "date",
+        "status"
+      ]
+    },
+    "EvaluationCriteria": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EvaluationCriteria",
+      "type": "object",
+      "description": "Represents criteria used for evaluating students.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the evaluation criteria."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the evaluation criteria (e.g., Skill, Behavior, Participation)."
+        },
+        "weight": {
+          "type": "number",
+          "description": "Weight of the evaluation criteria."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "weight"
+      ]
+    },
+    "Grade": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Grade",
+      "type": "object",
+      "description": "Represents a student's grade for a specific evaluation criteria.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the grade."
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N Grade)"
+        },
+        "evaluationCriteriaId": {
+          "type": "string",
+          "description": "Reference to EvaluationCriteria. (Relationship: EvaluationCriteria 1:N Grade)"
+        },
+        "grade": {
+          "type": "number",
+          "description": "The grade value."
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "evaluationCriteriaId",
+        "grade"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/institutions/{institutionId}",
+        "definition": {
+          "entityName": "Institution",
+          "schema": {
+            "$ref": "#/backend/entities/Institution"
+          },
+          "description": "Stores institution data. No authentication is needed.",
+          "params": [
+            {
+              "name": "institutionId",
+              "description": "The unique identifier for the institution."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/departments/{departmentId}",
+        "definition": {
+          "entityName": "Department",
+          "schema": {
+            "$ref": "#/backend/entities/Department"
+          },
+          "description": "Stores department data.  No authentication is needed.",
+          "params": [
+            {
+              "name": "departmentId",
+              "description": "The unique identifier for the department."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/students/{studentId}",
+        "definition": {
+          "entityName": "Student",
+          "schema": {
+            "$ref": "#/backend/entities/Student"
+          },
+          "description": "Stores student data. No authentication is needed.",
+          "params": [
+            {
+              "name": "studentId",
+              "description": "The unique identifier for the student."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/attendances/{attendanceId}",
+        "definition": {
+          "entityName": "Attendance",
+          "schema": {
+            "$ref": "#/backend/entities/Attendance"
+          },
+          "description": "Stores attendance records. No authentication is needed.",
+          "params": [
+            {
+              "name": "attendanceId",
+              "description": "The unique identifier for the attendance record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/evaluation_criteria/{evaluationCriteriaId}",
+        "definition": {
+          "entityName": "EvaluationCriteria",
+          "schema": {
+            "$ref": "#/backend/entities/EvaluationCriteria"
+          },
+          "description": "Stores evaluation criteria. No authentication is needed.",
+          "params": [
+            {
+              "name": "evaluationCriteriaId",
+              "description": "The unique identifier for the evaluation criteria."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/grades/{gradeId}",
+        "definition": {
+          "entityName": "Grade",
+          "schema": {
+            "$ref": "#/backend/entities/Grade"
+          },
+          "description": "Stores grades. No authentication is needed.",
+          "params": [
+            {
+              "name": "gradeId",
+              "description": "The unique identifier for the grade."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to efficiently manage institutions, departments, students, attendance, evaluation criteria, and grades for the STAPS Manager application. Prioritizing Authorization Independence, the structure leverages path-based ownership where appropriate (e.g., users and their related data) and carefully segregates data with differing access requirements. Since the application does not have login functionality, all data is accessible to anyone. Each entity has its collection.\n\nTo support the required statistics on the dashboard, the Student entity includes the 'gender' field to allow quick aggregation of male and female student counts. The Institution entity allows for managing multiple institutions. The Department entity links departments to specific institutions.\n\nThe data model supports core app features, including student management, department management, attendance tracking, report generation, and settings configuration."
+  }
+}
