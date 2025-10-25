@@ -38,7 +38,7 @@ export default function AttendancePage() {
     );
     
     const studentsQuery = useMemoFirebase(() => 
-        selectedInstitution && selectedLevel ? 
+        firestore && selectedInstitution && selectedLevel ? 
         query(
             collection(firestore, 'students'), 
             where('institutionId', '==', selectedInstitution),
@@ -51,7 +51,7 @@ export default function AttendancePage() {
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const attendanceQuery = useMemoFirebase(() =>
-        studentIds.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', '==', monthStr)) : null
+        firestore && studentIds.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', '==', monthStr)) : null
     , [firestore, studentIds, monthStr]);
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
     
@@ -135,7 +135,7 @@ export default function AttendancePage() {
         <div className="container mx-auto p-4 space-y-6">
             <div className="flex flex-col items-center gap-2">
                 <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحضور والغياب)
+                المناداة (الحضورو الغياب)
                 <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
                 </h1>
             </div>
@@ -256,3 +256,5 @@ export default function AttendancePage() {
         </div>
     );
 }
+
+    

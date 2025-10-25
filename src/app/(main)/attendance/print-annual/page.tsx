@@ -45,14 +45,14 @@ function PrintAnnualContent() {
     const { data: institution, isLoading: loadingInstitution } = useDoc<Institution>(institutionDocRef);
 
     const studentsQuery = useMemoFirebase(() => 
-        institutionId && level ? query(collection(firestore, 'students'), where('institutionId', '==', institutionId), where('level', '==', level)) : null
+        firestore && institutionId && level ? query(collection(firestore, 'students'), where('institutionId', '==', institutionId), where('level', '==', level)) : null
     , [firestore, institutionId, level]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
     
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const attendanceQuery = useMemoFirebase(() =>
-        studentIds.length > 0 && schoolMonthStrings.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', 'in', schoolMonthStrings)) : null
+        firestore && studentIds.length > 0 && schoolMonthStrings.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', 'in', schoolMonthStrings)) : null
     , [firestore, studentIds]);
 
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
@@ -192,3 +192,5 @@ export default function PrintAnnualAttendancePage() {
         </Suspense>
     );
 }
+
+    
