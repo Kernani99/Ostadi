@@ -9,7 +9,7 @@ import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Department, Institution, Attendance } from "@/lib/types";
 import { collection, doc, query, where, setDoc } from "firebase/firestore";
-import { addMonths, subMonths, format, getWeeksInMonth, startOfMonth } from 'date-fns';
+import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -18,8 +18,6 @@ import { useToast } from "@/hooks/use-toast";
 
 // Helper function to get number of weeks in a month
 const getWeeksOfMonth = (date: Date) => {
-    // Note: getWeeksInMonth can be tricky depending on locale (weekStartsOn).
-    // For simplicity, we'll often see 5 weeks, which is common for this kind of tracking.
     const weeks = getWeeksInMonth(date, { weekStartsOn: 6 }); // Assuming Saturday is the start of the week for school context
     return Array.from({ length: weeks }, (_, i) => i + 1);
 };
@@ -31,28 +29,31 @@ export default function AttendancePage() {
 
     // State for filters and date
     const [selectedInstitution, setSelectedInstitution] = useState<string>('');
-    const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+    const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [currentDate, setCurrentDate] = useState(new Date());
 
     // Fetching data from Firestore
     const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
         useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
     );
-
-    const departmentsQuery = useMemoFirebase(() =>
-        selectedInstitution ? query(collection(firestore, 'departments'), where('institutionId', '==', selectedInstitution)) : null
-    , [firestore, selectedInstitution]);
-    const { data: departments, isLoading: loadingDepartments } = useCollection<Department>(departmentsQuery);
     
     const studentsQuery = useMemoFirebase(() => 
-        selectedDepartment ? query(collection(firestore, 'students'), where('departmentId', '==', selectedDepartment)) : null
-    , [firestore, selectedDepartment]);
+        selectedInstitution && selectedLevel ? 
+        query(
+            collection(firestore, 'students'), 
+            where('institutionId', '==', selectedInstitution),
+            where('level', '==', selectedLevel)
+        ) : null
+    , [firestore, selectedInstitution, selectedLevel]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
     const monthStr = format(currentDate, 'yyyy-MM');
+    // We need to fetch attendance for all students found, as we don't have a single departmentId anymore
+    const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
+
     const attendanceQuery = useMemoFirebase(() =>
-        selectedDepartment ? query(collection(firestore, 'attendances'), where('departmentId', '==', selectedDepartment), where('month', '==', monthStr)) : null
-    , [firestore, selectedDepartment, monthStr]);
+        studentIds.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', '==', monthStr)) : null
+    , [firestore, studentIds, monthStr]);
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
     
     // Memoize processed attendance data for performance
@@ -69,15 +70,25 @@ export default function AttendancePage() {
     // Handlers
     const handleInstitutionChange = (id: string) => {
         setSelectedInstitution(id);
-        setSelectedDepartment('');
+        setSelectedLevel('');
     };
 
-    const handleDepartmentChange = (id: string) => {
-        setSelectedDepartment(id);
+    const handleLevelChange = (level: string) => {
+        setSelectedLevel(level);
     };
 
-    const handleAttendanceChange = async (studentId: string, week: number, status: string) => {
-        if (!selectedDepartment) return;
+    const handleAttendanceChange = async (student: Student, week: number, status: string) => {
+        const studentId = student.id;
+        const departmentId = student.departmentId; // student object contains departmentId
+
+        if (!departmentId) {
+             toast({
+                title: "خطأ",
+                description: "لا يمكن تسجيل الحضور. التلميذ غير معين في أي قسم.",
+                variant: "destructive"
+             });
+            return;
+        };
         
         const attendanceId = `${studentId}_${monthStr}`;
         const attendanceRef = doc(firestore, 'attendances', attendanceId);
@@ -88,7 +99,7 @@ export default function AttendancePage() {
         try {
             await setDoc(attendanceRef, {
                 studentId: studentId,
-                departmentId: selectedDepartment,
+                departmentId: departmentId,
                 month: monthStr,
                 records: newRecords
             }, { merge: true });
@@ -111,17 +122,21 @@ export default function AttendancePage() {
     const weeksOfMonth = getWeeksOfMonth(currentDate);
 
     const handlePrint = () => {
-        if (!selectedDepartment) {
+        if (!selectedInstitution || !selectedLevel) {
             toast({
-                title: "الرجاء اختيار قسم أولاً",
+                title: "الرجاء اختيار المؤسسة والمستوى أولاً",
                 variant: "destructive"
             });
             return;
         }
-        const params = new URLSearchParams();
-        params.set('departmentId', selectedDepartment);
-        params.set('month', monthStr);
-        window.open(`/attendance/print?${params.toString()}`, '_blank');
+        // This needs a dedicated print page that filters by institution and level,
+        // similar to the students print page. For now, we'll just log a message.
+        // A full implementation would require a new route e.g., /attendance/print-level
+        console.log("Printing for institution:", selectedInstitution, "and level:", selectedLevel);
+        toast({
+            title: "ميزة الطباعة قيد التطوير",
+            description: "سيتم تفعيل طباعة سجل الحضور قريباً.",
+        });
     }
 
     return (
@@ -135,11 +150,11 @@ export default function AttendancePage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>اختيار القسم</CardTitle>
-                    <CardDescription>اختر المؤسسة والقسم لعرض سجل الحضور.</CardDescription>
+                    <CardTitle>اختيار المستوى</CardTitle>
+                    <CardDescription>اختر المؤسسة والمستوى لعرض سجل الحضور.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-4">
-                    <Select onValueChange={handleInstitutionChange} disabled={loadingInstitutions}>
+                    <Select onValueChange={handleInstitutionChange} value={selectedInstitution} disabled={loadingInstitutions}>
                         <SelectTrigger>
                             <SelectValue placeholder="اختر المؤسسة..." />
                         </SelectTrigger>
@@ -149,20 +164,22 @@ export default function AttendancePage() {
                             ))}
                         </SelectContent>
                     </Select>
-                     <Select onValueChange={handleDepartmentChange} disabled={!selectedInstitution || loadingDepartments}>
+                     <Select onValueChange={handleLevelChange} value={selectedLevel} disabled={!selectedInstitution}>
                         <SelectTrigger>
-                            <SelectValue placeholder="اختر القسم..." />
+                            <SelectValue placeholder="اختر المستوى..." />
                         </SelectTrigger>
                         <SelectContent>
-                            {departments?.map(dept => (
-                                <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
-                            ))}
+                            <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                            <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                            <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                            <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                            <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
                         </SelectContent>
                     </Select>
                 </CardContent>
             </Card>
 
-            {selectedDepartment && (
+            {selectedLevel && (
                 <Card>
                     <CardHeader>
                         <div className="flex justify-between items-center">
@@ -209,7 +226,7 @@ export default function AttendancePage() {
                                                     <TableCell key={week} className="p-1 text-center">
                                                         <Select
                                                             value={attendanceMap.get(student.id)?.[week] || ''}
-                                                            onValueChange={(status) => handleAttendanceChange(student.id, week, status)}
+                                                            onValueChange={(status) => handleAttendanceChange(student, week, status)}
                                                         >
                                                             <SelectTrigger className="h-8 w-20 text-xs">
                                                                 <SelectValue placeholder="-" />
@@ -228,7 +245,7 @@ export default function AttendancePage() {
                                     ) : (
                                         <TableRow>
                                             <TableCell colSpan={weeksOfMonth.length + 1} className="text-center h-24">
-                                               لا يوجد تلاميذ في هذا القسم.
+                                               لا يوجد تلاميذ في هذا المستوى.
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -248,3 +265,4 @@ export default function AttendancePage() {
     );
 }
 
+    
