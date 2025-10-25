@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore } from "@/firebase";
-import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, User } from "lucide-react";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, User, Printer } from "lucide-react";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
@@ -480,6 +480,18 @@ export default function StudentsPage() {
     if(fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handlePrint = () => {
+    const params = new URLSearchParams();
+    if (levelFilter !== 'all') {
+      params.set('level', levelFilter);
+    }
+    if (institutionFilter !== 'all') {
+      params.set('institutionId', institutionFilter);
+    }
+    const printWindow = window.open(`/students/print?${params.toString()}`, '_blank');
+    printWindow?.focus();
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-2">
@@ -512,6 +524,10 @@ export default function StudentsPage() {
             <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
                 <FileUp className="me-2" />
                 استيراد (Excel)
+            </Button>
+             <Button onClick={handlePrint} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+                <Printer className="me-2" />
+                طباعة القائمة
             </Button>
             <input 
                 type="file" 
