@@ -36,12 +36,8 @@
     "Student": {
       "title": "Student",
       "type": "object",
-      "description": "Represents a student enrolled in a department.",
+      "description": "Represents a student.",
       "properties": {
-        "departmentId": {
-          "type": "string",
-          "description": "Reference to Department. (Relationship: Department 1:N Student)"
-        },
         "firstName": {
           "type": "string",
           "description": "First name of the student."
@@ -50,16 +46,39 @@
           "type": "string",
           "description": "Last name of the student."
         },
+        "dateOfBirth": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of birth of the student."
+        },
         "gender": {
           "type": "string",
           "description": "Gender of the student (male/female)."
+        },
+        "level": {
+          "type": "string",
+          "description": "The student's grade level (e.g., 'أولى ابتدائي')."
+        },
+        "institutionId": {
+          "type": "string",
+          "description": "Reference to Institution."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "exempt"
+          ],
+          "description": "The student's status (active/exempt)."
         }
       },
       "required": [
-        "departmentId",
         "firstName",
         "lastName",
-        "gender"
+        "gender",
+        "level",
+        "institutionId",
+        "status"
       ]
     },
     "Attendance": {

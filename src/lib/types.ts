@@ -3,8 +3,11 @@ export type Student = {
   studentId: string;
   firstName: string;
   lastName: string;
+  dateOfBirth?: string;
   gender: 'male' | 'female';
-  departmentId: string;
+  level: string;
+  institutionId: string;
+  status: 'active' | 'exempt';
 };
 
 export type Department = {

@@ -73,7 +73,7 @@ export function Header() {
       <div className="flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
           <GraduationCap className="h-6 w-6 text-primary" />
-          <span>STAPS Manager</span>
+          <span>مرحباً بك استاذ</span>
         </Link>
       </div>
 
@@ -107,7 +107,7 @@ export function Header() {
             <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 mb-4">
                 <Link href="/" className="flex items-center gap-2 font-semibold">
                 <GraduationCap className="h-6 w-6 text-primary" />
-                <span className="">STAPS Manager</span>
+                <span className="">مرحباً بك استاذ</span>
                 </Link>
             </div>
           <AppNav isMobile />
