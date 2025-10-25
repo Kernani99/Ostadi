@@ -52,7 +52,7 @@ function PrintAnnualContent() {
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const attendanceQuery = useMemoFirebase(() =>
-        studentIds.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', 'in', schoolMonthStrings)) : null
+        studentIds.length > 0 && schoolMonthStrings.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', 'in', schoolMonthStrings)) : null
     , [firestore, studentIds]);
 
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
@@ -79,11 +79,11 @@ function PrintAnnualContent() {
     }, [isLoading, sortedStudents]);
 
     if (isLoading) {
-        return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /> <span className="ms-2">جاري التحضير للطباعة...</span></div>;
+        return <div className="flex h-screen items-center justify-center bg-white text-black"><Loader2 className="animate-spin h-8 w-8" /> <span className="ms-2">جاري التحضير للطباعة...</span></div>;
     }
     
     if (!institutionId || !level || sortedStudents.length === 0) {
-         return <div className="flex h-screen items-center justify-center"><p>لا توجد بيانات لعرضها. يرجى التأكد من اختيار المؤسسة والمستوى.</p></div>;
+         return <div className="flex h-screen items-center justify-center bg-white text-black"><p>لا توجد بيانات لعرضها. يرجى التأكد من اختيار المؤسسة والمستوى.</p></div>;
     }
     
     const professorName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
@@ -94,7 +94,8 @@ function PrintAnnualContent() {
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     @page { size: A4 landscape; margin: 0.5in; }
-                    .print-header, .print-footer { position: relative; }
+                    .print-header, .print-footer { display: block; position: relative; }
+                    .no-print { display: none; }
                     .print-table { page-break-inside: auto; }
                     .print-table thead { display: table-header-group; }
                     .print-table tbody tr { page-break-inside: avoid; }
