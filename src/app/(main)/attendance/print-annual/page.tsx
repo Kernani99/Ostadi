@@ -3,10 +3,10 @@
 
 import { useCollection, useDoc, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import { collection, query, where } from "firebase/firestore";
+import { collection, query, where, doc } from "firebase/firestore";
 import type { Student, Institution, ProfessorProfile } from "@/lib/types";
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { Loader2 } from "lucide-react";
 
 function PrintAnnualContent() {
@@ -20,7 +20,7 @@ function PrintAnnualContent() {
     const { data: profileDataArr, isLoading: loadingProfile } = useCollection<ProfessorProfile>(profileDocRef);
     const profileData = useMemo(() => (profileDataArr && profileDataArr.length > 0 ? profileDataArr[0] : null), [profileDataArr]);
 
-    const institutionDocRef = useMemoFirebase(() => institutionId && firestore ? collection(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
+    const institutionDocRef = useMemoFirebase(() => institutionId && firestore ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
     const { data: institution, isLoading: loadingInstitution } = useDoc<Institution>(institutionDocRef);
 
     const studentsQuery = useMemoFirebase(() => {
@@ -65,19 +65,22 @@ function PrintAnnualContent() {
                 }
                 // Also update header fields
                 const schoolInput = document.getElementById('schoolNameInput') as HTMLInputElement;
+                const sectionInput = document.getElementById('sectionInput') as HTMLInputElement;
                 const yearInput = document.getElementById('schoolYearInput') as HTMLInputElement;
                 const professorNameDiv = document.getElementById('professorName');
 
                 if(schoolInput && institution) schoolInput.value = institution.name;
+                if(sectionInput && level) sectionInput.value = level;
                 if(yearInput && profileData) yearInput.value = profileData.schoolYear || '';
                 if(professorNameDiv && profileData) professorNameDiv.textContent = `الأستاذ : ${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
 
 
+                window.print();
             }, 100); // Small delay to ensure DOM is ready for manipulation
             
             return () => clearTimeout(timer);
         }
-    }, [isLoading, students, tableBodyContent, institution, profileData]);
+    }, [isLoading, students, tableBodyContent, institution, profileData, level]);
 
 
     const htmlContent = `
@@ -103,19 +106,15 @@ function PrintAnnualContent() {
             direction: rtl;
             margin: 0;
             padding: 20px;
-            background-color: #f4f4f4;
+            background-color: #fff;
         }
         
         .no-print {
             display: block;
         }
-        .print-only {
-            display: none;
-        }
 
         /* --- قسم رأس الصفحة الرسمي --- */
         .page-header {
-            background: #fff;
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 15px 30px;
@@ -247,7 +246,6 @@ function PrintAnnualContent() {
         @media print {
              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .no-print { display: none !important; }
-            .print-only { display: block !important; }
             
             body {
                 background-color: #fff;
@@ -302,7 +300,7 @@ function PrintAnnualContent() {
         <div><strong>مديرية التربية لولاية ${profileData?.wilaya || '...'}</strong></div>
         <div class="input-row">
             <label>المدرسة: <input type="text" id="schoolNameInput" value="${institution?.name || '...'}"></label>
-            <label>القسم: <input type="text" value="${level || ''}"></label>
+            <label>القسم: <input type="text" id="sectionInput" value="${level || ''}"></label>
             <label>السنة: <input type="text" id="schoolYearInput" value="${profileData?.schoolYear || '...'}"></label>
         </div>
         <div id="professorName">الأستاذ : ${ (profileData?.firstName || '') + ' ' + (profileData?.lastName || '') }</div>
@@ -369,3 +367,4 @@ export default function PrintAnnualAttendancePage() {
     );
 }
 
+    
