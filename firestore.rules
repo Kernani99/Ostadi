@@ -1,98 +1,101 @@
 /**
- * @fileoverview Firestore Security Rules for the Attendance Tracking App.
- *
- * Core Philosophy:
- * This ruleset is in prototyping mode and prioritizes ease of data access for rapid development.
- * As such, read access is generally open, but write access is completely restricted.
- * This is NOT suitable for production and must be updated with proper authorization logic.
+ * @file Firestore Security Rules
+ * @description This ruleset allows public read and write access to all data in the database.
+ *   This configuration is for PROTOTYPING ONLY and should NOT be used in a production environment.
+ *   It is crucial to implement proper authentication and authorization mechanisms before launching the application.
  *
  * Data Structure:
- * The Firestore database contains several top-level collections, including:
- * - /institutions/{institutionId}
- * - /departments/{departmentId}
- * - /students/{studentId}
- * - /attendances/{attendanceId}
- * - /evaluation_criteria/{evaluationCriteriaId}
- * - /grades/{gradeId}
+ * - /institutions/{institutionId}: Stores institution data. Public access.
+ * - /departments/{departmentId}: Stores department data. Public access.
+ * - /students/{studentId}: Stores student data. Public access.
+ * - /attendances/{attendanceId}: Stores attendance records. Public access.
+ * - /evaluation_criteria/{evaluationCriteriaId}: Stores evaluation criteria. Public access.
+ * - /grades/{gradeId}: Stores grades. Public access.
  *
  * Key Security Decisions:
- * - All collections are publicly readable.
- * - All write operations (create, update, delete) are denied. This will be changed after the prototyping phase.
+ * - Public read access is granted to all collections for prototyping purposes.
+ * - Public write access is granted to all collections for prototyping purposes.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows anyone to read institution data, but prevents any writes.
+     * @description Allows public read and write access to institution data for prototyping.
      * @path /institutions/{institutionId}
-     * @allow (get, list): Any user can read the data.
-     * @deny (create, update, delete): No one can write data.
-     * @principle Allows open reads for prototyping but restricts all writes.
+     * @allow (get, list) All users can read institution data.
+     * @allow (create, update, delete) All users can create, update, and delete institution data.
+     * @deny None. This is a prototyping configuration.
+     * @principle Public access for prototyping.
      */
     match /institutions/{institutionId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read department data, but prevents any writes.
+     * @description Allows public read and write access to department data for prototyping.
      * @path /departments/{departmentId}
-     * @allow (get, list): Any user can read the data.
-     * @deny (create, update, delete): No one can write data.
-     * @principle Allows open reads for prototyping but restricts all writes.
+     * @allow (get, list) All users can read department data.
+     * @allow (create, update, delete) All users can create, update, and delete department data.
+     * @deny None. This is a prototyping configuration.
+     * @principle Public access for prototyping.
      */
     match /departments/{departmentId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read student data, but prevents any writes.
+     * @description Allows public read and write access to student data for prototyping.
      * @path /students/{studentId}
-     * @allow (get, list): Any user can read the data.
-     * @deny (create, update, delete): No one can write data.
-     * @principle Allows open reads for prototyping but restricts all writes.
+     * @allow (get, list) All users can read student data.
+     * @allow (create, update, delete) All users can create, update, and delete student data.
+     * @deny None. This is a prototyping configuration.
+     * @principle Public access for prototyping.
      */
     match /students/{studentId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read attendance data, but prevents any writes.
+     * @description Allows public read and write access to attendance data for prototyping.
      * @path /attendances/{attendanceId}
-     * @allow (get, list): Any user can read the data.
-     * @deny (create, update, delete): No one can write data.
-     * @principle Allows open reads for prototyping but restricts all writes.
+     * @allow (get, list) All users can read attendance data.
+     * @allow (create, update, delete) All users can create, update, and delete attendance data.
+     * @deny None. This is a prototyping configuration.
+     * @principle Public access for prototyping.
      */
     match /attendances/{attendanceId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read evaluation criteria data, but prevents any writes.
+     * @description Allows public read and write access to evaluation criteria data for prototyping.
      * @path /evaluation_criteria/{evaluationCriteriaId}
-     * @allow (get, list): Any user can read the data.
-     * @deny (create, update, delete): No one can write data.
-     * @principle Allows open reads for prototyping but restricts all writes.
+     * @allow (get, list) All users can read evaluation criteria data.
+     * @allow (create, update, delete) All users can create, update, and delete evaluation criteria data.
+     * @deny None. This is a prototyping configuration.
+     * @principle Public access for prototyping.
      */
     match /evaluation_criteria/{evaluationCriteriaId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if true;
     }
 
     /**
-     * @description Allows anyone to read grade data, but prevents any writes.
+     * @description Allows public read and write access to grade data for prototyping.
      * @path /grades/{gradeId}
-     * @allow (get, list): Any user can read the data.
-     * @deny (create, update, delete): No one can write data.
-     * @principle Allows open reads for prototyping but restricts all writes.
+     * @allow (get, list) All users can read grade data.
+     * @allow (create, update, delete) All users can create, update, and delete grade data.
+     * @deny None. This is a prototyping configuration.
+     * @principle Public access for prototyping.
      */
     match /grades/{gradeId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if true;
     }
   }
 }
