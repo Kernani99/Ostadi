@@ -9,25 +9,21 @@ import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Department, Institution, Attendance } from "@/lib/types";
 import { collection, doc, query, where, setDoc } from "firebase/firestore";
-import { addMonths, subMonths, format, getDaysInMonth, startOfMonth } from 'date-fns';
+import { addMonths, subMonths, format, getWeeksInMonth, startOfMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 
-// Helper function to generate days of the month
-const getMonthDays = (date: Date) => {
-    const daysInMonth = getDaysInMonth(date);
-    return Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+// Helper function to get number of weeks in a month
+const getWeeksOfMonth = (date: Date) => {
+    // Note: getWeeksInMonth can be tricky depending on locale (weekStartsOn).
+    // For simplicity, we'll often see 5 weeks, which is common for this kind of tracking.
+    const weeks = getWeeksInMonth(date, { weekStartsOn: 6 }); // Assuming Saturday is the start of the week for school context
+    return Array.from({ length: weeks }, (_, i) => i + 1);
 };
 
-// Attendance status options
-const attendanceStatuses = [
-    { value: 'present', label: 'ح' },
-    { value: 'absent', label: 'غ' },
-    { value: 'justified', label: 'م' },
-    { value: 'no-outfit', label: 'ب.ل' },
-];
 
 export default function AttendancePage() {
     const firestore = useFirestore();
@@ -61,7 +57,7 @@ export default function AttendancePage() {
     
     // Memoize processed attendance data for performance
     const attendanceMap = useMemo(() => {
-        const map = new Map<string, { [day: number]: string }>();
+        const map = new Map<string, { [week: number]: string }>();
         if (!attendances) return map;
         attendances.forEach(att => {
             map.set(att.studentId, att.records);
@@ -80,17 +76,14 @@ export default function AttendancePage() {
         setSelectedDepartment(id);
     };
 
-    const handleAttendanceChange = async (studentId: string, day: number, status: string) => {
+    const handleAttendanceChange = async (studentId: string, week: number, status: string) => {
         if (!selectedDepartment) return;
-
-        const date = startOfMonth(currentDate);
-        date.setDate(day);
         
         const attendanceId = `${studentId}_${monthStr}`;
         const attendanceRef = doc(firestore, 'attendances', attendanceId);
         
         const existingRecords = attendanceMap.get(studentId) || {};
-        const newRecords = { ...existingRecords, [day]: status };
+        const newRecords = { ...existingRecords, [week]: status };
 
         try {
             await setDoc(attendanceRef, {
@@ -102,7 +95,7 @@ export default function AttendancePage() {
 
              toast({
                 title: "تم الحفظ",
-                description: `تم تسجيل حضور التلميذ لليوم ${day}.`,
+                description: `تم تسجيل حضور التلميذ للأسبوع ${week}.`,
                 duration: 2000,
              });
         } catch (error) {
@@ -115,7 +108,7 @@ export default function AttendancePage() {
         }
     };
     
-    const daysOfMonth = getMonthDays(currentDate);
+    const weeksOfMonth = getWeeksOfMonth(currentDate);
 
     const handlePrint = () => {
         if (!selectedDepartment) {
@@ -196,15 +189,15 @@ export default function AttendancePage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="sticky left-0 bg-card z-10 min-w-[150px] border-e">اسم التلميذ</TableHead>
-                                        {daysOfMonth.map(day => (
-                                            <TableHead key={day} className="text-center min-w-[60px]">{day}</TableHead>
+                                        {weeksOfMonth.map(week => (
+                                            <TableHead key={week} className="text-center min-w-[100px]">الأسبوع {week}</TableHead>
                                         ))}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {loadingStudents || loadingAttendances ? (
                                         <TableRow>
-                                            <TableCell colSpan={daysOfMonth.length + 1} className="text-center h-24">
+                                            <TableCell colSpan={weeksOfMonth.length + 1} className="text-center h-24">
                                                 جاري تحميل البيانات...
                                             </TableCell>
                                         </TableRow>
@@ -212,13 +205,13 @@ export default function AttendancePage() {
                                         students.map(student => (
                                             <TableRow key={student.id}>
                                                 <TableCell className="sticky left-0 bg-card z-10 font-medium border-e">{student.lastName} {student.firstName}</TableCell>
-                                                {daysOfMonth.map(day => (
-                                                    <TableCell key={day} className="p-1 text-center">
+                                                {weeksOfMonth.map(week => (
+                                                    <TableCell key={week} className="p-1 text-center">
                                                         <Select
-                                                            value={attendanceMap.get(student.id)?.[day] || ''}
-                                                            onValueChange={(status) => handleAttendanceChange(student.id, day, status)}
+                                                            value={attendanceMap.get(student.id)?.[week] || ''}
+                                                            onValueChange={(status) => handleAttendanceChange(student.id, week, status)}
                                                         >
-                                                            <SelectTrigger className="h-8 w-14 text-xs">
+                                                            <SelectTrigger className="h-8 w-20 text-xs">
                                                                 <SelectValue placeholder="-" />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -234,7 +227,7 @@ export default function AttendancePage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={daysOfMonth.length + 1} className="text-center h-24">
+                                            <TableCell colSpan={weeksOfMonth.length + 1} className="text-center h-24">
                                                لا يوجد تلاميذ في هذا القسم.
                                             </TableCell>
                                         </TableRow>

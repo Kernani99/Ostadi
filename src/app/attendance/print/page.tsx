@@ -8,7 +8,7 @@ import type { Student, Department, ProfessorProfile, Attendance } from "@/lib/ty
 import { useMemo, useEffect, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { useSearchParams } from 'next/navigation';
-import { format, getDaysInMonth } from 'date-fns';
+import { format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 const attendanceStatusMap: { [key: string]: string } = {
@@ -46,7 +46,7 @@ function PrintContent() {
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
 
     const attendanceMap = useMemo(() => {
-        const map = new Map<string, { [day: number]: string }>();
+        const map = new Map<string, { [week: number]: string }>();
         attendances?.forEach(att => {
             map.set(att.studentId, att.records);
         });
@@ -72,7 +72,7 @@ function PrintContent() {
     }
     
     const printDate = new Date(`${month}-01T12:00:00`);
-    const daysOfMonth = Array.from({ length: getDaysInMonth(printDate) }, (_, i) => i + 1);
+    const weeksOfMonth = Array.from({ length: getWeeksInMonth(printDate, { weekStartsOn: 6 }) }, (_, i) => i + 1);
     const professorName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
 
 
@@ -81,7 +81,7 @@ function PrintContent() {
             <style>{`
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    @page { size: A4 landscape; margin: 0.5in; }
+                    @page { size: A4 portrait; margin: 0.5in; }
                     .print-header, .print-footer { position: relative; }
                     .print-table { page-break-inside: auto; }
                     .print-table thead { display: table-header-group; }
@@ -107,8 +107,8 @@ function PrintContent() {
                         <tr className="bg-gray-200">
                             <th className="border border-gray-500 p-1">الرقم</th>
                             <th className="border border-gray-500 p-1 text-right">اللقب والإسم</th>
-                            {daysOfMonth.map(day => (
-                                <th key={day} className="border border-gray-500 p-1 w-6">{day}</th>
+                            {weeksOfMonth.map(week => (
+                                <th key={week} className="border border-gray-500 p-1 w-16">الأسبوع {week}</th>
                             ))}
                         </tr>
                     </thead>
@@ -117,9 +117,9 @@ function PrintContent() {
                             <tr key={student.id}>
                                 <td className="border border-gray-500 p-1 text-center">{index + 1}</td>
                                 <td className="border border-gray-500 p-1">{student.lastName} {student.firstName}</td>
-                                {daysOfMonth.map(day => (
-                                    <td key={day} className="border border-gray-500 p-1 text-center font-bold">
-                                        {attendanceStatusMap[attendanceMap.get(student.id)?.[day] || ''] || ''}
+                                {weeksOfMonth.map(week => (
+                                    <td key={week} className="border border-gray-500 p-1 text-center font-bold">
+                                        {attendanceStatusMap[attendanceMap.get(student.id)?.[week] || ''] || ''}
                                     </td>
                                 ))}
                             </tr>

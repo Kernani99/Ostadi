@@ -1,3 +1,4 @@
+
 export type Student = {
   id: string;
   studentId: string;
@@ -54,5 +55,5 @@ export type Attendance = {
   studentId: string;
   departmentId: string;
   month: string; // "yyyy-MM" format
-  records: { [day: number]: 'present' | 'absent' | 'justified' | 'no-outfit' };
+  records: { [week: number]: 'present' | 'absent' | 'justified' | 'no-outfit' };
 };
