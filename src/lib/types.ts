@@ -63,6 +63,21 @@ export type AttendanceReport = {
     // Define the structure for your reports here
 };
 
+export type TopAbsence = {
+    studentId: string;
+    studentName: string;
+    departmentName: string;
+    absenceCount: number;
+};
+
+export type DepartmentAbsence = {
+    departmentId: string;
+    departmentName: string;
+    studentCount: number;
+    absenceCount: number;
+    absencePercentage: number;
+}
+
 export type GeneralStats = {
     totalStudents: number;
     totalDepartments: number;
@@ -73,6 +88,9 @@ export type GeneralStats = {
     averageAbsencePerStudent: number;
     monthlyAbsenceDistribution: { name: string; total: number }[];
     weeklyAbsenceDistribution: { name: string; total: number }[];
+    topAbsences: TopAbsence[];
+    departmentAbsences: DepartmentAbsence[];
 };
+
 
 

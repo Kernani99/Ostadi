@@ -7,12 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import type { Student, Attendance, Institution, AttendanceReport, GeneralStats } from "@/lib/types";
+import type { Student, Attendance, Institution, AttendanceReport, GeneralStats, Department, TopAbsence, DepartmentAbsence } from "@/lib/types";
 import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth, eachDayOfInterval, isSameMonth, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon } from "lucide-react";
-import { useState, useMemo } from "react";
+import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown } from "lucide-react";
+import { useState, useMemo, useReducer } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 
 // Helper function to get number of weeks in a month
@@ -101,7 +102,7 @@ function AttendanceRegistration() {
                 departmentId: departmentId,
                 month: monthStr,
                 records: newRecords
-            }, { merge: true });
+            });
 
              toast({
                 title: "تم الحفظ",
@@ -256,6 +257,62 @@ function AttendanceRegistration() {
     )
 }
 
+// Reducer for table state management
+const tableReducer = (state, action) => {
+  switch (action.type) {
+    case 'SORT': {
+      const { column } = action.payload;
+      const isAsc = state.sortColumn === column && state.sortDirection === 'asc';
+      return { ...state, sortColumn: column, sortDirection: isAsc ? 'desc' : 'asc', currentPage: 1 };
+    }
+    case 'SEARCH':
+      return { ...state, searchTerm: action.payload, currentPage: 1 };
+    case 'PAGINATE':
+      return { ...state, currentPage: action.payload };
+    case 'SET_ROWS_PER_PAGE':
+      return { ...state, rowsPerPage: action.payload, currentPage: 1 };
+    default:
+      return state;
+  }
+};
+
+const usePaginatedTable = (data, initialSortColumn) => {
+    const [state, dispatch] = useReducer(tableReducer, {
+        sortColumn: initialSortColumn,
+        sortDirection: 'desc',
+        searchTerm: '',
+        currentPage: 1,
+        rowsPerPage: 10,
+    });
+
+    const sortedData = useMemo(() => {
+        if (!data) return [];
+        return [...data].sort((a, b) => {
+            const aVal = a[state.sortColumn];
+            const bVal = b[state.sortColumn];
+            if (aVal < bVal) return state.sortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return state.sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [data, state.sortColumn, state.sortDirection]);
+
+    const filteredData = useMemo(() => {
+        return sortedData.filter(item =>
+            Object.values(item).some(val =>
+                String(val).toLowerCase().includes(state.searchTerm.toLowerCase())
+            )
+        );
+    }, [sortedData, state.searchTerm]);
+
+    const paginatedData = useMemo(() => {
+        const startIndex = (state.currentPage - 1) * state.rowsPerPage;
+        return filteredData.slice(startIndex, startIndex + state.rowsPerPage);
+    }, [filteredData, state.currentPage, state.rowsPerPage]);
+
+    return { ...state, dispatch, paginatedData, totalPages: Math.ceil(filteredData.length / state.rowsPerPage), totalEntries: filteredData.length };
+};
+
+
 function AttendanceReports() {
     const firestore = useFirestore();
     const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: subMonths(new Date(), 1), to: new Date() });
@@ -263,14 +320,18 @@ function AttendanceReports() {
     const [isLoading, setIsLoading] = useState(false);
 
     const { data: students } = useCollection<Student>(useMemoFirebase(() => collection(firestore, 'students'), [firestore]));
+    const { data: departments } = useCollection<Department>(useMemoFirebase(() => collection(firestore, 'departments'), [firestore]));
+
+    const topAbsencesTable = usePaginatedTable(reportData?.topAbsences, 'absenceCount');
+    const deptAbsencesTable = usePaginatedTable(reportData?.departmentAbsences, 'absenceCount');
+
 
     const handleGenerateReport = async () => {
-        if (!dateRange.from || !dateRange.to || !students) return;
+        if (!dateRange.from || !dateRange.to || !students || !departments) return;
         
         setIsLoading(true);
         const allAttendances: Attendance[] = [];
 
-        // This is a simplified fetch. For large datasets, this should be paginated or optimized.
         const attendanceQuery = query(collection(firestore, 'attendances'));
         const querySnapshot = await getDocs(attendanceQuery);
         querySnapshot.forEach(doc => {
@@ -283,17 +344,28 @@ function AttendanceReports() {
         const absencesByMonth: { [key: string]: number } = {};
         const absencesByWeekday: { [key: string]: number } = { 'الأحد': 0, 'الاثنين': 0, 'الثلاثاء': 0, 'الأربعاء': 0, 'الخميس': 0 };
 
+        const absencesByStudent = new Map<string, number>();
+        const absencesByDepartment = new Map<string, number>();
+
         const schoolDaysInRange = eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).filter(d => d.getDay() !== 5 && d.getDay() !== 6).length;
 
         allAttendances.forEach(att => {
             const monthDate = new Date(att.month + '-01T12:00:00');
+            const student = students.find(s => s.id === att.studentId);
+            if (!student) return;
+
             if (isSameMonth(monthDate, dateRange.from) || isSameMonth(monthDate, dateRange.to) || (monthDate > dateRange.from && monthDate < dateRange.to)) {
                 Object.values(att.records).forEach(status => {
                     if (status === 'absent') {
                         totalAbsences++;
                         const monthKey = format(monthDate, 'yyyy-MM');
                         absencesByMonth[monthKey] = (absencesByMonth[monthKey] || 0) + 1;
-                        // Weekday calculation is complex with weekly records, this is a simplification
+                        
+                        absencesByStudent.set(att.studentId, (absencesByStudent.get(att.studentId) || 0) + 1);
+
+                        if (att.departmentId) {
+                            absencesByDepartment.set(att.departmentId, (absencesByDepartment.get(att.departmentId) || 0) + 1);
+                        }
                     }
                 });
             }
@@ -308,15 +380,48 @@ function AttendanceReports() {
             name: format(new Date(month + '-01T12:00:00'), 'MMM', { locale: ar }),
             total: count
         }));
-
+        
         const weeklyAbsenceData = Object.entries(absencesByWeekday).map(([day, count]) => ({
             name: day,
             total: count
         }));
 
+        const topAbsences: TopAbsence[] = Array.from(absencesByStudent.entries()).map(([studentId, absenceCount]) => {
+            const student = students.find(s => s.id === studentId);
+            const department = departments.find(d => d.id === student?.departmentId);
+            return {
+                studentId,
+                studentName: `${student?.lastName || ''} ${student?.firstName || ''}`,
+                departmentName: department?.name || 'غير محدد',
+                absenceCount
+            };
+        }).sort((a,b) => b.absenceCount - a.absenceCount);
+
+        const studentsByDept = students.reduce((acc, student) => {
+            if(student.departmentId) {
+                acc[student.departmentId] = (acc[student.departmentId] || 0) + 1;
+            }
+            return acc;
+        }, {});
+
+        const departmentAbsences: DepartmentAbsence[] = departments.map(dept => {
+            const absenceCount = absencesByDepartment.get(dept.id) || 0;
+            const studentCount = studentsByDept[dept.id] || 0;
+            const totalPossible = studentCount * schoolDaysInRange;
+            const absencePercentage = totalPossible > 0 ? (absenceCount / totalPossible) * 100 : 0;
+            return {
+                departmentId: dept.id,
+                departmentName: dept.name,
+                studentCount: studentCount,
+                absenceCount: absenceCount,
+                absencePercentage: absencePercentage,
+            }
+        }).sort((a,b) => b.absenceCount - a.absenceCount);
+
+
         setReportData({
             totalStudents: totalStudents,
-            totalDepartments: new Set(students.map(s => s.departmentId)).size,
+            totalDepartments: departments.length,
             totalAbsences: totalAbsences,
             totalAbsencePercentage: absenceRate,
             attendancePercentage: attendanceRate,
@@ -324,6 +429,8 @@ function AttendanceReports() {
             averageAbsencePerStudent: averageAbsencePerStudent,
             monthlyAbsenceDistribution: monthlyAbsenceData,
             weeklyAbsenceDistribution: weeklyAbsenceData,
+            topAbsences,
+            departmentAbsences,
         });
         setIsLoading(false);
     };
@@ -407,52 +514,170 @@ function AttendanceReports() {
                 </TabsList>
                 <TabsContent value="general">
                     {reportData ? (
-                        <Card>
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <CardTitle>الإحصائيات العامة للحضور والغياب</CardTitle>
-                                    <Badge>الفترة: {dateRange.from ? format(dateRange.from, 'dd/MM/yyyy') : ''} - {dateRange.to ? format(dateRange.to, 'dd/MM/yyyy') : ''}</Badge>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                                     <StatCard title="إجمالي التلاميذ" value={reportData.totalStudents} icon={Users} description={`${reportData.totalDepartments} قسم دراسي`} />
-                                     <StatCard title="إجمالي الغيابات" value={reportData.totalAbsences} icon={CalendarX} description={`+${reportData.totalAbsencePercentage.toFixed(1)}% نسبة الغياب الإجمالية`} />
-                                     <StatCard title="نسبة الحضور" value={`${reportData.attendancePercentage.toFixed(1)}%`} icon={UserCheck} description={`${reportData.schoolDays} يوم دراسي`}/>
-                                     <StatCard title="متوسط الغياب" value={reportData.averageAbsencePerStudent.toFixed(1)} icon={Clock} description="لكل متعلم"/>
-                                </div>
-                                <div className="grid gap-8 md:grid-cols-2">
-                                     <Card>
-                                        <CardHeader>
-                                            <CardTitle>توزيع الغياب حسب الأشهر</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <ResponsiveContainer width="100%" height={300}>
-                                                <BarChart data={reportData.monthlyAbsenceDistribution}>
-                                                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                                                    <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
-                                        </CardContent>
-                                    </Card>
-                                     <Card>
-                                        <CardHeader>
-                                            <CardTitle>توزيع الغياب حسب أيام الأسبوع</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <ResponsiveContainer width="100%" height={300}>
-                                                <BarChart data={reportData.weeklyAbsenceDistribution}>
-                                                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                                                    <Bar dataKey="total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-                            </CardContent>
-                        </Card>
+                        <div className="space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex justify-between items-center">
+                                        <CardTitle>الإحصائيات العامة للحضور والغياب</CardTitle>
+                                        <Badge>الفترة: {dateRange.from ? format(dateRange.from, 'dd/MM/yyyy') : ''} - {dateRange.to ? format(dateRange.to, 'dd/MM/yyyy') : ''}</Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                        <StatCard title="إجمالي التلاميذ" value={reportData.totalStudents} icon={Users} description={`${reportData.totalDepartments} قسم دراسي`} />
+                                        <StatCard title="إجمالي الغيابات" value={reportData.totalAbsences} icon={CalendarX} description={`+${reportData.totalAbsencePercentage.toFixed(1)}% نسبة الغياب الإجمالية`} />
+                                        <StatCard title="نسبة الحضور" value={`${reportData.attendancePercentage.toFixed(1)}%`} icon={UserCheck} description={`${reportData.schoolDays} يوم دراسي`}/>
+                                        <StatCard title="متوسط الغياب" value={reportData.averageAbsencePerStudent.toFixed(1)} icon={Clock} description="لكل متعلم"/>
+                                    </div>
+                                    <div className="grid gap-8 md:grid-cols-2">
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle>توزيع الغياب حسب الأشهر</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <ResponsiveContainer width="100%" height={300}>
+                                                    <BarChart data={reportData.monthlyAbsenceDistribution}>
+                                                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                                                        <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </CardContent>
+                                        </Card>
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle>توزيع الغياب حسب أيام الأسبوع</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <ResponsiveContainer width="100%" height={300}>
+                                                    <BarChart data={reportData.weeklyAbsenceDistribution}>
+                                                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                                                        <Bar dataKey="total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                            
+                            <div className="grid gap-8 md:grid-cols-2">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>التلاميذ الأكثر غياباً</CardTitle>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <Input placeholder="ابحث..." value={topAbsencesTable.searchTerm} onChange={(e) => topAbsencesTable.dispatch({ type: 'SEARCH', payload: e.target.value })} className="max-w-sm"/>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>#</TableHead>
+                                                    <TableHead>
+                                                        <Button variant="ghost" onClick={() => topAbsencesTable.dispatch({ type: 'SORT', payload: 'studentName' })}>
+                                                            التلميذ <ArrowUpDown className="ms-2 h-4 w-4" />
+                                                        </Button>
+                                                    </TableHead>
+                                                    <TableHead>
+                                                        <Button variant="ghost" onClick={() => topAbsencesTable.dispatch({ type: 'SORT', payload: 'departmentName' })}>
+                                                            القسم <ArrowUpDown className="ms-2 h-4 w-4" />
+                                                        </Button>
+                                                    </TableHead>
+                                                    <TableHead>
+                                                         <Button variant="ghost" onClick={() => topAbsencesTable.dispatch({ type: 'SORT', payload: 'absenceCount' })}>
+                                                            عدد الغيابات <ArrowUpDown className="ms-2 h-4 w-4" />
+                                                        </Button>
+                                                    </TableHead>
+                                                    <TableHead>عرض</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {topAbsencesTable.paginatedData.map((item, index) => (
+                                                    <TableRow key={item.studentId}>
+                                                        <TableCell>{(topAbsencesTable.currentPage - 1) * topAbsencesTable.rowsPerPage + index + 1}</TableCell>
+                                                        <TableCell>{item.studentName}</TableCell>
+                                                        <TableCell>{item.departmentName}</TableCell>
+                                                        <TableCell><Badge variant="destructive">{item.absenceCount}</Badge></TableCell>
+                                                        <TableCell><Button variant="ghost" size="icon"><Eye className="h-4 w-4"/></Button></TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                         <div className="flex items-center justify-end space-x-2 py-4">
+                                            <span className="text-sm text-muted-foreground">
+                                                إظهار {topAbsencesTable.paginatedData.length} من أصل {topAbsencesTable.totalEntries} مدخل
+                                            </span>
+                                            <Button variant="outline" size="sm" onClick={() => topAbsencesTable.dispatch({ type: 'PAGINATE', payload: topAbsencesTable.currentPage - 1 })} disabled={topAbsencesTable.currentPage === 1}>
+                                                السابق
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => topAbsencesTable.dispatch({ type: 'PAGINATE', payload: topAbsencesTable.currentPage + 1 })} disabled={topAbsencesTable.currentPage === topAbsencesTable.totalPages}>
+                                                التالي
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                 <Card>
+                                    <CardHeader>
+                                        <CardTitle>الأقسام حسب نسبة الغياب</CardTitle>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <Input placeholder="ابحث..." value={deptAbsencesTable.searchTerm} onChange={(e) => deptAbsencesTable.dispatch({ type: 'SEARCH', payload: e.target.value })} className="max-w-sm"/>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                     <TableHead>#</TableHead>
+                                                    <TableHead>
+                                                         <Button variant="ghost" onClick={() => deptAbsencesTable.dispatch({ type: 'SORT', payload: 'departmentName' })}>
+                                                            القسم <ArrowUpDown className="ms-2 h-4 w-4" />
+                                                        </Button>
+                                                    </TableHead>
+                                                    <TableHead>عدد التلاميذ</TableHead>
+                                                    <TableHead>
+                                                         <Button variant="ghost" onClick={() => deptAbsencesTable.dispatch({ type: 'SORT', payload: 'absenceCount' })}>
+                                                            عدد الغيابات <ArrowUpDown className="ms-2 h-4 w-4" />
+                                                        </Button>
+                                                    </TableHead>
+                                                    <TableHead>
+                                                         <Button variant="ghost" onClick={() => deptAbsencesTable.dispatch({ type: 'SORT', payload: 'absencePercentage' })}>
+                                                            نسبة الغياب <ArrowUpDown className="ms-2 h-4 w-4" />
+                                                        </Button>
+                                                    </TableHead>
+                                                    <TableHead>عرض</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {deptAbsencesTable.paginatedData.map((item, index) => (
+                                                    <TableRow key={item.departmentId}>
+                                                         <TableCell>{(deptAbsencesTable.currentPage - 1) * deptAbsencesTable.rowsPerPage + index + 1}</TableCell>
+                                                        <TableCell>{item.departmentName}</TableCell>
+                                                        <TableCell>{item.studentCount}</TableCell>
+                                                        <TableCell>{item.absenceCount}</TableCell>
+                                                        <TableCell><Badge variant={item.absencePercentage > 5 ? "destructive" : "default"}>{item.absencePercentage.toFixed(1)}%</Badge></TableCell>
+                                                        <TableCell><Button variant="ghost" size="icon"><Eye className="h-4 w-4"/></Button></TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                        <div className="flex items-center justify-end space-x-2 py-4">
+                                            <span className="text-sm text-muted-foreground">
+                                                إظهار {deptAbsencesTable.paginatedData.length} من أصل {deptAbsencesTable.totalEntries} مدخل
+                                            </span>
+                                            <Button variant="outline" size="sm" onClick={() => deptAbsencesTable.dispatch({ type: 'PAGINATE', payload: deptAbsencesTable.currentPage - 1 })} disabled={deptAbsencesTable.currentPage === 1}>
+                                                السابق
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => deptAbsencesTable.dispatch({ type: 'PAGINATE', payload: deptAbsencesTable.currentPage + 1 })} disabled={deptAbsencesTable.currentPage === deptAbsencesTable.totalPages}>
+                                                التالي
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        </div>
                     ) : (
                         <Card className="flex items-center justify-center h-60">
                             <p className="text-muted-foreground">الرجاء تحديد فترة زمنية وعرض الإحصائيات.</p>
