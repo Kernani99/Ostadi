@@ -5,7 +5,7 @@ import { useCollection, useDoc, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import { collection, doc, query, where } from "firebase/firestore";
 import type { Student, ProfessorProfile, Attendance, Institution } from "@/lib/types";
-import { useMemo, useEffect, Suspense } from "react";
+import { useMemo, useEffect, Suspense, Fragment } from "react";
 import { Loader2 } from "lucide-react";
 import { useSearchParams } from 'next/navigation';
 
@@ -132,13 +132,13 @@ function PrintAnnualContent() {
                         </tr>
                          <tr className="bg-gray-200">
                              {schoolMonths.map(month => (
-                                 <>
+                                 <Fragment key={month.value}>
                                     <th className="border border-gray-500 font-normal w-[20px]">1</th>
                                     <th className="border border-gray-500 font-normal w-[20px]">2</th>
                                     <th className="border border-gray-500 font-normal w-[20px]">3</th>
                                     <th className="border border-gray-500 font-normal w-[20px]">4</th>
                                     <th className="border border-gray-500 font-normal w-[20px]">5</th>
-                                 </>
+                                 </Fragment>
                              ))}
                         </tr>
                     </thead>
@@ -150,13 +150,13 @@ function PrintAnnualContent() {
                                 {schoolMonthStrings.map(monthStr => {
                                     const studentMonthData = attendanceMap.get(student.id)?.get(monthStr) || {};
                                     return (
-                                        <>
+                                        <Fragment key={monthStr}>
                                             {[1, 2, 3, 4, 5].map(week => (
                                                 <td key={`${monthStr}-${week}`} className="border border-gray-500 p-1 font-bold">
                                                     {attendanceStatusMap[studentMonthData[week] || ''] || ''}
                                                 </td>
                                             ))}
-                                        </>
+                                        </Fragment>
                                     );
                                 })}
                             </tr>
