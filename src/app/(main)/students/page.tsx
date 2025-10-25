@@ -282,6 +282,11 @@ export default function StudentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+  const [genderFilter, setGenderFilter] = useState('');
+  const [institutionFilter, setInstitutionFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
   const [isFormOpen, setFormOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
@@ -308,9 +313,13 @@ export default function StudentsPage() {
   const filteredStudents = useMemo(() => {
     if (!students) return [];
     return students.filter(student =>
-      `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+      (`${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (levelFilter === '' || student.level === levelFilter) &&
+      (genderFilter === '' || student.gender === genderFilter) &&
+      (institutionFilter === '' || student.institutionId === institutionFilter) &&
+      (statusFilter === '' || student.status === statusFilter)
     );
-  }, [students, searchTerm]);
+  }, [students, searchTerm, levelFilter, genderFilter, institutionFilter, statusFilter]);
 
   const handleAddNew = () => {
     setSelectedStudent(null);
@@ -350,7 +359,7 @@ export default function StudentsPage() {
   };
 
   const handleSelectAll = () => {
-      if (selectedStudents.size === filteredStudents.length) {
+      if (selectedStudents.size === filteredStudents.length && filteredStudents.length > 0) {
           setSelectedStudents(new Set());
       } else {
           setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
@@ -485,48 +494,93 @@ export default function StudentsPage() {
         </div>
 
       <Card className="shadow-md">
-        <CardContent className="p-4 flex flex-wrap items-center gap-2">
-            <Button onClick={handleAddNew} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
-              <UserPlus className="me-2" />
-              تسجيل تلميذ
+        <CardContent className="p-4 flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={handleAddNew} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+                <UserPlus className="me-2" />
+                تسجيل تلميذ
+                </Button>
+                <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
+            <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+                <FileText className="me-2" />
+                تحميل الكل (Excel)
             </Button>
-            <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
-           <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-            <FileText className="me-2" />
-            تحميل الكل (Excel)
-          </Button>
-          <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-            <FileUp className="me-2" />
-            استيراد (Excel)
-          </Button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileImport}
-            className="hidden" 
-            accept=".xlsx"
-          />
-          {selectedStudents.size > 0 && (
-             <>
-                <Button variant="destructive" onClick={handleDeleteSelected} className="rounded-full">
-                    <Trash2 className="me-2" />
-                    حذف المحدد ({selectedStudents.size})
-                </Button>
-                 <Button variant="outline" onClick={handleExportSelected} className="rounded-full border-green-600 text-green-600 hover:bg-green-50">
-                    <FileDown className="me-2" />
-                    تصدير المحدد ({selectedStudents.size})
-                </Button>
-            </>
-          )}
-          <div className="relative ms-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input 
-              placeholder="ابحث عن تلميذ..." 
-              className="ps-10 rounded-full"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+            <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+                <FileUp className="me-2" />
+                استيراد (Excel)
+            </Button>
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileImport}
+                className="hidden" 
+                accept=".xlsx"
             />
-          </div>
+            {selectedStudents.size > 0 && (
+                <>
+                    <Button variant="destructive" onClick={handleDeleteSelected} className="rounded-full">
+                        <Trash2 className="me-2" />
+                        حذف المحدد ({selectedStudents.size})
+                    </Button>
+                    <Button variant="outline" onClick={handleExportSelected} className="rounded-full border-green-600 text-green-600 hover:bg-green-50">
+                        <FileDown className="me-2" />
+                        تصدير المحدد ({selectedStudents.size})
+                    </Button>
+                </>
+            )}
+            <div className="relative ms-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input 
+                placeholder="ابحث عن تلميذ..." 
+                className="ps-10 rounded-full"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <Select value={levelFilter} onValueChange={setLevelFilter}>
+                    <SelectTrigger><SelectValue placeholder="فلترة حسب المستوى" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">الكل</SelectItem>
+                        <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                        <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                        <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                        <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                        <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={genderFilter} onValueChange={setGenderFilter}>
+                    <SelectTrigger><SelectValue placeholder="فلترة حسب الجنس" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">الكل</SelectItem>
+                        <SelectItem value="male">ذكر</SelectItem>
+                        <SelectItem value="female">أنثى</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <Select value={institutionFilter} onValueChange={setInstitutionFilter}>
+                    <SelectTrigger><SelectValue placeholder="فلترة حسب المؤسسة" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">الكل</SelectItem>
+                        {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger><SelectValue placeholder="فلترة حسب الحالة" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">الكل</SelectItem>
+                        <SelectItem value="active">يمارس</SelectItem>
+                        <SelectItem value="exempt">معفي</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <Button onClick={() => {
+                     setLevelFilter('');
+                     setGenderFilter('');
+                     setInstitutionFilter('');
+                     setStatusFilter('');
+                     setSearchTerm('');
+                 }} variant="ghost">إلغاء الفلاتر</Button>
+            </div>
         </CardContent>
       </Card>
 
