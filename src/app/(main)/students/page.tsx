@@ -10,6 +10,7 @@ import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
 import type { Student } from "@/lib/types";
 import { useMemo, useState, type FC, useEffect, useRef } from "react";
+import * as XLSX from 'xlsx';
 import {
   Dialog,
   DialogContent,
@@ -42,7 +43,6 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
-import Papa from 'papaparse';
 
 const studentSchema = z.object({
   firstName: z.string().min(1, { message: "الإسم مطلوب" }),
@@ -363,104 +363,118 @@ export default function StudentsPage() {
     }
   };
 
-  const downloadCSV = (content: string, fileName: string) => {
-    const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const exportToXLSX = (data: Student[], fileName: string) => {
+    const dataToExport = data.map(student => ({
+      'اللقب': student.lastName,
+      'الإسم': student.firstName,
+      'المستوى': student.level ?? '',
+      'الجنس': student.gender === 'male' ? 'ذكر' : 'أنثى',
+      'المؤسسة': institutionMap.get(student.institutionId) ?? '',
+      'الحالة': student.status === 'active' ? 'يمارس' : 'معفي',
+    }));
 
-  const exportToCSV = (data: Student[], fileName: string) => {
-    const csvRows = [
-        ['اللقب', 'الإسم', 'المستوى', 'الجنس', 'المؤسسة', 'الحالة'].join(','),
-    ];
-
-    data.forEach(student => {
-        const row = [
-            `"${student.lastName}"`,
-            `"${student.firstName}"`,
-            `"${student.level ?? ''}"`,
-            `"${student.gender === 'male' ? 'ذكر' : 'أنثى'}"`,
-            `"${institutionMap.get(student.institutionId) ?? ''}"`,
-            `"${student.status === 'active' ? 'يمارس' : 'معفي'}"`,
-        ].join(',');
-        csvRows.push(row);
-    });
-    
-    downloadCSV(csvRows.join('\n'), fileName);
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "التلاميذ");
+    XLSX.writeFile(workbook, fileName);
   };
 
   const handleExportSelected = () => {
     const selectedData = students?.filter(s => selectedStudents.has(s.id)) || [];
     if (selectedData.length > 0) {
-        exportToCSV(selectedData, 'قائمة_التلاميذ_المحددين.csv');
+        exportToXLSX(selectedData, 'قائمة_التلاميذ_المحددين.xlsx');
     } else {
         toast({ title: "لا توجد بيانات", description: "الرجاء تحديد التلاميذ للتصدير." });
     }
   };
   
-    const handleDownloadTemplate = () => {
-        const headers = ['firstName', 'lastName', 'dateOfBirth', 'gender', 'level', 'institutionId', 'status'].join(',');
-        downloadCSV(headers, 'template.csv');
-    };
+  const handleDownloadTemplate = () => {
+      const headers = [['اللقب', 'الإسم', 'تاريخ الميلاد', 'الجنس', 'المستوى', 'معرف المؤسسة', 'الحالة']];
+      const worksheet = XLSX.utils.aoa_to_sheet(headers);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "نموذج");
+      XLSX.writeFile(workbook, "نموذج_تلاميذ.xlsx");
+  };
 
-    const handleImportClick = () => {
-        fileInputRef.current?.click();
-    };
+  const handleImportClick = () => {
+      fileInputRef.current?.click();
+  };
 
-    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results) => {
-                const importedStudents = results.data as any[];
-                const batch = writeBatch(firestore);
-                let count = 0;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const importedStudents: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                importedStudents.forEach(studentData => {
-                    // Basic validation
-                    if (studentData.firstName && studentData.lastName && studentData.institutionId) {
-                        const newStudentRef = doc(collection(firestore, 'students'));
-                        batch.set(newStudentRef, {
-                          firstName: studentData.firstName || '',
-                          lastName: studentData.lastName || '',
-                          dateOfBirth: studentData.dateOfBirth || '',
-                          gender: studentData.gender === 'male' || studentData.gender === 'female' ? studentData.gender : 'male',
-                          level: studentData.level || '',
-                          institutionId: studentData.institutionId || '',
-                           status: studentData.status === 'active' || studentData.status === 'exempt' ? studentData.status : 'active',
-                        });
-                        count++;
+            // Assuming first row is headers
+            const headers = importedStudents[0];
+            const dataRows = importedStudents.slice(1);
+
+            const batch = writeBatch(firestore);
+            let count = 0;
+            
+            const institutionsMapByName = new Map(institutions?.map(inst => [inst.name.toLowerCase(), inst.id]));
+
+            dataRows.forEach(row => {
+                const studentData:any = {};
+                headers.forEach((header: string, index: number) => {
+                    const normalizedHeader = header.trim().toLowerCase();
+                    if(normalizedHeader === 'اللقب') studentData.lastName = row[index];
+                    else if(normalizedHeader === 'الإسم') studentData.firstName = row[index];
+                    else if(normalizedHeader === 'تاريخ الميلاد') studentData.dateOfBirth = row[index];
+                    else if(normalizedHeader === 'الجنس') studentData.gender = row[index] === 'ذكر' ? 'male' : 'female';
+                    else if(normalizedHeader === 'المستوى') studentData.level = row[index];
+                    else if(normalizedHeader === 'معرف المؤسسة' || normalizedHeader === 'المؤسسة') {
+                        // Support both ID and name for institution
+                        const instValue = row[index].toString().toLowerCase();
+                        studentData.institutionId = institutionsMapByName.get(instValue) || instValue;
                     }
+                    else if(normalizedHeader === 'الحالة') studentData.status = row[index] === 'يمارس' ? 'active' : 'exempt';
                 });
 
-                if (count > 0) {
-                    batch.commit().then(() => {
-                        toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ.` });
-                    }).catch(err => {
-                        console.error(err);
-                        toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ.", variant: "destructive" });
+                // Basic validation
+                if (studentData.firstName && studentData.lastName && studentData.institutionId) {
+                    const newStudentRef = doc(collection(firestore, 'students'));
+                    batch.set(newStudentRef, {
+                      firstName: studentData.firstName || '',
+                      lastName: studentData.lastName || '',
+                      dateOfBirth: studentData.dateOfBirth || '',
+                      gender: studentData.gender === 'male' || studentData.gender === 'female' ? studentData.gender : 'male',
+                      level: studentData.level || '',
+                      institutionId: studentData.institutionId || '',
+                      status: studentData.status === 'active' || studentData.status === 'exempt' ? studentData.status : 'active',
                     });
-                } else {
-                    toast({ title: "لا توجد بيانات صالحة للاستيراد", variant: "destructive" });
+                    count++;
                 }
-            },
-            error: (error) => {
-                 toast({ title: "خطأ في قراءة الملف", description: error.message, variant: "destructive" });
+            });
+
+            if (count > 0) {
+                batch.commit().then(() => {
+                    toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ.` });
+                }).catch(err => {
+                    console.error(err);
+                    toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ. تأكد من صحة معرفات المؤسسة.", variant: "destructive" });
+                });
+            } else {
+                toast({ title: "لا توجد بيانات صالحة للاستيراد", description: "يرجى التحقق من تنسيق الملف ومحتواه.", variant: "destructive" });
             }
-        });
-        
-        // Reset file input
-        event.target.value = '';
+        } catch(error) {
+            console.error(error);
+            toast({ title: "خطأ في قراءة الملف", description: "تأكد من أن الملف بتنسيق XLSX صحيح.", variant: "destructive" });
+        }
     };
+    reader.readAsBinaryString(file);
+    
+    // Reset file input
+    if(fileInputRef.current) fileInputRef.current.value = '';
+};
 
   return (
     <div className="flex flex-col gap-6">
@@ -491,7 +505,7 @@ export default function StudentsPage() {
             ref={fileInputRef} 
             onChange={handleFileImport}
             className="hidden" 
-            accept=".csv"
+            accept=".xlsx"
           />
           {selectedStudents.size > 0 && (
              <>
@@ -499,7 +513,7 @@ export default function StudentsPage() {
                     <Trash2 className="me-2" />
                     حذف المحدد ({selectedStudents.size})
                 </Button>
-                 <Button variant="outline" onClick={handleExportSelected} className="rounded-full">
+                 <Button variant="outline" onClick={handleExportSelected} className="rounded-full border-green-600 text-green-600 hover:bg-green-50">
                     <FileDown className="me-2" />
                     تصدير المحدد ({selectedStudents.size})
                 </Button>
@@ -591,5 +605,3 @@ export default function StudentsPage() {
     </div>
   );
 }
-
-    
