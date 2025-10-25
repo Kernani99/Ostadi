@@ -44,6 +44,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { Label } from "@/components/ui/label";
 
 const studentSchema = z.object({
   firstName: z.string().min(1, { message: "الإسم مطلوب" }),
@@ -275,6 +276,85 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     )
 }
 
+function PrintDialog({ open, onOpenChange, institutions }: { open: boolean, onOpenChange: (open: boolean) => void, institutions: Institution[] | null }) {
+    const [printLevel, setPrintLevel] = useState<string>('all');
+    const [printInstitution, setPrintInstitution] = useState<string>('all');
+    const { toast } = useToast();
+
+    const handleConfirmPrint = () => {
+        if (printInstitution === 'all' && printLevel === 'all') {
+            toast({
+                title: "الرجاء تحديد فلتر",
+                description: "اختر مؤسسة أو مستوى على الأقل لطباعة القائمة.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const params = new URLSearchParams();
+        if (printLevel !== 'all') {
+            params.set('level', printLevel);
+        }
+        if (printInstitution !== 'all') {
+            params.set('institutionId', printInstitution);
+        }
+        const printWindow = window.open(`/students/print?${params.toString()}`, '_blank');
+        printWindow?.focus();
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>طباعة قائمة التلاميذ</DialogTitle>
+                    <DialogDescription>
+                        اختر المؤسسة و/أو المستوى الدراسي لعرض القائمة المراد طباعتها.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="print-institution">المؤسسة</Label>
+                        <Select value={printInstitution} onValueChange={setPrintInstitution}>
+                            <SelectTrigger id="print-institution">
+                                <SelectValue placeholder="اختر المؤسسة" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">الكل</SelectItem>
+                                {institutions?.map(inst => (
+                                    <SelectItem key={inst.id} value={inst.id}>
+                                        {inst.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="print-level">المستوى</Label>
+                        <Select value={printLevel} onValueChange={setPrintLevel}>
+                            <SelectTrigger id="print-level">
+                                <SelectValue placeholder="اختر المستوى" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">الكل</SelectItem>
+                                <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                                <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                                <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                                <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                                <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
+                    <Button type="button" onClick={handleConfirmPrint}>طباعة</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 
 export default function StudentsPage() {
   const firestore = useFirestore();
@@ -292,6 +372,7 @@ export default function StudentsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
 
   const [isFormOpen, setFormOpen] = useState(false);
+  const [isPrintDialogOpen, setPrintDialogOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
@@ -480,18 +561,6 @@ export default function StudentsPage() {
     if(fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handlePrint = () => {
-    const params = new URLSearchParams();
-    if (levelFilter !== 'all') {
-      params.set('level', levelFilter);
-    }
-    if (institutionFilter !== 'all') {
-      params.set('institutionId', institutionFilter);
-    }
-    const printWindow = window.open(`/students/print?${params.toString()}`, '_blank');
-    printWindow?.focus();
-  };
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-2">
@@ -517,6 +586,7 @@ export default function StudentsPage() {
                 تسجيل تلميذ
                 </Button>
                 <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
+                 <PrintDialog open={isPrintDialogOpen} onOpenChange={setPrintDialogOpen} institutions={institutions} />
             <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
                 <FileText className="me-2" />
                 تحميل الكل (Excel)
@@ -525,7 +595,7 @@ export default function StudentsPage() {
                 <FileUp className="me-2" />
                 استيراد (Excel)
             </Button>
-             <Button onClick={handlePrint} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+             <Button onClick={() => setPrintDialogOpen(true)} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
                 <Printer className="me-2" />
                 طباعة القائمة
             </Button>
