@@ -389,7 +389,7 @@ export default function StudentsPage() {
   };
   
   const handleDownloadTemplate = () => {
-      const headers = [['اللقب', 'الإسم', 'تاريخ الميلاد', 'الجنس', 'المستوى', 'معرف المؤسسة', 'الحالة']];
+      const headers = [['اللقب', 'الإسم', 'تاريخ الميلاد', 'الجنس', 'المستوى', 'المؤسسة', 'الحالة']];
       const worksheet = XLSX.utils.aoa_to_sheet(headers);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "نموذج");
@@ -431,9 +431,9 @@ export default function StudentsPage() {
                     else if(normalizedHeader === 'تاريخ الميلاد') studentData.dateOfBirth = row[index];
                     else if(normalizedHeader === 'الجنس') studentData.gender = row[index] === 'ذكر' ? 'male' : 'female';
                     else if(normalizedHeader === 'المستوى') studentData.level = row[index];
-                    else if(normalizedHeader === 'معرف المؤسسة' || normalizedHeader === 'المؤسسة') {
+                    else if(normalizedHeader === 'المؤسسة') {
                         // Support both ID and name for institution
-                        const instValue = row[index].toString().toLowerCase();
+                        const instValue = row[index]?.toString().toLowerCase();
                         studentData.institutionId = institutionsMapByName.get(instValue) || instValue;
                     }
                     else if(normalizedHeader === 'الحالة') studentData.status = row[index] === 'يمارس' ? 'active' : 'exempt';
