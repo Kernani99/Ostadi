@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore } from "@/firebase";
 import { PlusCircle, Upload, Download, Search, Trash2, Pencil, UserPlus, FileDown, FileUp, FileText } from "lucide-react";
-import { collection, query, where } from "firebase/firestore";
+import { collection, doc, query, where } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
 import { Student } from "@/lib/types";
@@ -17,7 +17,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   Select,
@@ -28,99 +27,198 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { useToast } from "@/hooks/use-toast";
 
-const StudentForm = () => {
+const studentSchema = z.object({
+  firstName: z.string().min(1, { message: "الإسم مطلوب" }),
+  lastName: z.string().min(1, { message: "اللقب مطلوب" }),
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(['male', 'female'], { required_error: "الجنس مطلوب" }),
+  level: z.string().min(1, { message: "المستوى مطلوب" }),
+  institutionId: z.string().min(1, { message: "المؤسسة مطلوبة" }),
+  status: z.enum(['active', 'exempt'], { required_error: "الحالة مطلوبة" }),
+});
+
+type StudentFormValues = z.infer<typeof studentSchema>;
+
+const StudentForm = ({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) => {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
     const { data: institutions } = useCollection(institutionsQuery);
 
-  return (
-    <DialogContent className="sm:max-w-[425px]">
-      <DialogHeader>
-        <DialogTitle>إضافة تلميذ جديد</DialogTitle>
-        <DialogDescription>
-          أدخل تفاصيل التلميذ الجديد هنا. انقر على "حفظ" عند الانتهاء.
-        </DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-4 py-4">
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="name" className="text-right">
-            الإسم واللقب
-          </Label>
-          <Input id="name" className="col-span-3" />
-        </div>
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="dob" className="text-right">
-            تاريخ الميلاد
-          </Label>
-          <Input id="dob" type="date" className="col-span-3" />
-        </div>
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="gender" className="text-right">
-            الجنس
-          </Label>
-           <Select>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="اختر الجنس" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="male">ذكر</SelectItem>
-                <SelectItem value="female">أنثى</SelectItem>
-              </SelectContent>
-            </Select>
-        </div>
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="level" className="text-right">
-            المستوى
-          </Label>
-           <Select>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="اختر المستوى" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">أولى ابتدائي</SelectItem>
-                <SelectItem value="2">ثانية ابتدائي</SelectItem>
-                <SelectItem value="3">ثالثة ابتدائي</SelectItem>
-                <SelectItem value="4">رابعة ابتدائي</SelectItem>
-                <SelectItem value="5">خامسة ابتدائي</SelectItem>
-              </SelectContent>
-            </Select>
-        </div>
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="institution" className="text-right">
-            المؤسسة
-          </Label>
-           <Select>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="اختر المؤسسة" />
-              </SelectTrigger>
-              <SelectContent>
-                {institutions?.map(inst => (
-                    <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-        </div>
-         <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="status" className="text-right">
-            الحالة
-          </Label>
-           <Select>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="اختر الحالة" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">يمارس</SelectItem>
-                <SelectItem value="exempt">معفي</SelectItem>
-              </SelectContent>
-            </Select>
-        </div>
-      </div>
-      <DialogFooter>
-        <Button type="submit">حفظ التلميذ</Button>
-      </DialogFooter>
-    </DialogContent>
-  )
+    const form = useForm<StudentFormValues>({
+        resolver: zodResolver(studentSchema),
+        defaultValues: {
+            firstName: '',
+            lastName: '',
+            dateOfBirth: '',
+            level: '',
+            institutionId: '',
+        }
+    });
+
+    const onSubmit = (data: StudentFormValues) => {
+        addDocumentNonBlocking(collection(firestore, 'students'), data);
+        toast({
+            title: "تم الحفظ بنجاح",
+            description: `تمت إضافة التلميذ ${data.firstName} ${data.lastName}.`,
+        });
+        form.reset();
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>إضافة تلميذ جديد</DialogTitle>
+                    <DialogDescription>
+                        أدخل تفاصيل التلميذ الجديد هنا. انقر على "حفظ" عند الانتهاء.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                        <FormField
+                            control={form.control}
+                            name="lastName"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">اللقب</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} className="col-span-3" />
+                                    </FormControl>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="firstName"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">الإسم</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} className="col-span-3" />
+                                    </FormControl>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="dateOfBirth"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">تاريخ الميلاد</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} type="date" className="col-span-3" />
+                                    </FormControl>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="gender"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">الجنس</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="اختر الجنس" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="male">ذكر</SelectItem>
+                                            <SelectItem value="female">أنثى</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="level"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">المستوى</FormLabel>
+                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="اختر المستوى" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                                            <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                                            <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                                            <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                                            <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="institutionId"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">المؤسسة</FormLabel>
+                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="اختر المؤسسة" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {institutions?.map(inst => (
+                                                <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="status"
+                            render={({ field }) => (
+                                <FormItem className="grid grid-cols-4 items-center gap-4">
+                                    <FormLabel className="text-right">الحالة</FormLabel>
+                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="اختر الحالة" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="active">يمارس</SelectItem>
+                                            <SelectItem value="exempt">معفي</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage className="col-span-4" />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <Button type="submit">حفظ التلميذ</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 
@@ -132,6 +230,8 @@ export default function StudentsPage() {
   const { data: institutions } = useCollection(institutionsQuery);
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddModalOpen, setAddModalOpen] = useState(false);
+
 
   const institutionMap = useMemo(() => {
     if (!institutions) return new Map();
@@ -156,15 +256,11 @@ export default function StudentsPage() {
 
       <Card className="shadow-md">
         <CardContent className="p-4 flex flex-wrap items-center gap-2">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
-                  <UserPlus className="me-2" />
-                  تسجيل تلميذ
-                </Button>
-              </DialogTrigger>
-              <StudentForm />
-            </Dialog>
+            <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+              <UserPlus className="me-2" />
+              تسجيل تلميذ
+            </Button>
+            <StudentForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
            <Button variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileText className="me-2" />
             ت نموذج Excel
@@ -193,7 +289,7 @@ export default function StudentsPage() {
                     <Checkbox />
                 </TableHead>
                 <TableHead className="text-white">#</TableHead>
-                <TableHead className="text-white">اللقب والإسم</TableHead>
+                <TableHead className="text-white">الإسم الكامل</TableHead>
                 <TableHead className="text-white">المستوى</TableHead>
                 <TableHead className="text-white">الجنس</TableHead>
                 <TableHead className="text-white">المؤسسة</TableHead>
@@ -209,10 +305,10 @@ export default function StudentsPage() {
                     <Checkbox />
                   </TableCell>
                   <TableCell>{index + 1}</TableCell>
-                  <TableCell className="font-medium">{student.firstName} {student.lastName}</TableCell>
+                  <TableCell className="font-medium">{student.lastName} {student.firstName}</TableCell>
                   <TableCell>{student.level ?? 'غير محدد'}</TableCell>
                   <TableCell>
-                    {student.gender === 'male' ? '♂' : '♀'}
+                    {student.gender === 'male' ? 'ذكر' : 'أنثى'}
                   </TableCell>
                   <TableCell>{institutionMap.get(student.institutionId) ?? 'غير محدد'}</TableCell>
                   <TableCell>
@@ -236,3 +332,5 @@ export default function StudentsPage() {
     </div>
   );
 }
+
+    
