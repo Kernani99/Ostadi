@@ -388,12 +388,12 @@ export default function StudentsPage() {
     }
   };
   
-  const handleDownloadTemplate = () => {
-      const headers = [['اللقب', 'الإسم', 'تاريخ الميلاد', 'الجنس', 'المستوى', 'المؤسسة', 'الحالة']];
-      const worksheet = XLSX.utils.aoa_to_sheet(headers);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "نموذج");
-      XLSX.writeFile(workbook, "نموذج_تلاميذ.xlsx");
+  const handleDownloadAll = () => {
+    if (students && students.length > 0) {
+        exportToXLSX(students, 'قائمة_كل_التلاميذ.xlsx');
+    } else {
+        toast({ title: "لا توجد بيانات", description: "لا يوجد تلاميذ مسجلين للتصدير." });
+    }
   };
 
   const handleImportClick = () => {
@@ -492,9 +492,9 @@ export default function StudentsPage() {
               تسجيل تلميذ
             </Button>
             <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
-           <Button onClick={handleDownloadTemplate} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+           <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileText className="me-2" />
-            تحميل نموذج
+            تحميل الكل
           </Button>
           <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
             <FileUp className="me-2" />
