@@ -9,13 +9,12 @@ import { useAuth, useCollection, useFirestore } from "@/firebase";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Institution } from "@/lib/types";
-import { collection } from "firebase/firestore";
+import { collection, doc } from "firebase/firestore";
 import { PlusCircle, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const firestore = useFirestore();
-  const auth = useAuth();
   const [name, setName] = useState('');
   const [municipality, setMunicipality] = useState('');
 
@@ -71,9 +70,8 @@ export default function SettingsPage() {
 
   const handleDelete = (id: string) => {
     if (confirm('هل أنت متأكد من أنك تريد حذف هذه المؤسسة؟')) {
-        const institutionRef = collection(firestore, 'institutions');
-        const docRef = require('firebase/firestore').doc;
-        deleteDocumentNonBlocking(docRef(institutionRef, id));
+        const institutionDocRef = doc(firestore, 'institutions', id);
+        deleteDocumentNonBlocking(institutionDocRef);
     }
   }
 
@@ -91,12 +89,15 @@ export default function SettingsPage() {
           <div className="flex flex-col">
             <CardTitle className="text-xl">إدارة المؤسسات</CardTitle>
           </div>
-          <DialogTrigger asChild>
-            <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
-              <PlusCircle className="me-2" />
-              إضافة مؤسسة
-            </Button>
-          </DialogTrigger>
+          <Dialog open={isAddModalOpen} onOpenChange={setAddModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+                <PlusCircle className="me-2" />
+                إضافة مؤسسة
+              </Button>
+            </DialogTrigger>
+            <AddInstitutionForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
+          </Dialog>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -128,7 +129,6 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-      <AddInstitutionForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
     </div>
   );
 }
