@@ -7,88 +7,198 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore } from "@/firebase";
-import { collection, doc, query, where, writeBatch } from "firebase/firestore";
+import { collection, doc, query, where, writeBatch, getDocs } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
-import type { Student, Department } from "@/lib/types";
+import type { Student, Department, Institution } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Shuffle, Users, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Loader2, Users, UserPlus } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 // Schema for adding a new department
 const departmentSchema = z.object({
   name: z.string().min(1, "اسم القسم مطلوب"),
   institutionId: z.string().min(1, "المؤسسة مطلوبة"),
+  level: z.string().min(1, "المستوى مطلوب"),
+  studentIds: z.array(z.string()).optional(),
 });
 type DepartmentFormValues = z.infer<typeof departmentSchema>;
-
-// Schema for the grouping form
-const groupingSchema = z.object({
-  departmentId: z.string().min(1, "الرجاء اختيار قسم."),
-  numberOfGroups: z.number({ coerce: true }).min(2, "يجب أن يكون عدد الأفواج 2 على الأقل."),
-});
 
 // Component to add a new department
 function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
     const firestore = useFirestore();
-    const { data: institutions } = useCollection(useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]));
+    const { data: institutions } = useCollection<Institution>(useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]));
     const { toast } = useToast();
+    const [selectedLevel, setSelectedLevel] = useState('');
+    const [selectedInstitution, setSelectedInstitution] = useState('');
+
+    const unassignedStudentsQuery = useMemoFirebase(() => {
+        if (!selectedLevel || !selectedInstitution) return null;
+        return query(
+            collection(firestore, 'students'),
+            where('institutionId', '==', selectedInstitution),
+            where('level', '==', selectedLevel),
+            where('departmentId', '==', null)
+        );
+    }, [firestore, selectedLevel, selectedInstitution]);
+    const { data: unassignedStudents, isLoading: isLoadingStudents } = useCollection<Student>(unassignedStudentsQuery);
+
     const form = useForm<DepartmentFormValues>({
         resolver: zodResolver(departmentSchema),
-        defaultValues: { name: '', institutionId: '' }
+        defaultValues: { name: '', institutionId: '', level: '', studentIds: [] }
     });
 
-    const onSubmit = (data: DepartmentFormValues) => {
-        addDocumentNonBlocking(collection(firestore, 'departments'), data);
-        toast({ title: "تم الحفظ بنجاح", description: `تمت إضافة القسم ${data.name}.` });
+    useEffect(() => {
+        form.reset({ name: '', institutionId: '', level: '', studentIds: [] });
+        setSelectedLevel('');
+        setSelectedInstitution('');
+    }, [open, form]);
+
+    const onSubmit = async (data: DepartmentFormValues) => {
+        const batch = writeBatch(firestore);
+        
+        // 1. Create the new department
+        const newDeptRef = doc(collection(firestore, 'departments'));
+        batch.set(newDeptRef, { name: data.name, institutionId: data.institutionId });
+
+        // 2. Update the selected students to assign them to the new department
+        if (data.studentIds && data.studentIds.length > 0) {
+            data.studentIds.forEach(studentId => {
+                const studentRef = doc(firestore, 'students', studentId);
+                batch.update(studentRef, { departmentId: newDeptRef.id });
+            });
+        }
+        
+        await batch.commit();
+
+        toast({ title: "تم الحفظ بنجاح", description: `تمت إضافة القسم ${data.name} وتعيين ${data.studentIds?.length || 0} تلميذ/ة.` });
         form.reset();
         onOpenChange(false);
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>إضافة قسم جديد</DialogTitle>
-                    <DialogDescription>أدخل تفاصيل القسم الجديد.</DialogDescription>
+                    <DialogTitle>إضافة فوج (قسم) جديد</DialogTitle>
+                    <DialogDescription>اختر المؤسسة والمستوى، ثم أدخل اسم الفوج واختر التلاميذ.</DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="institutionId"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>المؤسسة</FormLabel>
+                                        <Select onValueChange={(value) => { field.onChange(value); setSelectedInstitution(value); }} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="اختر مؤسسة" /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="level"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>المستوى</FormLabel>
+                                        <Select onValueChange={(value) => { field.onChange(value); setSelectedLevel(value); }} value={field.value} disabled={!selectedInstitution}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                                                <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                                                <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                                                <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                                                <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                         <FormField
                             control={form.control}
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>اسم القسم</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
+                                    <FormLabel>اسم الفوج (القسم)</FormLabel>
+                                    <FormControl><Input {...field} disabled={!selectedLevel} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
-                        <FormField
-                            control={form.control}
-                            name="institutionId"
-                            render={({ field }) => (
+                       
+                        {selectedLevel && (
+                             <FormField
+                                control={form.control}
+                                name="studentIds"
+                                render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>المؤسسة</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger><SelectValue placeholder="اختر مؤسسة" /></SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
+                                    <FormLabel>اختر التلاميذ</FormLabel>
+                                    <p className="text-sm text-muted-foreground">قائمة التلاميذ غير المعينين في هذا المستوى.</p>
+                                    <ScrollArea className="h-60 rounded-md border p-4">
+                                        {isLoadingStudents ? <p>جاري تحميل التلاميذ...</p> : 
+                                         unassignedStudents && unassignedStudents.length > 0 ?
+                                         unassignedStudents.map((student) => (
+                                            <FormField
+                                                key={student.id}
+                                                control={form.control}
+                                                name="studentIds"
+                                                render={({ field }) => {
+                                                return (
+                                                    <FormItem
+                                                        key={student.id}
+                                                        className="flex flex-row items-start space-x-3 space-y-0 rtl:space-x-reverse my-2"
+                                                    >
+                                                        <FormControl>
+                                                            <Checkbox
+                                                                checked={field.value?.includes(student.id)}
+                                                                onCheckedChange={(checked) => {
+                                                                    return checked
+                                                                    ? field.onChange([...(field.value || []), student.id])
+                                                                    : field.onChange(
+                                                                        field.value?.filter(
+                                                                            (value) => value !== student.id
+                                                                        )
+                                                                        )
+                                                                }}
+                                                            />
+                                                        </FormControl>
+                                                        <FormLabel className="font-normal">
+                                                            {student.lastName} {student.firstName}
+                                                        </FormLabel>
+                                                    </FormItem>
+                                                )
+                                                }}
+                                            />
+                                        )) : <p>لا يوجد تلاميذ غير معينين.</p>}
+                                    </ScrollArea>
                                     <FormMessage />
                                 </FormItem>
-                            )}
-                        />
+                                )}
+                            />
+                        )}
+
+
                         <DialogFooter>
-                            <Button type="submit">حفظ القسم</Button>
+                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                                {form.formState.isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin"/>}
+                                حفظ القسم
+                            </Button>
                         </DialogFooter>
                     </form>
                 </Form>
@@ -97,92 +207,37 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     );
 }
 
+
 // Main component for the departments page
 export default function DepartmentsPage() {
   const [isAddModalOpen, setAddModalOpen] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [resultGroups, setResultGroups] = useState<Student[][] | null>(null);
-  const { toast } = useToast();
   const firestore = useFirestore();
 
   const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
   const { data: departments } = useCollection<Department>(departmentsQuery);
 
-  const studentsInDepartmentQuery = useMemoFirebase(() => {
-    if (!selectedDepartment) return null;
-    return query(collection(firestore, 'students'), where('departmentId', '==', selectedDepartment));
-  }, [firestore, selectedDepartment]);
-  const { data: studentsInSelectedDepartment } = useCollection<Student>(studentsInDepartmentQuery);
-
-  const form = useForm<z.infer<typeof groupingSchema>>({
-    resolver: zodResolver(groupingSchema),
-    defaultValues: { departmentId: "", numberOfGroups: 2 },
-  });
-
-  const assignStudentsToDepartment = async () => {
-    if (!selectedDepartment) {
-        toast({ title: "خطأ", description: "الرجاء اختيار قسم أولاً.", variant: "destructive" });
-        return;
-    }
-
-    const dept = departments?.find(d => d.id === selectedDepartment);
-    if (!dept) return;
-
-    // A simple logic to find students that might belong to this department
-    // e.g., by level if department name contains a level name.
-    // This is a placeholder for a more robust logic.
-    const levelMatch = dept.name.match(/أولى|ثانية|ثالثة|رابعة|خامسة/);
-    if (!levelMatch) {
-         toast({ title: "لا يمكن التعيين", description: "لا يمكن تحديد التلاميذ تلقائيًا لهذا القسم. قم بتعيينهم يدويًا من صفحة التلاميذ.", variant: "destructive" });
-        return;
-    }
-    const levelString = `${levelMatch[0]} ابتدائي`;
-
-    const studentsToUpdateQuery = query(collection(firestore, 'students'), where('level', '==', levelString), where('departmentId', '==', null));
-    const studentsToUpdateSnap = await getDocs(studentsToUpdateQuery);
+  const allStudentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
+  const { data: allStudents } = useCollection<Student>(allStudentsQuery);
+  
+  const studentsByDepartment = useMemo(() => {
+    if (!allStudents || !departments) return new Map<string, Student[]>();
     
-    if (studentsToUpdateSnap.empty) {
-        toast({ title: "لا يوجد تلاميذ", description: "لا يوجد تلاميذ غير معينين في هذا المستوى.", });
-        return;
-    }
-
-    const batch = writeBatch(firestore);
-    studentsToUpdateSnap.forEach(studentDoc => {
-        batch.update(studentDoc.ref, { departmentId: selectedDepartment });
+    const map = new Map<string, Student[]>();
+    
+    departments.forEach(dept => {
+      map.set(dept.id, []);
     });
 
-    await batch.commit();
-    toast({ title: "تم التحديث", description: `تم تعيين ${studentsToUpdateSnap.size} تلميذ/تلاميذ للقسم.` });
-  };
-
-
-  function onSubmit(values: z.infer<typeof groupingSchema>) {
-    setIsLoading(true);
-    setResultGroups(null);
-
-    if (!studentsInSelectedDepartment || studentsInSelectedDepartment.length < values.numberOfGroups) {
-      toast({
-        title: "خطأ في الإدخال",
-        description: "عدد التلاميذ في القسم أقل من عدد الأفواج المطلوب.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    // Simple grouping logic: distribute students one by one into groups
-    const groups: Student[][] = Array.from({ length: values.numberOfGroups }, () => []);
-    const shuffledStudents = [...studentsInSelectedDepartment].sort(() => Math.random() - 0.5); // Shuffle for randomness
-    
-    shuffledStudents.forEach((student, index) => {
-        groups[index % values.numberOfGroups].push(student);
+    allStudents.forEach(student => {
+      if (student.departmentId && map.has(student.departmentId)) {
+        map.get(student.departmentId)?.push(student);
+      }
     });
 
-    setResultGroups(groups);
-    setIsLoading(false);
-    toast({ title: "تم التفويج بنجاح", description: `تم تقسيم التلاميذ إلى ${values.numberOfGroups} أفواج.` });
-  }
+    return map;
+
+  }, [allStudents, departments]);
+
 
   return (
     <div className="container mx-auto p-4 space-y-8">
@@ -195,154 +250,45 @@ export default function DepartmentsPage() {
       
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>قائمة الأقسام</CardTitle>
+          <div className="flex flex-col">
+            <CardTitle>قائمة الأقسام (الأفواج)</CardTitle>
+            <CardDescription>هنا يمكنك عرض وإدارة جميع الأفواج.</CardDescription>
+          </div>
           <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
             <UserPlus className="me-2"/>
-            إضافة قسم
+            إضافة فوج
           </Button>
           <AddDepartmentForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
         </CardHeader>
         <CardContent>
             {departments && departments.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                    {departments.map(dept => <Badge key={dept.id} variant="secondary" className="text-lg p-2">{dept.name}</Badge>)}
-                </div>
-            ) : (
-                 <p className="text-muted-foreground">لم تتم إضافة أي أقسام بعد.</p>
-            )}
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>إدارة الأفواج</CardTitle>
-          <CardDescription>
-            اختر قسماً وعدد الأفواج المطلوب لتقسيم التلاميذ.
-          </CardDescription>
-        </CardHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="departmentId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>اختر القسم</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                          field.onChange(value);
-                          setSelectedDepartment(value);
-                          setResultGroups(null);
-                        }}
-                        defaultValue={field.value}
-                        dir="rtl"
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="اختر قسماً" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {departments?.map((dept) => (
-                            <SelectItem key={dept.id} value={dept.id}>
-                              {dept.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="numberOfGroups"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>عدد الأفواج المطلوب</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} min="2" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {selectedDepartment && (
-                <Card className="bg-muted/50">
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      تلاميذ القسم المحدد
-                    </CardTitle>
-                    <CardDescription>
-                      سيتم تقسيم هؤلاء التلاميذ ({studentsInSelectedDepartment?.length || 0} تلميذ/ة) إلى أفواج.
-                      {studentsInSelectedDepartment?.length === 0 && (
-                          <span className="text-amber-600 block mt-2">لا يوجد تلاميذ معينون في هذا القسم. يمكنك تعيينهم من صفحة التلاميذ أو محاولة التعيين التلقائي.</span>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-                   {studentsInSelectedDepartment && studentsInSelectedDepartment.length > 0 && (
-                    <CardContent>
-                        <div className="flex flex-wrap gap-2">
-                        {studentsInSelectedDepartment.map(s => (
-                            <Badge key={s.id} variant="secondary">{s.firstName} {s.lastName}</Badge>
-                        ))}
-                        </div>
-                    </CardContent>
-                   )}
-                </Card>
-              )}
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={isLoading || !selectedDepartment}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="me-2 h-4 w-4 animate-spin" />
-                    جاري التقسيم...
-                  </>
-                ) : (
-                  <>
-                    <Shuffle className="me-2 h-4 w-4" />
-                    قسم إلى أفواج
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          </form>
-        </Form>
-      </Card>
-
-      {resultGroups && (
-        <Card className="mt-8">
-            <CardHeader>
-                <CardTitle>نتائج تقسيم الأفواج</CardTitle>
-                 <CardDescription>تم تقسيم التلاميذ بنجاح.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {resultGroups.map((group, index) => (
-                    <Card key={index}>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {departments.map(dept => (
+                      <Card key={dept.id}>
                         <CardHeader>
-                            <CardTitle>الفوج {index + 1}</CardTitle>
-                            <CardDescription>عدد التلاميذ: {group.length}</CardDescription>
+                            <CardTitle className="text-lg">{dept.name}</CardTitle>
+                            <CardDescription>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-col gap-2">
-                            {group.map(student => (
-                              <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md">
-                                  <span>{student.firstName} {student.lastName}</span>
+                            <ScrollArea className="h-48">
+                            {studentsByDepartment.get(dept.id)?.map(student => (
+                              <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md text-sm">
+                                  <span>{student.lastName} {student.firstName}</span>
                                   <Badge variant={student.gender === 'male' ? 'default' : 'secondary'} className={student.gender === 'female' ? 'bg-pink-200 text-pink-800' : ''}>
                                       {student.gender === 'male' ? 'ذكر' : 'أنثى'}
                                   </Badge>
                               </div>
                             ))}
+                            </ScrollArea>
                         </CardContent>
-                    </Card>
-                ))}
-            </CardContent>
-        </Card>
-      )}
+                      </Card>
+                    ))}
+                </div>
+            ) : (
+                 <p className="text-muted-foreground text-center py-8">لم تتم إضافة أي أقسام بعد. ابدأ بإضافة فوج جديد.</p>
+            )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

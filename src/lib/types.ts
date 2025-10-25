@@ -8,7 +8,7 @@ export type Student = {
   level: string;
   institutionId: string;
   status: 'active' | 'exempt';
-  departmentId?: string; // Added for group management
+  departmentId?: string | null; // Can be null for unassigned students
 };
 
 export type Department = {
