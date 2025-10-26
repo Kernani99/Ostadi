@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChartHorizontalBig,
+  Files,
   Building2,
   ClipboardList,
   GraduationCap,
@@ -21,6 +21,7 @@ const navItems = [
   { href: "/students", label: "التلاميذ", icon: Users },
   { href: "/departments", label: "الأقسام", icon: Building2 },
   { href: "/attendance", label: "المناداة", icon: ClipboardList },
+  { href: "/professor-documents", label: "وثائق الأستاذ", icon: Files },
   { href: "/settings", label: "الإعدادات", icon: Settings },
 ];
 
