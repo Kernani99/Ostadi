@@ -103,7 +103,7 @@ export default function PrintDepartmentsPage() {
                         size: A4 portrait;
                         margin: 0.5in;
                     }
-                    .page-break-before {
+                    .page-break {
                         page-break-before: always;
                     }
                     .department-card {
@@ -119,9 +119,9 @@ export default function PrintDepartmentsPage() {
                 <h1 className="text-2xl font-bold mt-4 underline decoration-double">قائمة الأفواج</h1>
             </header>
             
-            <main className="space-y-10">
-                {Array.from(departmentsByLevel.entries()).map(([level, depts]) => (
-                    <div key={level}>
+            <main>
+                {Array.from(departmentsByLevel.entries()).map(([level, depts], index) => (
+                    <div key={level} className={index > 0 ? 'page-break' : ''}>
                         <h2 className="text-2xl font-bold text-center mb-6 p-2 bg-gray-200 rounded-md">
                             أفواج {level}
                         </h2>
@@ -132,7 +132,7 @@ export default function PrintDepartmentsPage() {
                                         <span>{dept.name} ( العدد: {studentsByDepartment.get(dept.id)?.length || 0} )</span>
                                     </div>
                                     <div className="student-list p-2">
-                                        {studentsByDepartment.get(dept.id)?.length > 0 ? (
+                                        {(studentsByDepartment.get(dept.id)?.length ?? 0) > 0 ? (
                                             <ol className="list-decimal list-inside text-sm space-y-1">
                                                 {studentsByDepartment.get(dept.id)?.map((student, index) => (
                                                     <li key={student.id} className="student-item">
