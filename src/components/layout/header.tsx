@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -15,6 +16,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useDoc, useFirestore } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { useMemoFirebase } from "@/firebase/provider";
+import type { ProfessorProfile } from "@/lib/types";
 
 const navItems = [
   { href: "/", label: "الرئيسية", icon: LayoutDashboard },
@@ -68,12 +73,17 @@ const AppNav = ({ isMobile = false }: { isMobile?: boolean }) => {
 
 
 export function Header() {
+  const firestore = useFirestore();
+  const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+  const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
+  const professorName = profileData ? `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim() : '...';
+
   return (
     <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
       <div className="flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
           <GraduationCap className="h-6 w-6 text-primary" />
-          <span>مرحباً بك استاذ</span>
+          <span>مرحباً بك استاذ: {professorName}</span>
         </Link>
       </div>
 
@@ -107,7 +117,7 @@ export function Header() {
             <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 mb-4">
                 <Link href="/" className="flex items-center gap-2 font-semibold">
                 <GraduationCap className="h-6 w-6 text-primary" />
-                <span className="">مرحباً بك استاذ</span>
+                <span className="">مرحباً بك استاذ: {professorName}</span>
                 </Link>
             </div>
           <AppNav isMobile />
