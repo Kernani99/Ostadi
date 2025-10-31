@@ -26,39 +26,39 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows anyone to read Institution documents.  Writes are denied.
+     * @description Allows any authenticated user to read Institution documents. Writes are denied.
      * @path /institutions/{institutionId}
-     * @allow (get, list) Allows anyone to read institution data.
-     * @deny (create, update, delete) Denies anyone from creating, updating, or deleting institution data.
-     * @principle Allows open data access for institutions.
+     * @allow (read) Allows any authenticated user to read institution data.
+     * @deny (write) Denies anyone from writing to institution data.
+     * @principle Allows open data access for authenticated users.
      */
     match /institutions/{institutionId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     /**
-     * @description Allows anyone to read Department documents. Writes are denied.
+     * @description Allows any authenticated user to read Department documents. Writes are denied.
      * @path /departments/{departmentId}
-     * @allow (get, list) Allows anyone to read department data.
-     * @deny (create, update, delete) Denies anyone from creating, updating, or deleting department data.
-     * @principle Allows open data access for departments.
+     * @allow (read) Allows any authenticated user to read department data.
+     * @deny (write) Denies anyone from writing to department data.
+     * @principle Allows open data access for authenticated users.
      */
     match /departments/{departmentId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     /**
-     * @description Allows anyone to read Student documents. Writes are denied.
+     * @description Allows any authenticated user to read Student documents. Writes are denied.
      * @path /students/{studentId}
-     * @allow (get, list) Allows anyone to read student data.
-     * @deny (create, update, delete) Denies anyone from creating, updating, or deleting student data.
-     * @principle Allows open data access for students.
+     * @allow (read) Allows any authenticated user to read student data.
+     * @deny (write) Denies anyone from writing to student data.
+     * @principle Allows open data access for authenticated users.
      */
     match /students/{studentId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     /**
@@ -108,6 +108,16 @@ service cloud.firestore {
     match /professor_profile/{profileId} {
        allow get, list: if true;
        allow create, update, delete: if isSignedIn();
+    }
+
+    /**
+     * @description Allows authenticated users to read and write their own daily logs.
+     * @path /daily_logs/{logId}
+     * @allow (read, write) Allows an authenticated user to read or write a log if their UID matches the log's userId.
+     * @principle Enforces ownership for daily logs.
+     */
+    match /daily_logs/{logId} {
+        allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
   }
 
