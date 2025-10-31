@@ -2,18 +2,36 @@
 
 import { useCollection, useDoc, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import { collection, doc } from "firebase/firestore";
-import type { Student, Department, ProfessorProfile } from "@/lib/types";
-import { useMemo, useEffect } from "react";
+import { collection, doc, query, where } from "firebase/firestore";
+import type { Student, Department, ProfessorProfile, Institution } from "@/lib/types";
+import { useMemo, useEffect, Suspense } from "react";
 import { Loader2 } from "lucide-react";
+import { useSearchParams } from 'next/navigation';
 
-export default function PrintDepartmentsPage() {
+function PrintDepartmentsContent() {
     const firestore = useFirestore();
-    
-    const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
+    const searchParams = useSearchParams();
+    const institutionId = searchParams.get('institutionId');
+
+    const departmentsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        if (institutionId) {
+            return query(collection(firestore, 'departments'), where('institutionId', '==', institutionId));
+        }
+        return collection(firestore, 'departments');
+    }, [firestore, institutionId]);
     const { data: departments, isLoading: isLoadingDepts } = useCollection<Department>(departmentsQuery);
 
-    const allStudentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
+    const institutionQuery = useMemoFirebase(() => institutionId ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
+    const { data: filteredInstitution } = useDoc<Institution>(institutionQuery);
+
+    const allStudentsQuery = useMemoFirebase(() => {
+      if (!firestore) return null;
+      if (institutionId) {
+        return query(collection(firestore, 'students'), where('institutionId', '==', institutionId));
+      }
+      return collection(firestore, 'students');
+    }, [firestore, institutionId]);
     const { data: allStudents, isLoading: isLoadingStudents } = useCollection<Student>(allStudentsQuery);
     
     const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
@@ -87,6 +105,7 @@ export default function PrintDepartmentsPage() {
     }
 
     const professorName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
+    const schoolName = filteredInstitution?.name || profileData?.schoolName || '...';
 
     return (
         <div className="p-8 bg-white text-black font-body">
@@ -113,7 +132,7 @@ export default function PrintDepartmentsPage() {
             `}</style>
              <header className="text-center mb-10 space-y-2">
                 <h1 className="text-xl font-bold">مديرية التربية لولاية: {profileData?.wilaya || '...'}</h1>
-                <h2 className="text-lg font-semibold">المدرسة الابتدائية: {profileData?.schoolName || '...'}</h2>
+                <h2 className="text-lg font-semibold">المدرسة الابتدائية: {schoolName}</h2>
                 <h3 className="text-base">السنة الدراسية: {profileData?.schoolYear || '...'}</h3>
                 <h3 className="text-base">الأستاذ: {professorName || '...'}</h3>
                 <h1 className="text-2xl font-bold mt-4 underline decoration-double">قائمة الأفواج</h1>
@@ -134,9 +153,9 @@ export default function PrintDepartmentsPage() {
                                     <div className="student-list p-2">
                                         {(studentsByDepartment.get(dept.id)?.length ?? 0) > 0 ? (
                                             <ol className="list-decimal list-inside text-sm space-y-1">
-                                                {studentsByDepartment.get(dept.id)?.map((student, index) => (
+                                                {studentsByDepartment.get(dept.id)?.map((student, studentIndex) => (
                                                     <li key={student.id} className="student-item">
-                                                        {index + 1}- {student.lastName} {student.firstName}
+                                                        {studentIndex + 1}- {student.lastName} {student.firstName}
                                                     </li>
                                                 ))}
                                             </ol>
@@ -161,5 +180,14 @@ export default function PrintDepartmentsPage() {
                 </div>
             </footer>
         </div>
+    );
+}
+
+
+export default function PrintDepartmentsPage() {
+    return (
+        <Suspense fallback={<div className="flex h-screen items-center justify-center">جاري التحميل...</div>}>
+            <PrintDepartmentsContent />
+        </Suspense>
     );
 }

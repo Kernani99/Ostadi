@@ -508,7 +508,11 @@ export default function DepartmentsPage() {
   };
   
   const handlePrint = () => {
-    const printWindow = window.open('/departments/print', '_blank');
+    const params = new URLSearchParams();
+    if (institutionFilter !== 'all') {
+        params.set('institutionId', institutionFilter);
+    }
+    const printWindow = window.open(`/departments/print?${params.toString()}`, '_blank');
     printWindow?.focus();
   }
 
