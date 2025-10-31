@@ -26,51 +26,45 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows any authenticated user to read Institution documents. Writes are denied.
+     * @description Allows any authenticated user to read and write Institution documents.
      * @path /institutions/{institutionId}
-     * @allow (read) Allows any authenticated user to read institution data.
-     * @deny (write) Denies anyone from writing to institution data.
+     * @allow (read, write) Allows any authenticated user to read and write institution data.
      * @principle Allows open data access for authenticated users.
      */
     match /institutions/{institutionId} {
-      allow read: if isSignedIn();
-      allow write: if false;
+      allow read, write: if isSignedIn();
     }
 
     /**
-     * @description Allows any authenticated user to read Department documents. Writes are denied.
+     * @description Allows any authenticated user to read and write Department documents.
      * @path /departments/{departmentId}
-     * @allow (read) Allows any authenticated user to read department data.
-     * @deny (write) Denies anyone from writing to department data.
+     * @allow (read, write) Allows any authenticated user to read and write department data.
      * @principle Allows open data access for authenticated users.
      */
     match /departments/{departmentId} {
-      allow read: if isSignedIn();
-      allow write: if false;
+      allow read, write: if isSignedIn();
     }
 
     /**
-     * @description Allows any authenticated user to read Student documents. Writes are denied.
+     * @description Allows any authenticated user to read and write Student documents.
      * @path /students/{studentId}
-     * @allow (read) Allows any authenticated user to read student data.
-     * @deny (write) Denies anyone from writing to student data.
+     * @allow (read, write) Allows any authenticated user to read and write student data.
      * @principle Allows open data access for authenticated users.
      */
     match /students/{studentId} {
-      allow read: if isSignedIn();
-      allow write: if false;
+      allow read, write: if isSignedIn();
     }
 
     /**
-     * @description Allows anyone to read Attendance documents. Writes are denied.
+     * @description Allows any authenticated user to write Attendance documents, and anyone to read them.
      * @path /attendances/{attendanceId}
-     * @allow (get, list) Allows anyone to read attendance data.
-     * @deny (create, update, delete) Denies anyone from creating, updating, or deleting attendance data.
+     * @allow (read) Allows anyone to read attendance data.
+     * @allow (write) Allows authenticated users to create, update, or delete attendance data.
      * @principle Allows open data access for attendance records.
      */
     match /attendances/{attendanceId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     /**
