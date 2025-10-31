@@ -12,7 +12,7 @@ import { collection, doc, query, where, writeBatch, getDocs, updateDoc } from "f
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Department, Institution } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Users, UserPlus, Trash2, Pencil, Printer } from "lucide-react";
+import { Loader2, Users, UserPlus, Trash2, Pencil, Printer, Building } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -403,56 +403,70 @@ export default function DepartmentsPage() {
   const [departmentToEdit, setDepartmentToEdit] = useState<Department | null>(null);
   const [departmentToDelete, setDepartmentToDelete] = useState<Department | null>(null);
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [institutionFilter, setInstitutionFilter] = useState('all');
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
-  const { data: departments, isLoading: isLoadingDepartments } = useCollection<Department>(departmentsQuery);
-
-  const allStudentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
-  const { data: allStudents } = useCollection<Student>(allStudentsQuery);
+  const { data: institutions, isLoading: isLoadingInstitutions } = useCollection<Institution>(useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]));
+  const { data: departments, isLoading: isLoadingDepartments } = useCollection<Department>(useMemoFirebase(() => collection(firestore, 'departments'), [firestore]));
+  const { data: allStudents } = useCollection<Student>(useMemoFirebase(() => collection(firestore, 'students'), [firestore]));
   
+  const institutionMap = useMemo(() => {
+    return new Map(institutions?.map(i => [i.id, i.name]));
+  }, [institutions]);
+
   const studentsByDepartment = useMemo(() => {
     if (!allStudents || !departments) return new Map<string, Student[]>();
     
     const map = new Map<string, Student[]>();
-    
-    departments.forEach(dept => {
-      map.set(dept.id, []);
-    });
-
+    departments.forEach(dept => map.set(dept.id, []));
     allStudents.forEach(student => {
       if (student.departmentId && map.has(student.departmentId)) {
         map.get(student.departmentId)?.push(student);
       }
     });
-
     return map;
   }, [allStudents, departments]);
 
-  const departmentsByLevel = useMemo(() => {
-    if (!departments) return new Map<string, Department[]>();
+  const departmentsByInstitutionThenLevel = useMemo(() => {
+    const filteredDepartments = institutionFilter === 'all' 
+      ? departments 
+      : departments?.filter(d => d.institutionId === institutionFilter);
 
-    const grouped = departments.reduce((acc, dept) => {
-        const level = dept.level || 'غير محدد';
-        if (!acc.has(level)) {
-            acc.set(level, []);
-        }
-        acc.get(level)!.push(dept);
-        return acc;
-    }, new Map<string, Department[]>());
+    if (!filteredDepartments) return new Map<string, Map<string, Department[]>>();
 
-    const levelOrder = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي', 'غير محدد'];
-    
-    const sortedGrouped = new Map<string, Department[]>();
-    levelOrder.forEach(level => {
-        if(grouped.has(level)) {
-            sortedGrouped.set(level, grouped.get(level)!);
+    const grouped = filteredDepartments.reduce((acc, dept) => {
+      const institutionId = dept.institutionId;
+      const level = dept.level || 'غير محدد';
+      
+      if (!acc.has(institutionId)) {
+        acc.set(institutionId, new Map<string, Department[]>());
+      }
+
+      const institutionGroup = acc.get(institutionId)!;
+      if (!institutionGroup.has(level)) {
+        institutionGroup.set(level, []);
+      }
+      institutionGroup.get(level)!.push(dept);
+      return acc;
+    }, new Map<string, Map<string, Department[]>>());
+
+    // Sort levels inside each institution
+    grouped.forEach(institutionGroup => {
+      const levelOrder = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي', 'غير محدد'];
+      const sortedInstitutionGroup = new Map<string, Department[]>();
+      levelOrder.forEach(level => {
+        if(institutionGroup.has(level)) {
+          sortedInstitutionGroup.set(level, institutionGroup.get(level)!);
         }
+      });
+       // Clear and re-populate with sorted levels
+      institutionGroup.clear();
+      sortedInstitutionGroup.forEach((depts, level) => institutionGroup.set(level, depts));
     });
-
-    return sortedGrouped;
-  }, [departments]);
+    
+    return grouped;
+  }, [departments, institutionFilter]);
 
 
   const handleOpenEditModal = (dept: Department) => {
@@ -498,6 +512,8 @@ export default function DepartmentsPage() {
     printWindow?.focus();
   }
 
+  const isLoading = isLoadingDepartments || isLoadingInstitutions;
+
   return (
     <div className="container mx-auto p-4 space-y-8">
       <div className="flex flex-col items-center gap-2">
@@ -508,64 +524,85 @@ export default function DepartmentsPage() {
       </div>
       
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex flex-col">
             <CardTitle>قائمة الأقسام (الأفواج)</CardTitle>
-            <CardDescription>هنا يمكنك عرض وإدارة جميع الأفواج مجمعة حسب المستوى.</CardDescription>
+            <CardDescription>هنا يمكنك عرض وإدارة جميع الأفواج مجمعة حسب المؤسسة والمستوى.</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={handlePrint} variant="outline" size="icon">
+          <div className="flex items-center gap-2 w-full md:w-auto">
+             <Select onValueChange={setInstitutionFilter} value={institutionFilter}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                    <SelectValue placeholder="فلترة حسب المؤسسة" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">كل المؤسسات</SelectItem>
+                    {institutions?.map(inst => (
+                        <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <Button onClick={handlePrint} variant="outline" size="icon" className="shrink-0">
                 <Printer className="h-5 w-5"/>
                 <span className="sr-only">طباعة</span>
             </Button>
-            <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+            <Button onClick={() => setAddModalOpen(true)} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full shrink-0">
                 <UserPlus className="me-2"/>
-                إضافة فوج
+                إضافة
             </Button>
           </div>
           <AddDepartmentForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
           <EditDepartmentForm department={departmentToEdit} open={isEditModalOpen} onOpenChange={setEditModalOpen} allStudents={allStudents} />
         </CardHeader>
         <CardContent>
-            {isLoadingDepartments ? (
+            {isLoading ? (
                  <p className="text-muted-foreground text-center py-8">جاري تحميل الأقسام...</p>
             ) : departments && departments.length > 0 ? (
-                <div className="space-y-8">
-                    {Array.from(departmentsByLevel.entries()).map(([level, depts]) => (
-                      <div key={level}>
-                          <h2 className="text-xl font-bold text-primary mb-4 pb-2 border-b-2 border-primary/20">
-                            أفواج {level}
+                <div className="space-y-12">
+                    {Array.from(departmentsByInstitutionThenLevel.entries()).map(([institutionId, levels]) => (
+                      <div key={institutionId}>
+                          <h2 className="text-2xl font-bold text-primary mb-6 pb-2 flex items-center gap-3">
+                            <Building className="h-7 w-7" />
+                            {institutionMap.get(institutionId) || 'مؤسسة غير معروفة'}
                           </h2>
-                          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {depts.map(dept => (
-                                <Card key={dept.id} className="flex flex-col">
-                                    <CardHeader className="flex-row justify-between items-start">
-                                        <div>
-                                            <CardTitle className="text-lg">{dept.name}</CardTitle>
-                                            <CardDescription>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</CardDescription>
-                                        </div>
-                                        <div className="flex gap-1">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(dept)}>
-                                                <Pencil className="h-4 w-4 text-blue-600"/>
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDeleteAlert(dept)}>
-                                                <Trash2 className="h-4 w-4 text-red-600"/>
-                                            </Button>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="flex flex-col gap-2 flex-grow">
-                                        <ScrollArea className="h-48">
-                                        {(studentsByDepartment.get(dept.id)?.length ?? 0) > 0 ? studentsByDepartment.get(dept.id)?.map(student => (
-                                        <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md text-sm">
-                                            <span>{student.lastName} {student.firstName}</span>
-                                            <Badge variant={student.gender === 'male' ? 'default' : 'secondary'} className={student.gender === 'female' ? 'bg-pink-200 text-pink-800' : ''}>
-                                                {student.gender === 'male' ? 'ذكر' : 'أنثى'}
-                                            </Badge>
-                                        </div>
-                                        )) : <p className="text-sm text-muted-foreground p-4 text-center">لا يوجد تلاميذ في هذا الفوج.</p>}
-                                        </ScrollArea>
-                                    </CardContent>
-                                </Card>
+                          <div className="space-y-8 ps-4 border-s-4 border-primary/20">
+                            {Array.from(levels.entries()).map(([level, depts]) => (
+                               <div key={level}>
+                                  <h3 className="text-xl font-bold text-primary/80 mb-4 pb-2 border-b-2 border-primary/20">
+                                    أفواج {level}
+                                  </h3>
+                                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                                    {depts.map(dept => (
+                                        <Card key={dept.id} className="flex flex-col shadow-md hover:shadow-lg transition-shadow">
+                                            <CardHeader className="flex-row justify-between items-start">
+                                                <div>
+                                                    <CardTitle className="text-lg">{dept.name}</CardTitle>
+                                                    <CardDescription>عدد التلاميذ: {studentsByDepartment.get(dept.id)?.length || 0}</CardDescription>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(dept)}>
+                                                        <Pencil className="h-4 w-4 text-blue-600"/>
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDeleteAlert(dept)}>
+                                                        <Trash2 className="h-4 w-4 text-red-600"/>
+                                                    </Button>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent className="flex flex-col gap-2 flex-grow">
+                                                <ScrollArea className="h-48">
+                                                {(studentsByDepartment.get(dept.id)?.length ?? 0) > 0 ? studentsByDepartment.get(dept.id)?.map(student => (
+                                                <div key={student.id} className="flex items-center justify-between p-2 bg-background rounded-md text-sm">
+                                                    <span>{student.lastName} {student.firstName}</span>
+                                                    <Badge variant={student.gender === 'male' ? 'default' : 'secondary'} className={student.gender === 'female' ? 'bg-pink-200 text-pink-800' : ''}>
+                                                        {student.gender === 'male' ? 'ذكر' : 'أنثى'}
+                                                    </Badge>
+                                                </div>
+                                                )) : <p className="text-sm text-muted-foreground p-4 text-center">لا يوجد تلاميذ في هذا الفوج.</p>}
+                                                </ScrollArea>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                  </div>
+                              </div>
                             ))}
                           </div>
                       </div>
@@ -594,5 +631,3 @@ export default function DepartmentsPage() {
     </div>
   );
 }
-
-    
