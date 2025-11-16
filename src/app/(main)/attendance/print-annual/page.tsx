@@ -98,7 +98,7 @@ function PrintAnnualContent() {
         /* إعدادات الصفحة للطباعة */
         @page {
             size: A4 landscape;
-            margin: 1cm;
+            margin: 0;
         }
 
         body {
@@ -244,7 +244,7 @@ function PrintAnnualContent() {
 
         /* إعدادات خاصة بالطباعة */
         @media print {
-             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; }
             .no-print { display: none !important; }
             
             body {

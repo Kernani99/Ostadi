@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useCollection, useDoc, useFirestore } from "@/firebase";
@@ -120,7 +121,7 @@ function PrintDepartmentsContent() {
                     }
                     @page {
                         size: A4 portrait;
-                        margin: 0.5in;
+                        margin: 0;
                     }
                     .page-break {
                         page-break-before: always;

@@ -81,7 +81,7 @@ function PrintContent() {
             <style>{`
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    @page { size: A4 portrait; margin: 0.5in; }
+                    @page { size: A4 portrait; margin: 0; }
                     .print-header, .print-footer { position: relative; }
                     .print-table { page-break-inside: auto; }
                     .print-table thead { display: table-header-group; }

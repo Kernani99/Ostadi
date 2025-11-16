@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useCollection, useDoc, useFirestore } from "@/firebase";
@@ -133,7 +134,7 @@ function PrintPageContent() {
                     }
                      @page {
                         size: A4 portrait;
-                        margin: 0.75in;
+                        margin: 0;
                     }
                 }
             `}</style>
