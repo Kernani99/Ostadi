@@ -2,6 +2,7 @@
 import "@/app/globals.css";
 
 // This layout is intentionally minimal to override the main layout for printing.
+// It renders a full HTML document to ensure it's completely isolated.
 export default function PrintLayout({
   children,
 }: {
