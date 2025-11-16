@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { useCollection, useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Institution, Student, Evaluation, EvaluationCriteria } from '@/lib/types';
-import { collection, query, where, writeBatch } from 'firebase/firestore';
-import { ChevronRight, Save, Loader2 } from 'lucide-react';
+import { collection, query, where, writeBatch, doc } from 'firebase/firestore';
+import { ChevronRight, Save, Loader2, Printer } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -103,8 +103,8 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
                 const score = studentScores[criteria.id];
                 if (score !== undefined) {
                     const evalId = `${student.id}_${criteria.id}_${semester}`;
-                    const evalRef = collection(firestore, 'evaluations');
-                    batch.set(doc(evalRef, evalId), {
+                    const evalRef = doc(firestore, 'evaluations', evalId);
+                    batch.set(evalRef, {
                         studentId: student.id,
                         criteriaId: criteria.id,
                         semester: semester,
@@ -132,15 +132,30 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
         }
     };
     
+    const handlePrint = () => {
+        const params = new URLSearchParams();
+        params.set('institutionId', institutionId);
+        params.set('level', level);
+        params.set('semester', semester);
+        const printWindow = window.open(`/evaluations/print?${params.toString()}`, '_blank');
+        printWindow?.focus();
+    }
+    
     if (loadingStudents || loadingEvals) {
         return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin h-8 w-8" /></div>
     }
 
     return (
         <Card>
-            <CardHeader>
-                <CardTitle>جدول تقييم السنة الأولى ابتدائي - الفصل {semester}</CardTitle>
-                <CardDescription>أدخل الدرجات لكل تلميذ. المجموع سيتم حسابه تلقائياً.</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle>جدول تقييم السنة الأولى ابتدائي - الفصل {semester}</CardTitle>
+                    <CardDescription>أدخل الدرجات لكل تلميذ. المجموع سيتم حسابه تلقائياً.</CardDescription>
+                </div>
+                 <Button onClick={handlePrint} variant="outline" size="icon">
+                    <Printer className="h-5 w-5"/>
+                    <span className="sr-only">طباعة</span>
+                </Button>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
