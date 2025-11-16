@@ -64,6 +64,13 @@ export type DailyLog = {
     learnings?: string;
     learningContent?: string;
     observation?: string;
+    // Fields from old data structure for import
+    school?: string;
+    timeFrom?: string;
+    timeTo?: string;
+    content?: string;
+    learning?: string;
+    noteNumber?: string;
 };
 
 export type Attendance = {
@@ -124,3 +131,5 @@ export type GeneralStats = {
     topAbsences: TopAbsence[];
     departmentAbsences: DepartmentAbsence[];
 };
+
+    

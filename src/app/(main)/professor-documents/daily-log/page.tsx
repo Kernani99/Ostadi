@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useCollection, useFirestore, useUser } from "@/firebase";
-import { collection, query, where, doc } from "firebase/firestore";
+import { collection, query, where, doc, writeBatch } from "firebase/firestore";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Institution, DailyLog } from "@/lib/types";
@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 
 const dailyLogSchema = z.object({
   institutionId: z.string().min(1, "المدرسة مطلوبة"),
@@ -45,10 +45,15 @@ export default function DailyLogPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [logToDelete, setLogToDelete] = useState<DailyLog | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-    useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+    useMemoFirebase(() => firestore ? collection(firestore, 'institutions') : null, [firestore])
   );
+  
+  const institutionsMapByName = useMemo(() => {
+    return new Map(institutions?.map(inst => [inst.name.toLowerCase(), inst.id]));
+  }, [institutions]);
 
   const userLogsQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, 'daily_logs'), where('userId', '==', user.uid)) : null, 
@@ -56,7 +61,12 @@ export default function DailyLogPage() {
   const { data: dailyLogs, isLoading: loadingLogs } = useCollection<DailyLog>(userLogsQuery);
 
   const sortedLogs = useMemo(() => {
-    return dailyLogs?.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()) || [];
+    if (!dailyLogs) return [];
+    return [...dailyLogs].sort((a,b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+    });
   }, [dailyLogs]);
 
 
@@ -86,15 +96,98 @@ export default function DailyLogPage() {
         date: format(data.date, 'yyyy-MM-dd'),
         userId: user.uid,
     };
-
-    await addDocumentNonBlocking(collection(firestore, 'daily_logs'), logData);
     
-    toast({
-      title: "تم الحفظ بنجاح",
-      description: "تمت إضافة قيد جديد إلى الكراس اليومي.",
-    });
-    form.reset();
+    try {
+        await addDocumentNonBlocking(collection(firestore, 'daily_logs'), logData);
+        toast({
+          title: "تم الحفظ بنجاح",
+          description: "تمت إضافة قيد جديد إلى الكراس اليومي.",
+        });
+        form.reset();
+        form.setValue('date', undefined);
+    } catch (error) {
+        // The error is already handled globally by the non-blocking-updates logic
+        // but you could add specific UI feedback here if needed.
+    }
   }
+  
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) {
+      if (!user) toast({ title: "خطأ", description: "يجب تسجيل الدخول أولاً.", variant: "destructive" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const fileContent = e.target?.result;
+        if (typeof fileContent !== 'string') {
+          toast({ title: "خطأ في الملف", description: "لا يمكن قراءة محتوى الملف.", variant: "destructive" });
+          return;
+        }
+        
+        const data = JSON.parse(fileContent);
+        const batch = writeBatch(firestore);
+        let importedCount = 0;
+
+        const artifacts = data.artifacts || {};
+        for (const artifactKey in artifacts) {
+          const users = artifacts[artifactKey]?.users || {};
+          for (const userId in users) {
+             const userLogs = users[userId]?.dailyLogs || {};
+             for (const logId in userLogs) {
+                const log = userLogs[logId];
+                const institutionId = institutionsMapByName.get(String(log.school || '').toLowerCase());
+                
+                if (institutionId) {
+                    const newLogData: Omit<DailyLog, 'id'> = {
+                        userId: user.uid,
+                        institutionId: institutionId,
+                        level: log.level || '',
+                        date: log.date, // Assuming YYYY-MM-DD format
+                        startTime: log.timeFrom || '',
+                        endTime: log.timeTo || '',
+                        field: log.field || '',
+                        memoNumber: log.noteNumber || '',
+                        learnings: log.learning || '',
+                        learningContent: log.content || '',
+                        observation: log.observation || '',
+                    };
+                    const newLogRef = doc(collection(firestore, 'daily_logs'));
+                    batch.set(newLogRef, newLogData);
+                    importedCount++;
+                }
+             }
+          }
+        }
+
+        if (importedCount > 0) {
+          await batch.commit();
+          toast({
+            title: "تم الاستيراد بنجاح",
+            description: `تم استيراد ${importedCount} قيد/قيود من السجل القديم.`,
+          });
+        } else {
+          toast({
+            title: "لم يتم استيراد أي شيء",
+            description: "لم يتم العثور على قيود صالحة في الملف أو أن أسماء المدارس غير مطابقة.",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error("Import error:", error);
+        toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء معالجة الملف. تأكد من أنه ملف JSON صحيح.", variant: "destructive" });
+      }
+    };
+    reader.readAsText(file);
+    if(fileInputRef.current) fileInputRef.current.value = '';
+  };
+
 
   const handleDelete = (log: DailyLog) => {
     setLogToDelete(log);
@@ -114,6 +207,13 @@ export default function DailyLogPage() {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
+       <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileImport}
+        className="hidden" 
+        accept=".json"
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl text-center font-bold text-primary">إضافة قيد جديد (الكراس اليومي)</CardTitle>
@@ -156,7 +256,7 @@ export default function DailyLogPage() {
                                 !field.value && "text-muted-foreground"
                               )}
                             >
-                              {field.value ? format(field.value, "PPP") : <span>اختر تاريخ</span>}
+                              {field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                             </Button>
                           </FormControl>
@@ -293,7 +393,7 @@ export default function DailyLogPage() {
           <div className="flex justify-between items-center">
             <CardTitle className="text-2xl font-bold text-primary">سجل الكراس اليومي</CardTitle>
             <div className="flex gap-2">
-                <Button variant="secondary" className="bg-purple-600 text-white hover:bg-purple-700">
+                <Button variant="secondary" className="bg-purple-600 text-white hover:bg-purple-700" onClick={handleImportClick} disabled={!user}>
                     <History className="me-2 h-4 w-4" />
                     استيراد السجل القديم
                 </Button>
@@ -374,3 +474,5 @@ export default function DailyLogPage() {
     </div>
   );
 }
+
+    
