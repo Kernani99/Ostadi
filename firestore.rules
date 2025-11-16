@@ -117,13 +117,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows authenticated users to read and write their own daily logs.
+     * @description Allows authenticated users to manage their own daily logs.
      * @path /daily_logs/{logId}
-     * @allow (read, write) Allows an authenticated user to read or write a log if their UID matches the log's userId.
+     * @allow (create) Allows an authenticated user to create a log if their UID matches the log's userId.
+     * @allow (read, update, delete) Allows an authenticated user to read, update or delete their own log.
      * @principle Enforces ownership for daily logs.
      */
     match /daily_logs/{logId} {
-        allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
+        allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+        allow read, update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
   }
 
