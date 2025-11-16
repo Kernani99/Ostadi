@@ -29,14 +29,14 @@ function PrintContent() {
     const semester = searchParams.get('semester');
 
     // --- Data Fetching ---
-    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const profileDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore]);
     const { data: profileData, isLoading: loadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
 
-    const institutionDocRef = useMemoFirebase(() => institutionId ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
+    const institutionDocRef = useMemoFirebase(() => institutionId && firestore ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
     const { data: institution, isLoading: loadingInstitution } = useDoc<Institution>(institutionDocRef);
 
     const studentsQuery = useMemoFirebase(() => {
-        if (!institutionId || !level) return null;
+        if (!firestore || !institutionId || !level) return null;
         return query(collection(firestore, 'students'), where('institutionId', '==', institutionId), where('level', '==', level));
     }, [firestore, institutionId, level]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
@@ -101,6 +101,7 @@ function PrintContent() {
                     .print-table tbody tr { page-break-inside: avoid; }
                     .print-table th, .print-table td { font-size: 9pt; padding: 4px; }
                     .print-table th { white-space: normal; vertical-align: middle; }
+                    .print-table thead tr { background-color: transparent !important; }
                 }
             `}</style>
              <header className="print-header text-center mb-4 space-y-1">
@@ -169,4 +170,3 @@ export default function PrintEvaluationPage() {
         </Suspense>
     );
 }
-
