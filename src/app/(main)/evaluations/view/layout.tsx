@@ -6,19 +6,12 @@ export default function ViewLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // This layout is used for the evaluation view page opened in a new tab.
+  // It should not render a full HTML document, as it's still part of the Next.js app.
+  // The main layout provides the html/body structure. We just wrap the content.
   return (
-    <html lang="ar" dir="rtl">
-        <head>
-            <title>جدول التقييم</title>
-            <link rel="preconnect" href="https://fonts.googleapis.com" />
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-            <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet" />
-        </head>
-        <body>
-            <div className="font-body antialiased bg-white text-black">
-                {children}
-            </div>
-        </body>
-    </html>
+    <div className="font-body antialiased bg-white text-black min-h-screen">
+      {children}
+    </div>
   );
 }
