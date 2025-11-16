@@ -2,19 +2,42 @@
 
 import React, { useMemo, type ReactNode, useEffect } from 'react';
 import { FirebaseProvider } from '@/firebase/provider';
-import { initializeFirebase, initiateAnonymousSignIn } from '@/firebase'; // Added initiateAnonymousSignIn
-import { useAuth } from './provider'; // Added useAuth
+import { initializeFirebase } from '@/firebase';
+import { useUser } from './provider';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface FirebaseClientProviderProps {
-  children: React.Node;
+  children: ReactNode;
 }
 
 function AuthHandler({ children }: { children: React.ReactNode }) {
-  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+  const pathname = usePathname();
+
   useEffect(() => {
-    // Initiate anonymous sign-in when the component mounts and auth is available
-    initiateAnonymousSignIn(auth);
-  }, [auth]);
+    // If auth state is done loading and there's no user,
+    // and we are not already on the login page, redirect.
+    if (!isUserLoading && !user && pathname !== '/login') {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router, pathname]);
+
+  // While loading, we can show a loader or nothing.
+  // Or, if we are on the login page, we can show the children immediately.
+  if (isUserLoading && pathname !== '/login') {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        {/* You can replace this with a more sophisticated loading spinner component */}
+        <p>جاري تحميل المستخدم...</p>
+      </div>
+    );
+  }
+  
+  if (!user && pathname !== '/login') {
+      // Still loading or about to redirect, don't render children
+      return null;
+  }
 
   return <>{children}</>;
 }

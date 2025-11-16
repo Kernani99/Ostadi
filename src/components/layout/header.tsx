@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Files,
   Building2,
@@ -12,15 +12,18 @@ import {
   Settings,
   Users,
   BookCheck,
+  LogOut,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useDoc, useFirestore } from "@/firebase";
+import { useDoc, useFirestore, useAuth, useUser } from "@/firebase";
+import { signOut } from "firebase/auth";
 import { doc } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { ProfessorProfile } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
 
 const navItems = [
   { href: "/", label: "الرئيسية", icon: LayoutDashboard },
@@ -76,13 +79,28 @@ const AppNav = ({ isMobile = false }: { isMobile?: boolean }) => {
 
 export function Header() {
   const firestore = useFirestore();
-  const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+  const auth = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { user } = useUser();
+
+  const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore, user]);
   const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
-  const professorName = profileData ? `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim() : '...';
+  const professorName = profileData ? `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim() : user?.email || '...';
+  
+  const handleLogout = async () => {
+    try {
+        await signOut(auth);
+        toast({ title: "تم تسجيل الخروج بنجاح" });
+        router.push('/login');
+    } catch (error) {
+        toast({ title: "خطأ", description: "حدث خطأ أثناء تسجيل الخروج.", variant: "destructive" });
+    }
+  }
 
   return (
     <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-2">
         <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
           <GraduationCap className="h-6 w-6 text-primary" />
           <span>مرحباً بك استاذ: {professorName}</span>
@@ -93,38 +111,43 @@ export function Header() {
         <AppNav />
       </div>
 
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="outline" size="icon" className="shrink-0 md:hidden">
-             <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5"
-            >
-              <line x1="3" x2="21" y1="6" y2="6" />
-              <line x1="3" x2="21" y1="12" y2="12" />
-              <line x1="3" x2="21" y1="18" y2="18" />
-            </svg>
-            <span className="sr-only">فتح قائمة التنقل</span>
+      <div className="flex items-center gap-2">
+         <Button onClick={handleLogout} variant="outline" size="sm">
+            <LogOut className="h-4 w-4" />
           </Button>
-        </SheetTrigger>
-        <SheetContent side="right">
-            <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 mb-4">
-                <Link href="/" className="flex items-center gap-2 font-semibold">
-                <GraduationCap className="h-6 w-6 text-primary" />
-                <span className="">مرحباً بك استاذ: {professorName}</span>
-                </Link>
-            </div>
-          <AppNav isMobile />
-        </SheetContent>
-      </Sheet>
+        <Sheet>
+            <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="shrink-0 md:hidden">
+                <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+                >
+                <line x1="3" x2="21" y1="6" y2="6" />
+                <line x1="3" x2="21" y1="12" y2="12" />
+                <line x1="3" x2="21" y1="18" y2="18" />
+                </svg>
+                <span className="sr-only">فتح قائمة التنقل</span>
+            </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+                <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6 mb-4">
+                    <Link href="/" className="flex items-center gap-2 font-semibold">
+                    <GraduationCap className="h-6 w-6 text-primary" />
+                    <span className="">مرحباً بك استاذ: {professorName}</span>
+                    </Link>
+                </div>
+            <AppNav isMobile />
+            </SheetContent>
+        </Sheet>
+      </div>
     </header>
   );
 }
