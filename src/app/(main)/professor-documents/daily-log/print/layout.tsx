@@ -6,17 +6,12 @@ export default function PrintLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // The <head> tag was removed to prevent hydration errors.
+  // Next.js automatically handles the document head.
+  // Fonts and other head elements are managed in the root layout.
   return (
-    <>
-        <head>
-            <title>طباعة الكراس اليومي</title>
-            <link rel="preconnect" href="https://fonts.googleapis.com" />
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-            <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet" />
-        </head>
-        <div className="font-body antialiased bg-white text-black">
-            {children}
-        </div>
-    </>
+    <div className="font-body antialiased bg-white text-black">
+        {children}
+    </div>
   );
 }
