@@ -20,6 +20,15 @@ const FIRST_YEAR_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
     { name: 'التحكم في مختلف وضعيات الجسم', level: 'أولى ابتدائي', maxScore: 2 },
 ];
 
+const OTHER_YEARS_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
+    { name: 'السلوك والانضباط', level: 'other', maxScore: 2 },
+    { name: 'المواظبة (غياب/تأخر)', level: 'other', maxScore: 1 },
+    { name: 'البدلة الرياضية', level: 'other', maxScore: 1 },
+    { name: 'المشاركة الإيجابية', level: 'other', maxScore: 2 },
+    { name: 'إنجاز التمارين الفردية', level: 'other', maxScore: 2 },
+    { name: 'التنسيق في التمارين الجماعية', level: 'other', maxScore: 2 },
+];
+
 function PrintContent() {
     const firestore = useFirestore();
     const searchParams = useSearchParams();
@@ -41,7 +50,15 @@ function PrintContent() {
     }, [firestore, institutionId, level]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
-    const evaluationCriteria = useMemo(() => FIRST_YEAR_CRITERIA.map((c, i) => ({ ...c, id: `fy_crit_${i}`, semester: semester || '1' })), [semester]);
+    const evaluationCriteria = useMemo(() => {
+        let criteria: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [];
+         if (level === 'أولى ابتدائي') {
+            criteria = FIRST_YEAR_CRITERIA;
+        } else if (['ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي'].includes(level || '')) {
+            criteria = OTHER_YEARS_CRITERIA;
+        }
+        return criteria.map((c, i) => ({ ...c, id: `crit_${i}`, semester: semester || '1' }));
+    }, [level, semester]);
 
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
     const evaluationsQuery = useMemoFirebase(() => {
@@ -54,15 +71,18 @@ function PrintContent() {
     const scoresMap = useMemo(() => {
         const map = new Map<string, { [criteriaId: string]: number }>();
         evaluations?.forEach(ev => {
-            if (ev.criteriaId !== 'observation') {
+            if (ev.criteriaId && ev.criteriaId !== 'observation' && ev.score !== null) {
                 if (!map.has(ev.studentId)) {
                     map.set(ev.studentId, {});
                 }
-                map.get(ev.studentId)![ev.criteriaId] = ev.score ?? 0;
+                const criteriaIdentifier = evaluationCriteria.find(c => c.id === ev.criteriaId || c.name === ev.criteriaId); // fallback for old data
+                 if (criteriaIdentifier) {
+                    map.get(ev.studentId)![criteriaIdentifier.id] = ev.score;
+                }
             }
         });
         return map;
-    }, [evaluations]);
+    }, [evaluations, evaluationCriteria]);
     
     const observationsMap = useMemo(() => {
         const map = new Map<string, string>();
@@ -95,7 +115,7 @@ function PrintContent() {
         return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /> <span className="ms-2">جاري التحضير للطباعة...</span></div>;
     }
 
-    if (!students || students.length === 0) {
+    if (!students || students.length === 0 || evaluationCriteria.length === 0) {
         return <div className="flex h-screen items-center justify-center">لا توجد بيانات لعرضها.</div>;
     }
 

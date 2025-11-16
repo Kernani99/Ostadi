@@ -23,6 +23,15 @@ const FIRST_YEAR_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
     { name: 'التحكم في مختلف وضعيات الجسم', level: 'أولى ابتدائي', maxScore: 2 },
 ];
 
+const OTHER_YEARS_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
+    { name: 'السلوك والانضباط', level: 'other', maxScore: 2 },
+    { name: 'المواظبة (غياب/تأخر)', level: 'other', maxScore: 1 },
+    { name: 'البدلة الرياضية', level: 'other', maxScore: 1 },
+    { name: 'المشاركة الإيجابية', level: 'other', maxScore: 2 },
+    { name: 'إنجاز التمارين الفردية', level: 'other', maxScore: 2 },
+    { name: 'التنسيق في التمارين الجماعية', level: 'other', maxScore: 2 },
+];
+
 const OBSERVATIONS_FEMALE = [
     'تلميذة ممتازة تعمل بذكاء وتطبق بكفاءة.',
     'عمل جيد وسلوك منضبط.',
@@ -67,7 +76,7 @@ const OBSERVATIONS_MALE = [
 ];
 
 
-function FirstYearEvaluationTable({ institutionId, level, semester }: { institutionId: string; level: string; semester: string; }) {
+function EvaluationTable({ institutionId, level, semester, criteria }: { institutionId: string; level: string; semester: string; criteria: EvaluationCriteria[] }) {
     const firestore = useFirestore();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
@@ -81,9 +90,6 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
         );
     }, [firestore, institutionId, level]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
-
-    // Hardcoded criteria for now
-    const evaluationCriteria = useMemo(() => FIRST_YEAR_CRITERIA.map((c, i) => ({...c, id: `fy_crit_${i}`})), []);
 
     // State for scores and observations
     const [scores, setScores] = useState<{ [studentId: string]: { [criteriaId: string]: number | null } }>({});
@@ -110,7 +116,7 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
                 if (!newScores[ev.studentId]) {
                     newScores[ev.studentId] = {};
                 }
-                if (ev.criteriaId) { // It's a score
+                if (ev.criteriaId && ev.criteriaId !== 'observation') { // It's a score
                     newScores[ev.studentId][ev.criteriaId] = ev.score;
                 }
                 if (ev.observation) { // It's an observation
@@ -125,7 +131,7 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
 
     const handleScoreChange = (studentId: string, criteriaId: string, value: string) => {
         const score = value === '' ? null : Number(value);
-        const maxScore = evaluationCriteria.find(c => c.id === criteriaId)?.maxScore ?? 2;
+        const maxScore = criteria.find(c => c.id === criteriaId)?.maxScore ?? 2;
         if (score !== null && (isNaN(score) || score < 0 || score > maxScore)) {
             return;
         }
@@ -161,14 +167,14 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
             const studentObservation = observations[student.id];
 
             // Save scores
-            evaluationCriteria.forEach(criteria => {
-                const score = studentScores[criteria.id];
+            criteria.forEach(crit => {
+                const score = studentScores[crit.id];
                 // Save even if score is null or undefined to clear it in DB
-                const evalId = `${student.id}_${criteria.id}_${semester}`;
+                const evalId = `${student.id}_${crit.id}_${semester}`;
                 const evalRef = doc(firestore, 'evaluations', evalId);
                 batch.set(evalRef, {
                     studentId: student.id,
-                    criteriaId: criteria.id,
+                    criteriaId: crit.id,
                     semester: semester,
                     level: level,
                     institutionId: institutionId,
@@ -177,18 +183,17 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
             });
 
             // Save observation (if it exists)
-            if (studentObservation) {
-                 const obsId = `${student.id}_observation_${semester}`;
-                 const obsRef = doc(firestore, 'evaluations', obsId);
-                 batch.set(obsRef, {
-                    studentId: student.id,
-                    criteriaId: 'observation', // Special ID for observation
-                    semester: semester,
-                    level: level,
-                    institutionId: institutionId,
-                    observation: studentObservation,
-                 }, { merge: true });
-            }
+            const obsId = `${student.id}_observation_${semester}`;
+            const obsRef = doc(firestore, 'evaluations', obsId);
+             batch.set(obsRef, {
+                studentId: student.id,
+                criteriaId: 'observation', // Special ID for observation
+                semester: semester,
+                level: level,
+                institutionId: institutionId,
+                observation: studentObservation || null,
+             }, { merge: true });
+            
         });
 
         try {
@@ -226,7 +231,7 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                    <CardTitle>جدول تقييم السنة الأولى ابتدائي - الفصل {semester}</CardTitle>
+                    <CardTitle>جدول تقييم {level} - الفصل {semester}</CardTitle>
                     <CardDescription>أدخل الدرجات واختر الملاحظة لكل تلميذ. المجموع سيتم حسابه تلقائياً.</CardDescription>
                 </div>
                  <Button onClick={handlePrint} variant="outline" size="icon">
@@ -241,9 +246,9 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
                             <TableRow>
                                 <TableHead className="sticky left-0 bg-card z-10 border-e min-w-[50px] text-center">الرقم</TableHead>
                                 <TableHead className="sticky left-12 bg-card z-10 border-e min-w-[200px]">الاسم واللقب</TableHead>
-                                {evaluationCriteria.map(criteria => (
-                                    <TableHead key={criteria.id} className="text-center min-w-[150px] whitespace-nowrap">
-                                        {criteria.name} (/{criteria.maxScore})
+                                {criteria.map(crit => (
+                                    <TableHead key={crit.id} className="text-center min-w-[150px] whitespace-nowrap">
+                                        {crit.name} (/{crit.maxScore})
                                     </TableHead>
                                 ))}
                                 <TableHead className="text-center min-w-[120px]">مجموع التقويم المستمرة</TableHead>
@@ -256,15 +261,15 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
                                     <TableRow key={student.id}>
                                         <TableCell className="sticky left-0 bg-card z-10 border-e text-center font-medium">{index + 1}</TableCell>
                                         <TableCell className="sticky left-12 bg-card z-10 border-e font-medium">{student.lastName} {student.firstName}</TableCell>
-                                        {evaluationCriteria.map(criteria => (
-                                            <TableCell key={criteria.id} className="text-center p-1">
+                                        {criteria.map(crit => (
+                                            <TableCell key={crit.id} className="text-center p-1">
                                                 <Input
                                                     type="number"
                                                     min="0"
-                                                    max={criteria.maxScore}
+                                                    max={crit.maxScore}
                                                     step="0.25"
-                                                    value={scores[student.id]?.[criteria.id] ?? ''}
-                                                    onChange={(e) => handleScoreChange(student.id, criteria.id, e.target.value)}
+                                                    value={scores[student.id]?.[crit.id] ?? ''}
+                                                    onChange={(e) => handleScoreChange(student.id, crit.id, e.target.value)}
                                                     className="w-20 text-center mx-auto"
                                                 />
                                             </TableCell>
@@ -291,7 +296,7 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={evaluationCriteria.length + 4} className="h-24 text-center">
+                                    <TableCell colSpan={criteria.length + 4} className="h-24 text-center">
                                         لا يوجد تلاميذ في هذا المستوى.
                                     </TableCell>
                                 </TableRow>
@@ -331,8 +336,15 @@ export default function EvaluationsPage() {
   const renderEvaluationTable = () => {
     if (!showTable) return null;
 
+    let criteria: EvaluationCriteria[] = [];
     if (level === 'أولى ابتدائي') {
-      return <FirstYearEvaluationTable institutionId={institutionId} level={level} semester={semester} />;
+        criteria = FIRST_YEAR_CRITERIA.map((c, i) => ({ ...c, id: `fy_crit_${i}`, semester }));
+    } else if (['ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي'].includes(level)) {
+        criteria = OTHER_YEARS_CRITERIA.map((c, i) => ({ ...c, id: `oy_crit_${i}`, semester, level }));
+    }
+
+    if (criteria.length > 0) {
+        return <EvaluationTable institutionId={institutionId} level={level} semester={semester} criteria={criteria} />;
     }
     
     return (
