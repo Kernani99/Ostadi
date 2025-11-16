@@ -8,15 +8,15 @@ export default function PrintLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="print-container bg-white text-black">
-        <style>{`
-            @media print {
-                body {
-                    background-color: #fff !important;
-                }
-            }
-        `}</style>
-        {children}
-    </div>
+    <html lang="ar" dir="rtl">
+        <head>
+            <title>طباعة التقييم</title>
+        </head>
+        <body>
+            <div className="bg-white text-black">
+                {children}
+            </div>
+        </body>
+    </html>
   );
 }
