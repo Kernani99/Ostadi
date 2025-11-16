@@ -97,7 +97,7 @@ function PrintContent() {
         <div className="p-4 bg-white text-black font-body text-xs">
             <style>{`
                 @media print {
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 10px; }
                     @page { size: A4 portrait; margin: 0.5in; }
                     .print-header, .print-footer { position: relative; }
                     .print-table { page-break-inside: auto; }
@@ -107,28 +107,28 @@ function PrintContent() {
                 }
             `}</style>
             <header className="print-header text-center mb-4 space-y-1">
-                <h1 className="text-lg font-bold">مديرية التربية لولاية: {profileData?.wilaya || '...'}</h1>
-                <h2 className="text-base font-semibold">المدرسة الابتدائية: {institution?.name || '...'}</h2>
-                <div className="flex justify-between text-sm">
+                <h1 className="text-base font-bold">مديرية التربية لولاية: {profileData?.wilaya || '...'}</h1>
+                <h2 className="text-sm font-semibold">المدرسة الابتدائية: {institution?.name || '...'}</h2>
+                <div className="flex justify-between text-xs">
                     <span>السنة الدراسية: {profileData?.schoolYear || '...'}</span>
                     <span>الأستاذ: {professorName || '...'}</span>
                 </div>
-                <h1 className="text-xl font-bold mt-2 underline decoration-double">
+                <h1 className="text-lg font-bold mt-2 underline decoration-double">
                     {title}
                 </h1>
             </header>
             <main>
-                <table className="w-full border-collapse border border-gray-600 print-table text-sm">
+                <table className="w-full border-collapse border border-gray-600 print-table text-[10px]">
                     <thead>
                         <tr className="bg-gray-200">
                             <th className="border border-gray-500 p-1 w-8">رقم</th>
                             <th className="border border-gray-500 p-1 text-right">الاسم واللقب</th>
                             {evaluationCriteria.map(criteria => (
-                                <th key={criteria.id} className="border border-gray-500 p-1 whitespace-nowrap w-24">
+                                <th key={criteria.id} className="border border-gray-500 p-1 w-20">
                                     {criteria.name} <br/> (/{criteria.maxScore})
                                 </th>
                             ))}
-                            <th className="border border-gray-500 p-1 w-28">مجموع التقويم</th>
+                            <th className="border border-gray-500 p-1 w-24">مجموع التقويم</th>
                         </tr>
                     </thead>
                     <tbody>
