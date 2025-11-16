@@ -4,7 +4,7 @@ export type Student = {
   id: string;
   studentId: string;
   firstName: string;
-  lastName: string;
+  lastName:string;
   dateOfBirth?: string;
   gender: 'male' | 'female';
   level: string;
@@ -73,6 +73,7 @@ export type Evaluation = {
     criteriaId: string;
     semester: string;
     score: number | null;
+    observation?: string;
 };
 
 

@@ -54,14 +54,26 @@ function PrintContent() {
     const scoresMap = useMemo(() => {
         const map = new Map<string, { [criteriaId: string]: number }>();
         evaluations?.forEach(ev => {
-            if (!map.has(ev.studentId)) {
-                map.set(ev.studentId, {});
+            if (ev.criteriaId !== 'observation') {
+                if (!map.has(ev.studentId)) {
+                    map.set(ev.studentId, {});
+                }
+                map.get(ev.studentId)![ev.criteriaId] = ev.score ?? 0;
             }
-            map.get(ev.studentId)![ev.criteriaId] = ev.score ?? 0;
         });
         return map;
     }, [evaluations]);
     
+    const observationsMap = useMemo(() => {
+        const map = new Map<string, string>();
+        evaluations?.forEach(ev => {
+            if (ev.criteriaId === 'observation' && ev.observation) {
+                map.set(ev.studentId, ev.observation);
+            }
+        });
+        return map;
+    }, [evaluations]);
+
     const sortedStudents = useMemo(() => students?.sort((a,b) => a.lastName.localeCompare(b.lastName)) || [], [students]);
 
     const calculateTotal = (studentId: string) => {
@@ -93,13 +105,13 @@ function PrintContent() {
         <div className="p-4 bg-white text-black font-body text-xs">
             <style>{`
                 @media print {
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
                     @page { size: A4 portrait; margin: 0.5in; }
                     .print-header, .print-footer { position: relative; }
                     .print-table { page-break-inside: auto; }
                     .print-table thead { display: table-header-group; }
                     .print-table tbody tr { page-break-inside: avoid; }
-                    .print-table th, .print-table td { font-size: 9pt; padding: 4px; }
+                    .print-table th, .print-table td { font-size: 8pt; padding: 4px; word-break: break-word; }
                     .print-table th { white-space: normal; vertical-align: middle; }
                     .print-table thead tr { background-color: transparent !important; }
                 }
@@ -123,11 +135,12 @@ function PrintContent() {
                             <th className="border border-gray-500 p-1">الرقم</th>
                             <th className="border border-gray-500 p-1 text-right">اللقب والإسم</th>
                             {evaluationCriteria.map(criteria => (
-                                <th key={criteria.id} className="border border-gray-500 p-1 w-20">
+                                <th key={criteria.id} className="border border-gray-500 p-1 w-16">
                                     {criteria.name} (/{criteria.maxScore})
                                 </th>
                             ))}
-                             <th className="border border-gray-500 p-1 w-24">مجموع التقويم المستمر</th>
+                             <th className="border border-gray-500 p-1 w-20">مجموع التقويم المستمر</th>
+                             <th className="border border-gray-500 p-1 w-48">الملاحظة</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -142,6 +155,9 @@ function PrintContent() {
                                 ))}
                                 <td className="border border-gray-500 p-1 text-center font-bold text-base">
                                     {calculateTotal(student.id)}
+                                </td>
+                                <td className="border border-gray-500 p-1 text-center">
+                                    {observationsMap.get(student.id) || ''}
                                 </td>
                             </tr>
                         ))}

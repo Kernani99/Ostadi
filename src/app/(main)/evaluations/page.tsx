@@ -23,6 +23,49 @@ const FIRST_YEAR_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
     { name: 'التحكم في مختلف وضعيات الجسم', level: 'أولى ابتدائي', maxScore: 2 },
 ];
 
+const OBSERVATIONS_FEMALE = [
+    'تلميذة ممتازة تعمل بذكاء وتطبق بكفاءة.',
+    'عمل جيد وسلوك منضبط.',
+    'مستوى رائع وعمل ممتاز.',
+    'تلميذة تحب العمل ولديها مهارات عالية.',
+    'تلميذة تحب العمل ولكنها كثيرة الحركة.',
+    'حضور إيجابي ومشاركة فعالة.',
+    'تلميذة جيدة تبذل مجهودات كبيرة.',
+    'لديها إمكانيات كبيرة أثرت عليها كثرة التحرك.',
+    'تلميذة خجولة وقليلة المشاركة.',
+    'تلميذة تحب المشاركة ولكنها متسرعة.',
+    'تلميذة قليلة المشاركة ولا تسمع لأوامر ولا تنفذ المطلوب.',
+    'حضور إيجابي وأخلاق حسنة.',
+    'تلميذة تمتلك مهارات عالية ولكنها قليلة المشاركة.',
+    'غير المؤسسة.',
+    'غائبة.',
+    'معفية.',
+];
+
+const OBSERVATIONS_MALE = [
+    'تلميذ ممتاز يعمل بذكاء ويطبق بكفاءة.',
+    'عمل جيد وسلوك منضبط.',
+    'مستوى رائع وعمل ممتاز.',
+    'تلميذ يحب العمل ولديه مهارات عالية.',
+    'تلميذ يحب العمل ولكنه كثير الحركة.',
+    'حضور إيجابي ومشاركة فعالة.',
+    'تلميذ جيد يبذل مجهودات كبيرة.',
+    'تلميذ يمتلك مهارات عالية لو استغلها لحقق الأفضل.',
+    'تلميذ يحب العمل لكنه عنيف ويؤثر على المجموعة.',
+    'تلميذ جيد أثر عليه قلة التركيز.',
+    'غير المؤسسة.',
+    'لديه إمكانيات كبيرة أثرت عليها كثرة التحرك.',
+    'تلميذ خجول وقليل المشاركة.',
+    'تلميذ يحب المشاركة ولكنه متسرع.',
+    'تلميذ قليل المشاركة ولا يسمع لأوامر ولا ينفذ المطلوب.',
+    'حضور إيجابي وأخلاق حسنة.',
+    'تلميذ يمتلك مهارات عالية ولكنه قليل المشاركة.',
+    'غائب.',
+    'تلميذ مجتهد وحضور إيجابي.',
+    'مبدع ويمتلك مهارات التعلم.',
+    'معفى.',
+];
+
 
 function FirstYearEvaluationTable({ institutionId, level, semester }: { institutionId: string; level: string; semester: string; }) {
     const firestore = useFirestore();
@@ -42,8 +85,9 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
     // Hardcoded criteria for now
     const evaluationCriteria = useMemo(() => FIRST_YEAR_CRITERIA.map((c, i) => ({...c, id: `fy_crit_${i}`})), []);
 
-    // State for scores
+    // State for scores and observations
     const [scores, setScores] = useState<{ [studentId: string]: { [criteriaId: string]: number | null } }>({});
+    const [observations, setObservations] = useState<{ [studentId: string]: string }>({});
 
      // Fetch existing evaluations
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
@@ -57,17 +101,24 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
     }, [firestore, studentIds, semester]);
     const { data: existingEvals, isLoading: loadingEvals } = useCollection<Evaluation>(evaluationsQuery);
 
-    // Populate scores from existing evaluations
+    // Populate scores and observations from existing evaluations
     useEffect(() => {
         if (existingEvals) {
             const newScores = { ...scores };
+            const newObservations = { ...observations };
             existingEvals.forEach(ev => {
                 if (!newScores[ev.studentId]) {
                     newScores[ev.studentId] = {};
                 }
-                newScores[ev.studentId][ev.criteriaId] = ev.score;
+                if (ev.criteriaId) { // It's a score
+                    newScores[ev.studentId][ev.criteriaId] = ev.score;
+                }
+                if (ev.observation) { // It's an observation
+                    newObservations[ev.studentId] = ev.observation;
+                }
             });
             setScores(newScores);
+            setObservations(newObservations);
         }
     }, [existingEvals]);
 
@@ -87,6 +138,14 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
             }
         }));
     };
+    
+    const handleObservationChange = (studentId: string, value: string) => {
+        setObservations(prev => ({
+            ...prev,
+            [studentId]: value
+        }));
+    };
+
 
     const calculateTotal = (studentId: string) => {
         const studentScores = scores[studentId] || {};
@@ -99,26 +158,44 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
 
         students?.forEach(student => {
             const studentScores = scores[student.id] || {};
+            const studentObservation = observations[student.id];
+
+            // Save scores
             evaluationCriteria.forEach(criteria => {
                 const score = studentScores[criteria.id];
-                if (score !== undefined) {
-                    const evalId = `${student.id}_${criteria.id}_${semester}`;
-                    const evalRef = doc(firestore, 'evaluations', evalId);
-                    batch.set(evalRef, {
-                        studentId: student.id,
-                        criteriaId: criteria.id,
-                        semester: semester,
-                        score: score,
-                    });
-                }
+                // Save even if score is null or undefined to clear it in DB
+                const evalId = `${student.id}_${criteria.id}_${semester}`;
+                const evalRef = doc(firestore, 'evaluations', evalId);
+                batch.set(evalRef, {
+                    studentId: student.id,
+                    criteriaId: criteria.id,
+                    semester: semester,
+                    level: level,
+                    institutionId: institutionId,
+                    score: score ?? null,
+                }, { merge: true });
             });
+
+            // Save observation (if it exists)
+            if (studentObservation) {
+                 const obsId = `${student.id}_observation_${semester}`;
+                 const obsRef = doc(firestore, 'evaluations', obsId);
+                 batch.set(obsRef, {
+                    studentId: student.id,
+                    criteriaId: 'observation', // Special ID for observation
+                    semester: semester,
+                    level: level,
+                    institutionId: institutionId,
+                    observation: studentObservation,
+                 }, { merge: true });
+            }
         });
 
         try {
             await batch.commit();
             toast({
                 title: 'تم الحفظ بنجاح',
-                description: 'تم حفظ تقييمات التلاميذ.',
+                description: 'تم حفظ تقييمات وملاحظات التلاميذ.',
             });
         } catch (error) {
             console.error("Error saving evaluations: ", error);
@@ -150,7 +227,7 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>جدول تقييم السنة الأولى ابتدائي - الفصل {semester}</CardTitle>
-                    <CardDescription>أدخل الدرجات لكل تلميذ. المجموع سيتم حسابه تلقائياً.</CardDescription>
+                    <CardDescription>أدخل الدرجات واختر الملاحظة لكل تلميذ. المجموع سيتم حسابه تلقائياً.</CardDescription>
                 </div>
                  <Button onClick={handlePrint} variant="outline" size="icon">
                     <Printer className="h-5 w-5"/>
@@ -170,6 +247,7 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
                                     </TableHead>
                                 ))}
                                 <TableHead className="text-center min-w-[120px]">مجموع التقويم المستمرة</TableHead>
+                                <TableHead className="text-center min-w-[250px]">الملاحظة</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -194,11 +272,26 @@ function FirstYearEvaluationTable({ institutionId, level, semester }: { institut
                                         <TableCell className="text-center font-bold text-lg text-primary">
                                             {calculateTotal(student.id)}
                                         </TableCell>
+                                        <TableCell className="p-1">
+                                            <Select
+                                                value={observations[student.id] || ''}
+                                                onValueChange={(value) => handleObservationChange(student.id, value)}
+                                            >
+                                                <SelectTrigger className="w-full text-xs">
+                                                    <SelectValue placeholder="اختر ملاحظة..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {(student.gender === 'female' ? OBSERVATIONS_FEMALE : OBSERVATIONS_MALE).map(obs => (
+                                                        <SelectItem key={obs} value={obs}>{obs}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={evaluationCriteria.length + 3} className="h-24 text-center">
+                                    <TableCell colSpan={evaluationCriteria.length + 4} className="h-24 text-center">
                                         لا يوجد تلاميذ في هذا المستوى.
                                     </TableCell>
                                 </TableRow>
