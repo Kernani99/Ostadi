@@ -94,7 +94,7 @@ function PrintContent() {
     const title = `كشف تقييم السنة ${level} - الفصل ${semester}`;
 
     return (
-        <div className="p-4 bg-white text-black font-body text-xs">
+        <div className="p-4 bg-white text-black font-body">
             <style>{`
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 10px; }
