@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Settings,
   Users,
+  BookCheck,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/students", label: "التلاميذ", icon: Users },
   { href: "/departments", label: "الأقسام", icon: Building2 },
   { href: "/attendance", label: "المناداة", icon: ClipboardList },
+  { href: "/evaluations", label: "التقييم", icon: BookCheck },
   { href: "/professor-documents", label: "وثائق الأستاذ", icon: Files },
   { href: "/settings", label: "الإعدادات", icon: Settings },
 ];
