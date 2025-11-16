@@ -59,6 +59,23 @@ export type Attendance = {
   records: { [week: number]: 'present' | 'absent' | 'justified' | 'no-outfit' };
 };
 
+export type EvaluationCriteria = {
+    id: string;
+    name: string;
+    level: string; // e.g. 'أولى ابتدائي'
+    maxScore: number;
+    semester: string; // '1', '2', or '3'
+};
+
+export type Evaluation = {
+    id: string; // composite key might be studentId_criteriaId_semester
+    studentId: string;
+    criteriaId: string;
+    semester: string;
+    score: number | null;
+};
+
+
 export type AttendanceReport = {
     // Define the structure for your reports here
 };
@@ -91,6 +108,3 @@ export type GeneralStats = {
     topAbsences: TopAbsence[];
     departmentAbsences: DepartmentAbsence[];
 };
-
-
-
