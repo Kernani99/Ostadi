@@ -32,48 +32,91 @@ const OTHER_YEARS_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
     { name: 'التنسيق في التمارين الجماعية', level: 'other', maxScore: 2 },
 ];
 
-const OBSERVATIONS_FEMALE = [
-    'تلميذة ممتازة تعمل بذكاء وتطبق بكفاءة.',
-    'عمل جيد وسلوك منضبط.',
-    'مستوى رائع وعمل ممتاز.',
-    'تلميذة تحب العمل ولديها مهارات عالية.',
-    'تلميذة تحب العمل ولكنها كثيرة الحركة.',
-    'حضور إيجابي ومشاركة فعالة.',
-    'تلميذة جيدة تبذل مجهودات كبيرة.',
-    'لديها إمكانيات كبيرة أثرت عليها كثرة التحرك.',
-    'تلميذة خجولة وقليلة المشاركة.',
-    'تلميذة تحب المشاركة ولكنها متسرعة.',
-    'تلميذة قليلة المشاركة ولا تسمع لأوامر ولا تنفذ المطلوب.',
-    'حضور إيجابي وأخلاق حسنة.',
-    'تلميذة تمتلك مهارات عالية ولكنها قليلة المشاركة.',
+const observationsByScore = {
+    10: { // ممتاز
+        female: [
+            'تلميذة ممتازة، تعمل بذكاء وتطبق المهارات بكفاءة عالية.',
+            'مستوى رائع وعمل متقن، تظهر مهارات عالية وانضباطاً نموذجياً.',
+            'مبدعة وتمتلك مهارات تعلم عالية، حضور إيجابي ومشاركة فعالة جداً.',
+        ],
+        male: [
+            'تلميذ ممتاز، يعمل بذكاء ويطبق المهارات بكفاءة عالية.',
+            'مستوى رائع وعمل متقن، يظهر مهارات عالية وانضباطاً نموذجياً.',
+            'مبدع ويمتلك مهارات تعلم عالية، حضور إيجابي ومشاركة فعالة جداً.',
+        ],
+    },
+    9: { // جيد جداً
+        female: [
+            'تلميذة تحب العمل ولديها مهارات عالية، سلوك منضبط ومشاركة قيمة.',
+            'عمل جيد جداً وحضور إيجابي دائم، مجتهدة وتطبق المطلوب بدقة.',
+            'تلميذة تمتلك مهارات عالية ولكنها تحتاج ثقة أكبر لإظهارها.',
+        ],
+        male: [
+            'تلميذ يحب العمل ولديه مهارات عالية، سلوك منضبط ومشاركة قيمة.',
+            'عمل جيد جداً وحضور إيجابي دائم، مجتهد ويطبق المطلوب بدقة.',
+            'تلميذ يمتلك مهارات عالية لو استغلها بشكل أفضل لحقق الامتياز.',
+        ],
+    },
+    8: { // جيد
+        female: [
+            'تلميذة جيدة، تبذل مجهودات كبيرة وتظهر تحسناً ملحوظاً.',
+            'عمل جيد وسلوك منضبط، مشاركتها إيجابية ومستمرة.',
+            'حضور إيجابي وأخلاق حسنة، تتقبل التوجيهات وتعمل بها.',
+        ],
+        male: [
+            'تلميذ جيد، يبذل مجهودات كبيرة ويظهر تحسناً ملحوظاً.',
+            'عمل جيد وسلوك منضبط، مشاركته إيجابية ومستمرة.',
+            'حضور إيجابي وأخلاق حسنة، يتقبل التوجيهات ويعمل بها.',
+        ],
+    },
+    7: { // متوسط إلى جيد
+        female: [
+            'تلميذة لديها إمكانيات جيدة، أثرت عليها قلة التركيز أحياناً.',
+            'تمتلك مهارات، لكن كثرة الحركة تفقدها التركيز وتؤثر على كفاءة التطبيق.',
+            'تلميذة تحب المشاركة ولكنها متسرعة، تحتاج للتمهل والتركيز على دقة الأداء.',
+        ],
+        male: [
+            'تلميذ يمتلك إمكانيات جيدة، أثرت عليه قلة التركيز أحياناً.',
+            'يمتلك مهارات، لكن كثرة الحركة تفقده التركيز وتؤثر على كفاءة التطبيق.',
+            'تلميذ يحب المشاركة ولكنه متسرع، يحتاج للتمهل والتركيز على دقة الأداء.',
+        ],
+    },
+    6: { // متوسط / مقبول
+        female: [
+            'تلميذة خجولة وقليلة المشاركة، تحتاج لمزيد من التحفيز للاندماج.',
+            'مشاركة محدودة، تحتاج لبذل مجهود أكبر لفهم وتنفيذ المهارات.',
+            'تلميذة قليلة المشاركة ولا تتبع التعليمات دائماً، تحتاج لمزيد من الانضباط.',
+        ],
+        male: [
+            'تلميذ خجول وقليل المشاركة، يحتاج لمزيد من التحفيز للاندماج.',
+            'تلميذ يحب العمل لكن سلوكه (مثل العنف أو الفوضى) يؤثر سلباً عليه وعلى المجموعة.',
+            'مشاركة محدودة، يحتاج لبذل مجهود أكبر لفهم وتنفيذ المهارات.',
+        ],
+    },
+    // Add other scores as needed, even empty ones for consistency
+    5: { female: [], male: [] },
+    4: { female: [], male: [] },
+    3: { female: [], male: [] },
+    2: { female: [], male: [] },
+    1: { female: [], male: [] },
+    0: { female: [], male: [] },
+};
+
+// Generic observations for exempt, absent, etc.
+const genericObservations = [
     'غير المؤسسة.',
     'غائبة.',
     'معفية.',
+    'غائب.',
+    'معفى.'
 ];
 
-const OBSERVATIONS_MALE = [
-    'تلميذ ممتاز يعمل بذكاء ويطبق بكفاءة.',
-    'عمل جيد وسلوك منضبط.',
-    'مستوى رائع وعمل ممتاز.',
-    'تلميذ يحب العمل ولديه مهارات عالية.',
-    'تلميذ يحب العمل ولكنه كثير الحركة.',
-    'حضور إيجابي ومشاركة فعالة.',
-    'تلميذ جيد يبذل مجهودات كبيرة.',
-    'تلميذ يمتلك مهارات عالية لو استغلها لحقق الأفضل.',
-    'تلميذ يحب العمل لكنه عنيف ويؤثر على المجموعة.',
-    'تلميذ جيد أثر عليه قلة التركيز.',
-    'غير المؤسسة.',
-    'لديه إمكانيات كبيرة أثرت عليها كثرة التحرك.',
-    'تلميذ خجول وقليل المشاركة.',
-    'تلميذ يحب المشاركة ولكنه متسرع.',
-    'تلميذ قليل المشاركة ولا يسمع لأوامر ولا ينفذ المطلوب.',
-    'حضور إيجابي وأخلاق حسنة.',
-    'تلميذ يمتلك مهارات عالية ولكنه قليل المشاركة.',
-    'غائب.',
-    'تلميذ مجتهد وحضور إيجابي.',
-    'مبدع ويمتلك مهارات التعلم.',
-    'معفى.',
-];
+function getObservationsForScore(score: number, gender: 'male' | 'female'): string[] {
+    const scoreCategory = Math.floor(score);
+    const specificObservations = observationsByScore[scoreCategory]?.[gender] || [];
+    // Combine specific observations with generic ones
+    return [...specificObservations, ...genericObservations];
+}
 
 
 function EvaluationTable({ institutionId, level, semester, criteria }: { institutionId: string; level: string; semester: string; criteria: EvaluationCriteria[] }) {
@@ -116,24 +159,36 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                 if (!newScores[ev.studentId]) {
                     newScores[ev.studentId] = {};
                 }
-                if (ev.criteriaId && ev.criteriaId !== 'observation') { // It's a score
-                    newScores[ev.studentId][ev.criteriaId] = ev.score;
+                if (ev.criteriaId && ev.criteriaId !== 'observation') {
+                    const foundCriteria = criteria.find(c => c.id === ev.criteriaId);
+                    if (foundCriteria) {
+                        newScores[ev.studentId][foundCriteria.id] = ev.score;
+                    }
                 }
-                if (ev.observation) { // It's an observation
+                if (ev.observation) { 
                     newObservations[ev.studentId] = ev.observation;
                 }
             });
             setScores(newScores);
             setObservations(newObservations);
         }
-    }, [existingEvals]);
+    }, [existingEvals, criteria]); // depend on criteria to map correctly
 
 
     const handleScoreChange = (studentId: string, criteriaId: string, value: string) => {
         const score = value === '' ? null : Number(value);
-        const maxScore = criteria.find(c => c.id === criteriaId)?.maxScore ?? 2;
+        const maxScore = criteria.find(c => c.id === criteriaId)?.maxScore ?? 0;
         if (score !== null && (isNaN(score) || score < 0 || score > maxScore)) {
             return;
+        }
+
+        const currentTotal = calculateTotal(studentId);
+        const currentScore = scores[studentId]?.[criteriaId] ?? 0;
+        const newTotal = currentTotal - currentScore + (score ?? 0);
+
+        // if score category changes, reset observation
+        if (Math.floor(currentTotal) !== Math.floor(newTotal)) {
+             handleObservationChange(studentId, '');
         }
 
         setScores(prev => ({
@@ -169,7 +224,6 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
             // Save scores
             criteria.forEach(crit => {
                 const score = studentScores[crit.id];
-                // Save even if score is null or undefined to clear it in DB
                 const evalId = `${student.id}_${crit.id}_${semester}`;
                 const evalRef = doc(firestore, 'evaluations', evalId);
                 batch.set(evalRef, {
@@ -181,13 +235,12 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                     score: score ?? null,
                 }, { merge: true });
             });
-
-            // Save observation (if it exists)
+            
             const obsId = `${student.id}_observation_${semester}`;
             const obsRef = doc(firestore, 'evaluations', obsId);
              batch.set(obsRef, {
                 studentId: student.id,
-                criteriaId: 'observation', // Special ID for observation
+                criteriaId: 'observation',
                 semester: semester,
                 level: level,
                 institutionId: institutionId,
@@ -257,7 +310,11 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                         </TableHeader>
                         <TableBody>
                             {students && students.length > 0 ? (
-                                students.map((student, index) => (
+                                students.map((student, index) => {
+                                    const totalScore = calculateTotal(student.id);
+                                    const availableObservations = getObservationsForScore(totalScore, student.gender);
+                                    
+                                    return (
                                     <TableRow key={student.id}>
                                         <TableCell className="sticky left-0 bg-card z-10 border-e text-center font-medium">{index + 1}</TableCell>
                                         <TableCell className="sticky left-12 bg-card z-10 border-e font-medium">{student.lastName} {student.firstName}</TableCell>
@@ -275,7 +332,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                                             </TableCell>
                                         ))}
                                         <TableCell className="text-center font-bold text-lg text-primary">
-                                            {calculateTotal(student.id)}
+                                            {totalScore}
                                         </TableCell>
                                         <TableCell className="p-1">
                                             <Select
@@ -286,14 +343,15 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                                                     <SelectValue placeholder="اختر ملاحظة..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {(student.gender === 'female' ? OBSERVATIONS_FEMALE : OBSERVATIONS_MALE).map(obs => (
+                                                    {availableObservations.map(obs => (
                                                         <SelectItem key={obs} value={obs}>{obs}</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
                                         </TableCell>
                                     </TableRow>
-                                ))
+                                    )
+                                })
                             ) : (
                                 <TableRow>
                                     <TableCell colSpan={criteria.length + 4} className="h-24 text-center">
@@ -333,6 +391,11 @@ export default function EvaluationsPage() {
     }
   };
 
+  // When selections change, hide the table to force re-selection.
+  useEffect(() => {
+    setShowTable(false);
+  }, [semester, institutionId, level]);
+
   const renderEvaluationTable = () => {
     if (!showTable) return null;
 
@@ -366,81 +429,80 @@ export default function EvaluationsPage() {
         </h1>
       </div>
 
-      {!showTable ? (
-        <div className="max-w-4xl mx-auto">
-            <Card className="shadow-lg">
-            <CardHeader>
-                <CardTitle>إعدادات التقييم</CardTitle>
-                <CardDescription>الرجاء اختيار الفصل، المؤسسة، والمستوى للبدء.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="space-y-2">
-                <label className="text-sm font-medium">1. اختر الفصل الدراسي</label>
-                <Select onValueChange={setSemester} value={semester}>
-                    <SelectTrigger>
-                    <SelectValue placeholder="اختر الفصل..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                    <SelectItem value="1">الفصل الأول</SelectItem>
-                    <SelectItem value="2">الفصل الثاني</SelectItem>
-                    <SelectItem value="3">الفصل الثالث</SelectItem>
-                    </SelectContent>
-                </Select>
-                </div>
+      <div className="max-w-4xl mx-auto">
+          <Card className="shadow-lg">
+          <CardHeader>
+              <CardTitle>إعدادات التقييم</CardTitle>
+              <CardDescription>الرجاء اختيار الفصل، المؤسسة، والمستوى لعرض جدول التقييم.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+              <div className="space-y-2">
+              <label className="text-sm font-medium">1. اختر الفصل الدراسي</label>
+              <Select onValueChange={setSemester} value={semester}>
+                  <SelectTrigger>
+                  <SelectValue placeholder="اختر الفصل..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                  <SelectItem value="1">الفصل الأول</SelectItem>
+                  <SelectItem value="2">الفصل الثاني</SelectItem>
+                  <SelectItem value="3">الفصل الثالث</SelectItem>
+                  </SelectContent>
+              </Select>
+              </div>
 
-                {semester && (
-                <div className="space-y-2 pt-4 border-t">
-                    <label className="text-sm font-medium">2. اختر المؤسسة</label>
-                    <Select onValueChange={setInstitutionId} value={institutionId} disabled={loadingInstitutions}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="اختر المؤسسة..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {institutions?.map(inst => (
-                        <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                    </Select>
-                </div>
-                )}
+              {semester && (
+              <div className="space-y-2 pt-4 border-t">
+                  <label className="text-sm font-medium">2. اختر المؤسسة</label>
+                  <Select onValueChange={setInstitutionId} value={institutionId} disabled={loadingInstitutions}>
+                  <SelectTrigger>
+                      <SelectValue placeholder="اختر المؤسسة..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                      {institutions?.map(inst => (
+                      <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                  </Select>
+              </div>
+              )}
 
-                {institutionId && (
-                <div className="space-y-2 pt-4 border-t">
-                    <label className="text-sm font-medium">3. اختر المستوى</label>
-                    <Select onValueChange={setLevel} value={level}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="اختر المستوى..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                        <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                        <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                        <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                        <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                    </SelectContent>
-                    </Select>
-                </div>
-                )}
+              {institutionId && (
+              <div className="space-y-2 pt-4 border-t">
+                  <label className="text-sm font-medium">3. اختر المستوى</label>
+                  <Select onValueChange={setLevel} value={level}>
+                  <SelectTrigger>
+                      <SelectValue placeholder="اختر المستوى..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                      <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                      <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                      <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                      <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                  </SelectContent>
+                  </Select>
+              </div>
+              )}
 
-                {level && (
-                <div className="flex justify-end pt-6">
-                    <Button onClick={handleStartEvaluation} className="bg-accent text-accent-foreground hover:bg-accent/90">
-                    بدء عملية التقييم
-                    <ChevronRight className="me-2 h-4 w-4" />
-                    </Button>
-                </div>
-                )}
-            </CardContent>
-            </Card>
-        </div>
-      ) : (
-        <div>
-            <Button variant="outline" onClick={() => setShowTable(false)} className="mb-4">
-                الرجوع إلى الإعدادات
-            </Button>
+              {level && !showTable && (
+              <div className="flex justify-end pt-6">
+                  <Button onClick={handleStartEvaluation} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                  عرض جدول التقييم
+                  <ChevronRight className="me-2 h-4 w-4" />
+                  </Button>
+              </div>
+              )}
+          </CardContent>
+          </Card>
+      </div>
+      
+      {showTable ? (
+        <div className="mt-8">
             {renderEvaluationTable()}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
+
+    
