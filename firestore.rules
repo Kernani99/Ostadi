@@ -80,6 +80,17 @@ service cloud.firestore {
     }
 
     /**
+     * @description Allows any authenticated user to read and write Evaluation documents.
+     * @path /evaluations/{evaluationId}
+     * @allow (read, write) Allows any authenticated user to read and write evaluation data.
+     * @principle Allows authenticated users to manage student evaluations.
+     */
+    match /evaluations/{evaluationId} {
+        allow read, write: if isSignedIn();
+    }
+
+
+    /**
      * @description Allows anyone to read Grade documents. Writes are denied.
      * @path /grades/{gradeId}
      * @allow (get, list) Allows anyone to read grade data.
