@@ -12,7 +12,7 @@ import { collection, doc, query, where, writeBatch, getDocs, updateDoc } from "f
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Department, Institution } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Users, UserPlus, Trash2, Pencil, Printer, Building } from "lucide-react";
+import { Loader2, Users, UserPlus, Trash2, Pencil, Printer, Building, FileDown } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
 // Schema for adding a new department
 const departmentSchema = z.object({
@@ -516,6 +517,49 @@ export default function DepartmentsPage() {
     printWindow?.focus();
   }
 
+  const handleExport = () => {
+    const dataToExport: any[] = [];
+    departmentsByInstitutionThenLevel.forEach((levels, institutionId) => {
+        const institutionName = institutionMap.get(institutionId) || 'مؤسسة غير معروفة';
+        levels.forEach((depts, level) => {
+            depts.forEach(dept => {
+                const students = studentsByDepartment.get(dept.id) || [];
+                if (students.length > 0) {
+                    students.forEach(student => {
+                        dataToExport.push({
+                            'المؤسسة': institutionName,
+                            'المستوى': level,
+                            'القسم': dept.name,
+                            'لقب التلميذ': student.lastName,
+                            'اسم التلميذ': student.firstName,
+                            'الجنس': student.gender === 'male' ? 'ذكر' : 'أنثى',
+                        });
+                    });
+                } else {
+                     dataToExport.push({
+                        'المؤسسة': institutionName,
+                        'المستوى': level,
+                        'القسم': dept.name,
+                        'لقب التلميذ': '',
+                        'اسم التلميذ': '(فارغ)',
+                        'الجنس': '',
+                    });
+                }
+            });
+        });
+    });
+
+    if (dataToExport.length === 0) {
+        toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+        return;
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "الأقسام والتلاميذ");
+    XLSX.writeFile(workbook, "قائمة_الاقسام_والتلاميذ.xlsx");
+  }
+
   const isLoading = isLoadingDepartments || isLoadingInstitutions;
 
   return (
@@ -545,6 +589,10 @@ export default function DepartmentsPage() {
                     ))}
                 </SelectContent>
             </Select>
+            <Button onClick={handleExport} variant="outline" size="icon" className="shrink-0">
+                <FileDown className="h-5 w-5 text-green-600"/>
+                <span className="sr-only">تصدير Excel</span>
+            </Button>
             <Button onClick={handlePrint} variant="outline" size="icon" className="shrink-0">
                 <Printer className="h-5 w-5"/>
                 <span className="sr-only">طباعة</span>
@@ -635,3 +683,5 @@ export default function DepartmentsPage() {
     </div>
   );
 }
+
+    

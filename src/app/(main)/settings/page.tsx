@@ -1,3 +1,4 @@
+
 'use client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +11,12 @@ import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/no
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Institution } from "@/lib/types";
 import { collection, doc } from "firebase/firestore";
-import { PlusCircle, Trash2, CreditCard } from "lucide-react";
+import { PlusCircle, Trash2, CreditCard, FileDown } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import * as XLSX from 'xlsx';
+import { useToast } from "@/hooks/use-toast";
+
 
 function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const firestore = useFirestore();
@@ -65,6 +69,7 @@ function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChang
 
 export default function SettingsPage() {
   const firestore = useFirestore();
+  const { toast } = useToast();
   const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
   const { data: institutions, isLoading } = useCollection<Institution>(institutionsQuery);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
@@ -74,6 +79,18 @@ export default function SettingsPage() {
         const institutionDocRef = doc(firestore, 'institutions', id);
         deleteDocumentNonBlocking(institutionDocRef);
     }
+  }
+
+  const handleExport = () => {
+    if (!institutions || institutions.length === 0) {
+      toast({ title: "لا توجد بيانات للتصدير", variant: "destructive"});
+      return;
+    }
+    const dataToExport = institutions.map(({ id, ...rest }) => rest);
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المؤسسات");
+    XLSX.writeFile(workbook, "قائمة_المؤسسات.xlsx");
   }
 
   return (
@@ -104,15 +121,21 @@ export default function SettingsPage() {
           <div className="flex flex-col">
             <CardTitle className="text-xl">إدارة المؤسسات</CardTitle>
           </div>
-          <Dialog open={isAddModalOpen} onOpenChange={setAddModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
-                <PlusCircle className="me-2" />
-                إضافة مؤسسة
+          <div className="flex items-center gap-2">
+             <Button onClick={handleExport} variant="outline" className="rounded-full">
+                <FileDown className="me-2 text-green-600" />
+                تصدير إلى Excel
               </Button>
-            </DialogTrigger>
-            <AddInstitutionForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
-          </Dialog>
+            <Dialog open={isAddModalOpen} onOpenChange={setAddModalOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+                  <PlusCircle className="me-2" />
+                  إضافة مؤسسة
+                </Button>
+              </DialogTrigger>
+              <AddInstitutionForm open={isAddModalOpen} onOpenChange={setAddModalOpen} />
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -147,3 +170,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    

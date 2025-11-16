@@ -11,7 +11,7 @@ import type { Student, Attendance, Institution, AttendanceReport, GeneralStats, 
 import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth, eachDayOfInterval, isSameMonth, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown } from "lucide-react";
 import { useState, useMemo, useReducer } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,6 +22,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import * as XLSX from 'xlsx';
 
 
 // Helper function to get number of weeks in a month
@@ -102,7 +103,7 @@ function AttendanceRegistration() {
                 departmentId: departmentId,
                 month: monthStr,
                 records: newRecords
-            });
+            }, { merge: true });
 
              toast({
                 title: "تم الحفظ",
@@ -137,6 +138,37 @@ function AttendanceRegistration() {
         const printWindow = window.open(`/attendance/print-annual?${params.toString()}`, '_blank');
         printWindow?.focus();
     }
+
+    const handleExport = () => {
+        if (!students || students.length === 0) {
+            toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+            return;
+        }
+
+        const institutionName = institutions?.find(i => i.id === selectedInstitution)?.name || '';
+        const monthName = format(currentDate, 'MMMM yyyy', { locale: ar });
+        const fileName = `حضور-${selectedLevel}-${institutionName}-${monthName}.xlsx`;
+
+        const statusMap = { present: 'حاضر', absent: 'غائب', justified: 'مبرر', 'no-outfit': 'بدون لباس' };
+        
+        const dataToExport = students.map(student => {
+            const row: {[key: string]: any} = {
+                'اللقب': student.lastName,
+                'الإسم': student.firstName,
+            };
+            const studentAttendance = attendanceMap.get(student.id) || {};
+            weeksOfMonth.forEach(week => {
+                const status = studentAttendance[week] as keyof typeof statusMap;
+                row[`الأسبوع ${week}`] = status ? statusMap[status] : '';
+            });
+            return row;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `حضور ${monthName}`);
+        XLSX.writeFile(workbook, fileName);
+    };
     
     return (
         <div className="space-y-6">
@@ -186,10 +218,16 @@ function AttendanceRegistration() {
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
                             </div>
-                             <Button onClick={handlePrint} variant="outline" size="icon">
-                                <Printer className="h-5 w-5"/>
-                                <span className="sr-only">طباعة</span>
-                            </Button>
+                             <div className="flex items-center gap-2">
+                                <Button onClick={handleExport} variant="outline" size="icon">
+                                    <FileDown className="h-5 w-5 text-green-600"/>
+                                    <span className="sr-only">تصدير Excel</span>
+                                </Button>
+                                <Button onClick={handlePrint} variant="outline" size="icon">
+                                    <Printer className="h-5 w-5"/>
+                                    <span className="sr-only">طباعة</span>
+                                </Button>
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -258,7 +296,7 @@ function AttendanceRegistration() {
 }
 
 // Reducer for table state management
-const tableReducer = (state, action) => {
+const tableReducer = (state: any, action: any) => {
   switch (action.type) {
     case 'SORT': {
       const { column } = action.payload;
@@ -276,7 +314,7 @@ const tableReducer = (state, action) => {
   }
 };
 
-const usePaginatedTable = (data, initialSortColumn) => {
+const usePaginatedTable = (data: any[] | null | undefined, initialSortColumn: string) => {
     const [state, dispatch] = useReducer(tableReducer, {
         sortColumn: initialSortColumn,
         sortDirection: 'desc',
@@ -315,6 +353,7 @@ const usePaginatedTable = (data, initialSortColumn) => {
 
 function AttendanceReports() {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: subMonths(new Date(), 1), to: new Date() });
     const [reportData, setReportData] = useState<GeneralStats | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -325,6 +364,16 @@ function AttendanceReports() {
     const topAbsencesTable = usePaginatedTable(reportData?.topAbsences, 'absenceCount');
     const deptAbsencesTable = usePaginatedTable(reportData?.departmentAbsences, 'absenceCount');
 
+    const exportTableToXLSX = (data: any[], fileName: string) => {
+        if (!data || data.length === 0) {
+            toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+            return;
+        }
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "البيانات");
+        XLSX.writeFile(workbook, fileName);
+    };
 
     const handleGenerateReport = async () => {
         if (!dateRange.from || !dateRange.to || !students || !departments) return;
@@ -332,6 +381,7 @@ function AttendanceReports() {
         setIsLoading(true);
         const allAttendances: Attendance[] = [];
 
+        // This fetch is inefficient for large datasets, consider restructuring if performance is an issue.
         const attendanceQuery = query(collection(firestore, 'attendances'));
         const querySnapshot = await getDocs(attendanceQuery);
         querySnapshot.forEach(doc => {
@@ -354,8 +404,10 @@ function AttendanceReports() {
             const student = students.find(s => s.id === att.studentId);
             if (!student) return;
 
-            if (isSameMonth(monthDate, dateRange.from) || isSameMonth(monthDate, dateRange.to) || (monthDate > dateRange.from && monthDate < dateRange.to)) {
-                Object.values(att.records).forEach(status => {
+            const attDate = new Date(att.month);
+            // Check if attendance month is within the selected date range
+            if(attDate >= dateRange.from! && attDate <= dateRange.to!) {
+                 Object.entries(att.records).forEach(([day, status]) => {
                     if (status === 'absent') {
                         totalAbsences++;
                         const monthKey = format(monthDate, 'yyyy-MM');
@@ -363,8 +415,8 @@ function AttendanceReports() {
                         
                         absencesByStudent.set(att.studentId, (absencesByStudent.get(att.studentId) || 0) + 1);
 
-                        if (att.departmentId) {
-                            absencesByDepartment.set(att.departmentId, (absencesByDepartment.get(att.departmentId) || 0) + 1);
+                        if (student.departmentId) {
+                            absencesByDepartment.set(student.departmentId, (absencesByDepartment.get(student.departmentId) || 0) + 1);
                         }
                     }
                 });
@@ -402,7 +454,7 @@ function AttendanceReports() {
                 acc[student.departmentId] = (acc[student.departmentId] || 0) + 1;
             }
             return acc;
-        }, {});
+        }, {} as Record<string, number>);
 
         const departmentAbsences: DepartmentAbsence[] = departments.map(dept => {
             const absenceCount = absencesByDepartment.get(dept.id) || 0;
@@ -414,7 +466,7 @@ function AttendanceReports() {
                 departmentName: dept.name,
                 studentCount: studentCount,
                 absenceCount: absenceCount,
-                absencePercentage: absencePercentage,
+                absencePercentage: parseFloat(absencePercentage.toFixed(1)),
             }
         }).sort((a,b) => b.absenceCount - a.absenceCount);
 
@@ -565,7 +617,13 @@ function AttendanceReports() {
                             <div className="grid gap-8 md:grid-cols-2">
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle>التلاميذ الأكثر غياباً</CardTitle>
+                                        <div className="flex justify-between items-center">
+                                            <CardTitle>التلاميذ الأكثر غياباً</CardTitle>
+                                            <Button variant="outline" size="sm" onClick={() => exportTableToXLSX(reportData.topAbsences.map(({studentId, ...rest}) => rest), 'التلاميذ-الاكثر-غيابا.xlsx')}>
+                                                <FileDown className="me-2 h-4 w-4" />
+                                                تصدير
+                                            </Button>
+                                        </div>
                                         <div className="flex items-center gap-2 pt-2">
                                             <Input placeholder="ابحث..." value={topAbsencesTable.searchTerm} onChange={(e) => topAbsencesTable.dispatch({ type: 'SEARCH', payload: e.target.value })} className="max-w-sm"/>
                                         </div>
@@ -621,7 +679,13 @@ function AttendanceReports() {
 
                                  <Card>
                                     <CardHeader>
-                                        <CardTitle>الأقسام حسب نسبة الغياب</CardTitle>
+                                        <div className="flex justify-between items-center">
+                                            <CardTitle>الأقسام حسب نسبة الغياب</CardTitle>
+                                             <Button variant="outline" size="sm" onClick={() => exportTableToXLSX(reportData.departmentAbsences.map(({departmentId, ...rest}) => ({...rest, absencePercentage: `${rest.absencePercentage}%`})), 'الاقسام-حسب-الغياب.xlsx')}>
+                                                <FileDown className="me-2 h-4 w-4" />
+                                                تصدير
+                                            </Button>
+                                        </div>
                                         <div className="flex items-center gap-2 pt-2">
                                             <Input placeholder="ابحث..." value={deptAbsencesTable.searchTerm} onChange={(e) => deptAbsencesTable.dispatch({ type: 'SEARCH', payload: e.target.value })} className="max-w-sm"/>
                                         </div>
@@ -715,3 +779,5 @@ export default function AttendancePage() {
         </div>
     );
 }
+
+    

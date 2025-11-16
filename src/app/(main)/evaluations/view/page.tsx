@@ -10,10 +10,11 @@ import { useCollection, useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Institution, Student, Evaluation, EvaluationCriteria } from '@/lib/types';
 import { collection, query, where, writeBatch, doc } from 'firebase/firestore';
-import { Save, Loader2, Printer } from 'lucide-react';
+import { Save, Loader2, Printer, FileDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { useToast, toast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 const FIRST_YEAR_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
     { name: 'سلوك المتعلم', level: 'أولى ابتدائي', maxScore: 2 },
@@ -144,19 +145,19 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
 
     useEffect(() => {
         if (existingEvals) {
-            const newScores = { ...scores };
-            const newObservations = { ...observations };
+            const newScores: { [studentId: string]: { [criteriaId: string]: number | null } } = {};
+            const newObservations: { [studentId: string]: string } = {};
             existingEvals.forEach(ev => {
                 if (!newScores[ev.studentId]) {
                     newScores[ev.studentId] = {};
                 }
-                if (ev.criteriaId && ev.criteriaId !== 'observation') {
+                if (ev.criteriaId && ev.criteriaId !== 'observation' && ev.score !== undefined) {
                     const foundCriteria = criteria.find(c => c.id === ev.criteriaId);
                     if (foundCriteria) {
                         newScores[ev.studentId][foundCriteria.id] = ev.score;
                     }
                 }
-                if (ev.observation) { 
+                if (ev.criteriaId === 'observation' && ev.observation) { 
                     newObservations[ev.studentId] = ev.observation;
                 }
             });
@@ -220,6 +221,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                     level: level,
                     institutionId: institutionId,
                     score: score ?? null,
+                    observation: null,
                 }, { merge: true });
             });
             
@@ -231,6 +233,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                 semester: semester,
                 level: level,
                 institutionId: institutionId,
+                score: null,
                 observation: studentObservation || null,
              }, { merge: true });
             
@@ -262,6 +265,34 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
         const printWindow = window.open(`/evaluations/print?${params.toString()}`, '_blank');
         printWindow?.focus();
     }
+
+    const handleExport = () => {
+        if (!students || students.length === 0) {
+            toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+            return;
+        }
+
+        const fileName = `تقييم-${level}-الفصل-${semester}.xlsx`;
+
+        const dataToExport = students.map(student => {
+            const row: {[key: string]: any} = {
+                'اللقب': student.lastName,
+                'الإسم': student.firstName,
+            };
+            const studentScores = scores[student.id] || {};
+            criteria.forEach(crit => {
+                row[crit.name] = studentScores[crit.id] ?? '';
+            });
+            row['المجموع'] = calculateTotal(student.id);
+            row['الملاحظة'] = observations[student.id] || '';
+            return row;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `تقييم الفصل ${semester}`);
+        XLSX.writeFile(workbook, fileName);
+    };
     
     if (loadingStudents || loadingEvals) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin h-8 w-8" /> <p className="ms-2">جاري تحميل بيانات التقييم...</p></div>
@@ -275,10 +306,16 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                         <CardTitle>جدول تقييم {level} - الفصل {semester}</CardTitle>
                         <CardDescription>أدخل الدرجات واختر الملاحظة لكل تلميذ. المجموع سيتم حسابه تلقائياً.</CardDescription>
                     </div>
-                    <Button onClick={handlePrint} variant="outline" size="icon">
-                        <Printer className="h-5 w-5"/>
-                        <span className="sr-only">طباعة</span>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button onClick={handleExport} variant="outline" size="icon">
+                            <FileDown className="h-5 w-5 text-green-600"/>
+                            <span className="sr-only">تصدير Excel</span>
+                        </Button>
+                        <Button onClick={handlePrint} variant="outline" size="icon">
+                            <Printer className="h-5 w-5"/>
+                            <span className="sr-only">طباعة</span>
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <div className="overflow-x-auto">
@@ -369,14 +406,14 @@ function EvaluationViewPage() {
     const semester = searchParams.get('semester');
 
     const criteria = useMemo(() => {
-        let criteriaList: Omit<EvaluationCriteria, 'id'>[] = [];
+        let criteriaList: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [];
         if (level === 'أولى ابتدائي') {
             criteriaList = FIRST_YEAR_CRITERIA;
         } else if (level) {
             criteriaList = OTHER_YEARS_CRITERIA;
         }
-        return criteriaList.map((c, i) => ({ ...c, id: `${level === 'أولى ابتدائي' ? 'fy' : 'oy'}_crit_${i}`}));
-    }, [level]);
+        return criteriaList.map((c, i) => ({ ...c, semester: semester || '1', id: `${level === 'أولى ابتدائي' ? 'fy' : 'oy'}_crit_${i}`}));
+    }, [level, semester]);
 
     if (!institutionId || !level || !semester) {
         return (
@@ -396,3 +433,5 @@ export default function Page() {
         </Suspense>
     );
 }
+
+    
