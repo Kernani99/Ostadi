@@ -76,6 +76,18 @@ const AppNav = ({ isMobile = false }: { isMobile?: boolean }) => {
   );
 };
 
+const AlgerianFlagIcon = () => (
+    <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center animate-pulse">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" className="h-full w-full">
+            <rect width="1200" height="800" fill="#fff"/>
+            <rect width="600" height="800" fill="#006233"/>
+            <path d="M750 400a150 150 0 1 0 0-1.2z" fill="#d21034"/>
+            <path d="M680 400a200 200 0 1 0 0-1.2z" fill="#fff"/>
+            <path d="M785.4 466.8L650.3 531l51-161.8-132-100.2 165.2-1.2 52-161.4 50 162.2 165.2.6-133.4 98.8 51.5 161.9z" fill="#d21034"/>
+        </svg>
+    </div>
+);
+
 
 export function Header() {
   const firestore = useFirestore();
@@ -102,6 +114,7 @@ export function Header() {
     <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
       <div className="flex items-center gap-2">
         <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
+          <AlgerianFlagIcon />
           <GraduationCap className="h-6 w-6 text-primary" />
           <span>مرحباً بك استاذ: {professorName}</span>
         </Link>
