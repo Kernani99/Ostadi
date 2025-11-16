@@ -1,3 +1,4 @@
+
 /**
  * @file Firestore Security Rules
  * @description This ruleset allows open read access to all collections, but restricts write access to authenticated users.

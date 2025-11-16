@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Institution": {
@@ -239,6 +240,25 @@
           "description": "The current school year (e.g., 2023-2024)."
         }
       }
+    },
+    "DailyLog": {
+        "title": "DailyLog",
+        "type": "object",
+        "description": "Represents a daily log entry by a professor.",
+        "properties": {
+            "userId": { "type": "string", "description": "The ID of the user (professor) who created the log." },
+            "institutionId": { "type": "string", "description": "Reference to Institution." },
+            "level": { "type": "string", "description": "The grade level for the class." },
+            "date": { "type": "string", "format": "date", "description": "The date of the log entry." },
+            "startTime": { "type": "string", "format": "time", "description": "The start time of the class session." },
+            "endTime": { "type": "string", "format": "time", "description": "The end time of the class session." },
+            "field": { "type": "string", "description": "The educational field or subject." },
+            "memoNumber": { "type": "string", "description": "The memo or reference number." },
+            "learnings": { "type": "string", "description": "Description of learnings." },
+            "learningContent": { "type": "string", "description": "Content of the learning material." },
+            "observation": { "type": "string", "description": "General observations." }
+        },
+        "required": ["userId", "institutionId", "level", "date", "startTime", "endTime"]
     }
   },
   "auth": {
@@ -289,6 +309,12 @@
         "$ref": "#/backend/entities/ProfessorProfile"
       },
       "description": "Stores the professor's profile data. Authentication might be required."
+    },
+    "/daily_logs/{logId}": {
+        "schema": {
+            "$ref": "#/backend/entities/DailyLog"
+        },
+        "description": "Stores the professor's daily log entries. Only the owner can read/write."
     }
   }
 }

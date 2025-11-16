@@ -51,6 +51,21 @@ export type ProfessorProfile = {
     schoolYear?: string;
 }
 
+export type DailyLog = {
+    id: string;
+    userId: string;
+    institutionId: string;
+    level: string;
+    date: string; // yyyy-MM-dd
+    startTime: string;
+    endTime: string;
+    field?: string;
+    memoNumber?: string;
+    learnings?: string;
+    learningContent?: string;
+    observation?: string;
+};
+
 export type Attendance = {
   id: string; // e.g., studentId_yyyy-MM
   studentId: string;
