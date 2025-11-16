@@ -203,6 +203,12 @@ export default function DailyLogPage() {
     });
     setLogToDelete(null);
   }
+  
+  const handlePrint = () => {
+    const printWindow = window.open('/professor-documents/daily-log/print', '_blank');
+    printWindow?.focus();
+  };
+
 
   const isLoading = isUserLoading || loadingInstitutions;
 
@@ -398,7 +404,7 @@ export default function DailyLogPage() {
                     <History className="me-2 h-4 w-4" />
                     استيراد السجل القديم
                 </Button>
-                <Button variant="default">
+                <Button variant="default" onClick={handlePrint}>
                     <Printer className="me-2 h-4 w-4" />
                     طباعة السجل
                 </Button>
