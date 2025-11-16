@@ -293,7 +293,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                                         </TableHead>
                                     ))}
                                     <TableHead className="text-center min-w-[120px]">مجموع التقويم المستمر</TableHead>
-                                    <TableHead className="text-center min-w-[250px]">الملاحظة</TableHead>
+                                    <TableHead className="text-center min-w-[200px]">الملاحظة</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
