@@ -77,13 +77,16 @@ const AppNav = ({ isMobile = false }: { isMobile?: boolean }) => {
 };
 
 const AlgerianFlagIcon = () => (
-    <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center animate-pulse">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" className="h-full w-full">
+    <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center animate-pulse flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" className="h-full w-auto">
             <rect width="1200" height="800" fill="#fff"/>
             <rect width="600" height="800" fill="#006233"/>
-            <path d="M750 400a150 150 0 1 0 0-1.2z" fill="#d21034"/>
-            <path d="M680 400a200 200 0 1 0 0-1.2z" fill="#fff"/>
-            <path d="M785.4 466.8L650.3 531l51-161.8-132-100.2 165.2-1.2 52-161.4 50 162.2 165.2.6-133.4 98.8 51.5 161.9z" fill="#d21034"/>
+            <g transform="translate(600,400)">
+                <path d="M 0 -150 A 150 150 0 0 0 0 150 A 120 120 0 0 1 0 -150" fill="#d21034"/>
+                <g transform="rotate(18)">
+                    <path d="M 0 -70 L 22 -22 L 70 0 L 22 22 L 0 70 L -22 22 L -70 0 L -22 -22 Z" fill="#d21034"/>
+                </g>
+            </g>
         </svg>
     </div>
 );
