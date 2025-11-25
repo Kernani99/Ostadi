@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import type { Student, Attendance, Institution, AttendanceReport, GeneralStats, Department, TopAbsence, DepartmentAbsence } from "@/lib/types";
+import type { Student, Attendance, Institution, AttendanceReport, GeneralStats, TopAbsence, DepartmentAbsence } from "@/lib/types";
 import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth, eachDayOfInterval, isSameMonth, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -88,6 +88,7 @@ function AttendanceRegistration() {
     };
 
     const handleAttendanceChange = async (student: Student, week: number, status: string) => {
+        if (!firestore) return;
         const studentId = student.id;
         const departmentId = student.departmentId || null; 
         
@@ -158,8 +159,8 @@ function AttendanceRegistration() {
             };
             const studentAttendance = attendanceMap.get(student.id) || {};
             weeksOfMonth.forEach(week => {
-                const status = studentAttendance[week] as keyof typeof statusMap;
-                row[`الأسبوع ${week}`] = status ? statusMap[status] : '';
+                const statusKey = studentAttendance[week] as keyof typeof statusMap;
+                row[`الأسبوع ${week}`] = statusKey ? statusMap[statusKey] : '';
             });
             return row;
         });
@@ -358,8 +359,8 @@ function AttendanceReports() {
     const [reportData, setReportData] = useState<GeneralStats | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    const { data: students } = useCollection<Student>(useMemoFirebase(() => collection(firestore, 'students'), [firestore]));
-    const { data: departments } = useCollection<Department>(useMemoFirebase(() => collection(firestore, 'departments'), [firestore]));
+    const { data: students } = useCollection<Student>(useMemoFirebase(() => firestore ? collection(firestore, 'students') : null, [firestore]));
+    const { data: departments } = useCollection<Department>(useMemoFirebase(() => firestore ? collection(firestore, 'departments') : null, [firestore]));
 
     const topAbsencesTable = usePaginatedTable(reportData?.topAbsences, 'absenceCount');
     const deptAbsencesTable = usePaginatedTable(reportData?.departmentAbsences, 'absenceCount');
@@ -376,7 +377,7 @@ function AttendanceReports() {
     };
 
     const handleGenerateReport = async () => {
-        if (!dateRange.from || !dateRange.to || !students || !departments) return;
+        if (!dateRange.from || !dateRange.to || !students || !departments || !firestore) return;
         
         setIsLoading(true);
         const allAttendances: Attendance[] = [];
@@ -487,6 +488,40 @@ function AttendanceReports() {
         setIsLoading(false);
     };
 
+    const handlePrintReport = () => {
+        if (!reportData || !dateRange.from || !dateRange.to) {
+            toast({
+                title: "لا توجد بيانات للطباعة",
+                description: "الرجاء إنشاء التقرير أولاً.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        // We need to pass the report data to the print page.
+        // The easiest way is to store it in sessionStorage and read it on the print page.
+        // Using URL params could be too long for complex data.
+        try {
+            const reportPrintData = {
+                reportData,
+                dateRange: {
+                    from: dateRange.from.toISOString(),
+                    to: dateRange.to.toISOString(),
+                }
+            };
+            sessionStorage.setItem('attendanceReportPrintData', JSON.stringify(reportPrintData));
+            const printWindow = window.open('/attendance/print-report', '_blank');
+            printWindow?.focus();
+        } catch (e) {
+            console.error("Failed to store print data:", e);
+            toast({
+                title: "خطأ في الطباعة",
+                description: "لم نتمكن من تحضير البيانات للطباعة.",
+                variant: "destructive"
+            });
+        }
+    };
+
     return (
         <div className="space-y-6">
             <Card>
@@ -551,7 +586,7 @@ function AttendanceReports() {
                         <Search className="me-2 h-4 w-4" />
                         {isLoading ? 'جاري العرض...' : 'عرض الإحصائيات'}
                     </Button>
-                    <Button variant="destructive" disabled={!reportData}>
+                    <Button variant="destructive" onClick={handlePrintReport} disabled={!reportData}>
                         <Printer className="me-2 h-4 w-4" />
                         طباعة التقرير
                     </Button>
@@ -779,5 +814,7 @@ export default function AttendancePage() {
         </div>
     );
 }
+
+    
 
     
