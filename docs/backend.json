@@ -297,6 +297,35 @@
         "badCondition",
         "userId"
       ]
+    },
+    "TimetableEntry": {
+      "title": "TimetableEntry",
+      "type": "object",
+      "description": "Represents a single entry in the professor's timetable.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user (professor) who owns this entry."
+        },
+        "day": {
+          "type": "string",
+          "description": "The day of the week (e.g., 'الأحد')."
+        },
+        "timeSlot": {
+          "type": "string",
+          "description": "The time slot for the entry (e.g., '08:00 - 09:00')."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the timetable entry (e.g., class and school name)."
+        }
+      },
+      "required": [
+        "userId",
+        "day",
+        "timeSlot",
+        "content"
+      ]
     }
   },
   "auth": {
@@ -359,6 +388,12 @@
         "$ref": "#/backend/entities/SportsEquipment"
       },
       "description": "Stores sports equipment inventory data. Only the owner can read/write."
+    },
+    "/timetable_entries/{entryId}": {
+      "schema": {
+        "$ref": "#/backend/entities/TimetableEntry"
+      },
+      "description": "Stores timetable entries for each user. Only the owner can read/write."
     }
   }
 }

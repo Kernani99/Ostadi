@@ -142,3 +142,10 @@ export type SportsEquipment = {
     userId: string;
 };
     
+export type TimetableEntry = {
+    id: string; // Composite key: `${day}_${timeSlot}`
+    userId: string;
+    day: string;
+    timeSlot: string;
+    content: string;
+};

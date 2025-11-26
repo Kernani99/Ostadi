@@ -139,6 +139,18 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
       allow read, update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
+    
+    /**
+     * @description Allows authenticated users to manage their own timetable entries.
+     * @path /timetable_entries/{entryId}
+     * @allow (create, update) Allows an authenticated user to create or update an entry if their UID matches the entry's userId.
+     * @allow (read, delete) Allows an authenticated user to read or delete their own entry.
+     * @principle Enforces ownership for timetable data.
+     */
+    match /timetable_entries/{entryId} {
+      allow create, update: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow read, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+    }
   }
 
   // Helper function to determine if a user is signed in.
