@@ -293,7 +293,7 @@ function AttendanceRegistration() {
                                                 <TableCell className="sticky left-0 bg-card z-10 font-medium border-e">{student.lastName} {student.firstName}</TableCell>
                                                 {weeksOfMonth.map(week => (
                                                     hasTwoSessions ? (
-                                                        <>
+                                                        <Fragment key={`${student.id}-${week}`}>
                                                             <TableCell key={`${week}-1`} className="p-1 text-center">
                                                                 <Select
                                                                     value={attendanceMap.get(student.id)?.[`${week}_1`] || ''}
@@ -322,7 +322,7 @@ function AttendanceRegistration() {
                                                                     </SelectContent>
                                                                 </Select>
                                                             </TableCell>
-                                                        </>
+                                                        </Fragment>
                                                     ) : (
                                                         <TableCell key={week} className="p-1 text-center">
                                                             <Select
