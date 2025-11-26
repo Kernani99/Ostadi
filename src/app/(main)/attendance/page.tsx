@@ -11,11 +11,11 @@ import type { Student, Attendance, Institution, Department } from "@/lib/types";
 import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown, Activity, ShieldOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown, Activity, ShieldOff, Loader2 } from "lucide-react";
 import { useState, useMemo, useReducer } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, PieChart, Pie, Cell, Legend } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, PieChart, Pie, Cell, Legend, Tooltip } from "recharts"
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
 import * as XLSX from 'xlsx';
