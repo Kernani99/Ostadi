@@ -153,19 +153,22 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
     const { data: existingEvals, isLoading: loadingEvals } = useCollection<Evaluation>(evaluationsQuery);
     
     // Fetch attendance data for the semester
-    const { data: attendanceData, isLoading: loadingAttendance } = useCollection<Attendance>(useMemoFirebase(() => {
+    const { data: allAttendanceData, isLoading: loadingAttendance } = useCollection<Attendance>(useMemoFirebase(() => {
         if (!firestore || studentIds.length === 0) return null;
-        const monthsForSemester = SEMESTER_MONTHS[semester];
-        const currentYear = new Date().getFullYear();
-        // This logic is a bit naive, might need adjustment for school year spanning two calendar years
-        const yearMonths = monthsForSemester.map(m => `${m < 8 ? currentYear : currentYear -1}-${(m + 1).toString().padStart(2, '0')}`);
-        
         return query(
             collection(firestore, 'attendances'),
-            where('studentId', 'in', studentIds),
-            where('month', 'in', yearMonths)
+            where('studentId', 'in', studentIds)
         );
-    }, [firestore, studentIds, semester]));
+    }, [firestore, studentIds]));
+
+    const attendanceDataForSemester = useMemo(() => {
+        if (!allAttendanceData) return [];
+        const monthsForSemester = SEMESTER_MONTHS[semester];
+        return allAttendanceData.filter(att => {
+            const monthIndex = parseInt(att.month.split('-')[1], 10) - 1;
+            return monthsForSemester.includes(monthIndex);
+        });
+    }, [allAttendanceData, semester]);
 
 
     useEffect(() => {
@@ -193,7 +196,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
     
     // Auto-calculate scores when attendance data is available
     useEffect(() => {
-        if (!attendanceData || !students) return;
+        if (!attendanceDataForSemester || !students) return;
 
         const absenceCriteria = criteria.find(c => c.name === 'الغيابات و التأخرات' || c.name === 'المواظبة (غياب/تأخر)');
         const outfitCriteria = criteria.find(c => c.name === 'البدلة الرياضية');
@@ -203,7 +206,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
         const newScores = { ...scores };
 
         students.forEach(student => {
-            const studentAttendances = attendanceData.filter(att => att.studentId === student.id);
+            const studentAttendances = attendanceDataForSemester.filter(att => att.studentId === student.id);
             if (!newScores[student.id]) {
                 newScores[student.id] = {};
             }
@@ -240,7 +243,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
         });
         setScores(newScores);
 
-    }, [attendanceData, students, criteria, level]);
+    }, [attendanceDataForSemester, students, criteria, level]);
 
 
     const handleScoreChange = (studentId: string, criteriaId: string, value: string) => {
