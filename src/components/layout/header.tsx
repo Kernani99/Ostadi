@@ -13,6 +13,7 @@ import {
   Users,
   BookCheck,
   LogOut,
+  BookUser,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -70,7 +71,7 @@ const AppNav = ({ isMobile = false }: { isMobile?: boolean }) => {
         : "hidden md:flex md:flex-row md:items-center md:gap-5 lg:gap-6 text-sm font-medium"
       )}>
       {navItems.map((item) => (
-        <NavLink key={item.href} {...item} isActive={pathname === item.href} isMobile={isMobile} />
+        <NavLink key={item.href} {...item} isActive={pathname.startsWith(item.href) && (item.href === '/' ? pathname === '/' : true) } isMobile={isMobile} />
       ))}
     </nav>
   );
