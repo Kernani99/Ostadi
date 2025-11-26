@@ -8,13 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { useCollection, useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import type { Institution, Student, Evaluation, EvaluationCriteria } from '@/lib/types';
-import { collection, query, where, writeBatch, doc } from 'firebase/firestore';
+import type { Institution, Student, Evaluation, EvaluationCriteria, Attendance } from '@/lib/types';
+import { collection, query, where, writeBatch, doc, getDocs } from 'firebase/firestore';
 import { Save, Loader2, Printer, FileDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { useToast, toast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
+import { getWeeksInMonth, format, getMonth } from 'date-fns';
 
 const FIRST_YEAR_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
     { name: 'سلوك المتعلم', level: 'أولى ابتدائي', maxScore: 2 },
@@ -115,6 +116,12 @@ function getObservationsForScore(score: number, gender: 'male' | 'female'): stri
     return [...specificObservations, ...genericObservations];
 }
 
+const SEMESTER_MONTHS: { [key: string]: number[] } = {
+    '1': [8, 9, 10, 11], // Sep, Oct, Nov, Dec (month is 0-indexed)
+    '2': [0, 1, 2],      // Jan, Feb, Mar
+    '3': [3, 4, 5],      // Apr, May, Jun
+};
+
 
 function EvaluationTable({ institutionId, level, semester, criteria }: { institutionId: string; level: string; semester: string; criteria: EvaluationCriteria[] }) {
     const firestore = useFirestore();
@@ -133,6 +140,8 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
     const [observations, setObservations] = useState<{ [studentId: string]: string }>({});
 
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
+
+    // Fetch existing evaluations
     const evaluationsQuery = useMemoFirebase(() => {
        if (studentIds.length === 0) return null;
        return query(
@@ -142,6 +151,22 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
        )
     }, [firestore, studentIds, semester]);
     const { data: existingEvals, isLoading: loadingEvals } = useCollection<Evaluation>(evaluationsQuery);
+    
+    // Fetch attendance data for the semester
+    const { data: attendanceData, isLoading: loadingAttendance } = useCollection<Attendance>(useMemoFirebase(() => {
+        if (!firestore || studentIds.length === 0) return null;
+        const monthsForSemester = SEMESTER_MONTHS[semester];
+        const currentYear = new Date().getFullYear();
+        // This logic is a bit naive, might need adjustment for school year spanning two calendar years
+        const yearMonths = monthsForSemester.map(m => `${m < 8 ? currentYear : currentYear -1}-${(m + 1).toString().padStart(2, '0')}`);
+        
+        return query(
+            collection(firestore, 'attendances'),
+            where('studentId', 'in', studentIds),
+            where('month', 'in', yearMonths)
+        );
+    }, [firestore, studentIds, semester]));
+
 
     useEffect(() => {
         if (existingEvals) {
@@ -165,6 +190,58 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
             setObservations(newObservations);
         }
     }, [existingEvals, criteria]);
+    
+    // Auto-calculate scores when attendance data is available
+    useEffect(() => {
+        if (!attendanceData || !students) return;
+
+        const absenceCriteria = criteria.find(c => c.name === 'الغيابات و التأخرات' || c.name === 'المواظبة (غياب/تأخر)');
+        const outfitCriteria = criteria.find(c => c.name === 'البدلة الرياضية');
+
+        if (!absenceCriteria && !outfitCriteria) return;
+
+        const newScores = { ...scores };
+
+        students.forEach(student => {
+            const studentAttendances = attendanceData.filter(att => att.studentId === student.id);
+            if (!newScores[student.id]) {
+                newScores[student.id] = {};
+            }
+
+            let absenceCount = 0;
+            let noOutfitCount = 0;
+            let totalSessions = 0;
+            
+            const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(level);
+            const sessionsPerWeek = hasTwoSessions ? 2 : 1;
+
+            studentAttendances.forEach(att => {
+                totalSessions += getWeeksInMonth(new Date(att.month)) * sessionsPerWeek;
+                Object.values(att.records).forEach(status => {
+                    if (status === 'absent') absenceCount++;
+                    if (status === 'no-outfit') noOutfitCount++;
+                });
+            });
+
+            // Calculate absence score
+            if (absenceCriteria) {
+                let absenceScore = absenceCriteria.maxScore;
+                if (absenceCount > 0) absenceScore = Math.max(0, absenceCriteria.maxScore - absenceCount); // Simple logic: -1 per absence
+                newScores[student.id][absenceCriteria.id] = absenceScore;
+            }
+
+            // Calculate outfit score
+            if (outfitCriteria) {
+                 let outfitScore = outfitCriteria.maxScore;
+                if (noOutfitCount >= 4) outfitScore = 0;
+                else if (noOutfitCount >= 2) outfitScore = Math.max(0, outfitCriteria.maxScore / 2);
+                newScores[student.id][outfitCriteria.id] = outfitScore;
+            }
+        });
+        setScores(newScores);
+
+    }, [attendanceData, students, criteria, level]);
+
 
     const handleScoreChange = (studentId: string, criteriaId: string, value: string) => {
         const score = value === '' ? null : Number(value);
@@ -294,7 +371,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
         XLSX.writeFile(workbook, fileName);
     };
     
-    if (loadingStudents || loadingEvals) {
+    if (loadingStudents || loadingEvals || loadingAttendance) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin h-8 w-8" /> <p className="ms-2">جاري تحميل بيانات التقييم...</p></div>
     }
 
@@ -338,6 +415,8 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                                     students.map((student, index) => {
                                         const totalScore = calculateTotal(student.id);
                                         const availableObservations = getObservationsForScore(totalScore, student.gender);
+                                        const isAbsenceCriteria = (name: string) => name === 'الغيابات و التأخرات' || name === 'المواظبة (غياب/تأخر)';
+                                        const isOutfitCriteria = (name: string) => name === 'البدلة الرياضية';
                                         
                                         return (
                                         <TableRow key={student.id}>
@@ -353,6 +432,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                                                         value={scores[student.id]?.[crit.id] ?? ''}
                                                         onChange={(e) => handleScoreChange(student.id, crit.id, e.target.value)}
                                                         className="w-20 text-center mx-auto"
+                                                        disabled={isAbsenceCriteria(crit.name) || isOutfitCriteria(crit.name)}
                                                     />
                                                 </TableCell>
                                             ))}
@@ -433,5 +513,3 @@ export default function Page() {
         </Suspense>
     );
 }
-
-    
