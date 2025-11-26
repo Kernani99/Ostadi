@@ -51,7 +51,7 @@ export default function TimetablePage() {
             if (!newTimetable[entry.day]) {
                 newTimetable[entry.day] = {};
             }
-            newTimetable[entry.day][timeSlot] = entry.content;
+            newTimetable[entry.day][entry.timeSlot] = entry.content;
         });
         setLocalTimetable(newTimetable);
     }
