@@ -7,21 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import type { Student, Attendance, Institution, AttendanceReport, GeneralStats, TopAbsence, DepartmentAbsence } from "@/lib/types";
+import type { Student, Attendance, Institution, Department } from "@/lib/types";
 import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
-import { addMonths, subMonths, format, getWeeksInMonth, eachDayOfInterval, isSameMonth, differenceInDays } from 'date-fns';
+import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown, Activity, ShieldOff } from "lucide-react";
 import { useState, useMemo, useReducer } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, PieChart, Pie, Cell, Legend } from "recharts"
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import * as XLSX from 'xlsx';
 
 
@@ -90,7 +86,6 @@ function AttendanceRegistration() {
     const handleAttendanceChange = async (student: Student, week: number, status: string) => {
         if (!firestore) return;
         const studentId = student.id;
-        const departmentId = student.departmentId || null; 
         
         const attendanceId = `${studentId}_${monthStr}`;
         const attendanceRef = doc(firestore, 'attendances', attendanceId);
@@ -101,9 +96,11 @@ function AttendanceRegistration() {
         try {
             await setDoc(attendanceRef, {
                 studentId: studentId,
-                departmentId: departmentId,
+                departmentId: student.departmentId || null,
                 month: monthStr,
-                records: newRecords
+                records: newRecords,
+                institutionId: student.institutionId,
+                level: student.level,
             }, { merge: true });
 
              toast({
@@ -296,200 +293,105 @@ function AttendanceRegistration() {
     )
 }
 
-// Reducer for table state management
-const tableReducer = (state: any, action: any) => {
-  switch (action.type) {
-    case 'SORT': {
-      const { column } = action.payload;
-      const isAsc = state.sortColumn === column && state.sortDirection === 'asc';
-      return { ...state, sortColumn: column, sortDirection: isAsc ? 'desc' : 'asc', currentPage: 1 };
-    }
-    case 'SEARCH':
-      return { ...state, searchTerm: action.payload, currentPage: 1 };
-    case 'PAGINATE':
-      return { ...state, currentPage: action.payload };
-    case 'SET_ROWS_PER_PAGE':
-      return { ...state, rowsPerPage: action.payload, currentPage: 1 };
-    default:
-      return state;
-  }
+type LevelReport = {
+    level: string;
+    totalStudents: number;
+    totalAbsences: number;
+    attendancePercentage: number;
+    absencePercentage: number;
+    topAbsences: { studentName: string; absenceCount: number }[];
 };
-
-const usePaginatedTable = (data: any[] | null | undefined, initialSortColumn: string) => {
-    const [state, dispatch] = useReducer(tableReducer, {
-        sortColumn: initialSortColumn,
-        sortDirection: 'desc',
-        searchTerm: '',
-        currentPage: 1,
-        rowsPerPage: 10,
-    });
-
-    const sortedData = useMemo(() => {
-        if (!data) return [];
-        return [...data].sort((a, b) => {
-            const aVal = a[state.sortColumn];
-            const bVal = b[state.sortColumn];
-            if (aVal < bVal) return state.sortDirection === 'asc' ? -1 : 1;
-            if (aVal > bVal) return state.sortDirection === 'asc' ? 1 : -1;
-            return 0;
-        });
-    }, [data, state.sortColumn, state.sortDirection]);
-
-    const filteredData = useMemo(() => {
-        return sortedData.filter(item =>
-            Object.values(item).some(val =>
-                String(val).toLowerCase().includes(state.searchTerm.toLowerCase())
-            )
-        );
-    }, [sortedData, state.searchTerm]);
-
-    const paginatedData = useMemo(() => {
-        const startIndex = (state.currentPage - 1) * state.rowsPerPage;
-        return filteredData.slice(startIndex, startIndex + state.rowsPerPage);
-    }, [filteredData, state.currentPage, state.rowsPerPage]);
-
-    return { ...state, dispatch, paginatedData, totalPages: Math.ceil(filteredData.length / state.rowsPerPage), totalEntries: filteredData.length };
-};
+const ReportChartColors = ["#22c55e", "#ef4444"]; // Green for present, Red for absent
 
 
 function AttendanceReports() {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: subMonths(new Date(), 1), to: new Date() });
-    const [reportData, setReportData] = useState<GeneralStats | null>(null);
+    const [selectedInstitution, setSelectedInstitution] = useState<string>('');
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [reportData, setReportData] = useState<LevelReport[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    const { data: students } = useCollection<Student>(useMemoFirebase(() => firestore ? collection(firestore, 'students') : null, [firestore]));
-    const { data: departments } = useCollection<Department>(useMemoFirebase(() => firestore ? collection(firestore, 'departments') : null, [firestore]));
-
-    const topAbsencesTable = usePaginatedTable(reportData?.topAbsences, 'absenceCount');
-    const deptAbsencesTable = usePaginatedTable(reportData?.departmentAbsences, 'absenceCount');
-
-    const exportTableToXLSX = (data: any[], fileName: string) => {
-        if (!data || data.length === 0) {
-            toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+    const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
+        useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+    );
+    
+    const handleGenerateReport = async () => {
+        if (!selectedInstitution || !firestore) {
+             toast({ title: "الرجاء اختيار المؤسسة أولاً", variant: "destructive" });
             return;
         }
-        const worksheet = XLSX.utils.json_to_sheet(data);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "البيانات");
-        XLSX.writeFile(workbook, fileName);
-    };
-
-    const handleGenerateReport = async () => {
-        if (!dateRange.from || !dateRange.to || !students || !departments || !firestore) return;
         
         setIsLoading(true);
-        const allAttendances: Attendance[] = [];
+        const monthStr = format(currentDate, 'yyyy-MM');
+        
+        const studentsQuery = query(collection(firestore, 'students'), where('institutionId', '==', selectedInstitution));
+        const studentsSnapshot = await getDocs(studentsQuery);
+        const allStudentsInInst = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
 
-        // This fetch is inefficient for large datasets, consider restructuring if performance is an issue.
-        const attendanceQuery = query(collection(firestore, 'attendances'));
-        const querySnapshot = await getDocs(attendanceQuery);
-        querySnapshot.forEach(doc => {
-            allAttendances.push({ id: doc.id, ...doc.data() } as Attendance);
-        });
+        const attendanceQuery = query(
+            collection(firestore, 'attendances'), 
+            where('institutionId', '==', selectedInstitution),
+            where('month', '==', monthStr)
+        );
+        const attendanceSnapshot = await getDocs(attendanceQuery);
+        const allAttendancesInMonth = attendanceSnapshot.docs.map(doc => doc.data() as Attendance);
 
-        // --- Calculation Logic ---
-        const totalStudents = students.length;
-        let totalAbsences = 0;
-        const absencesByMonth: { [key: string]: number } = {};
-        const absencesByWeekday: { [key: string]: number } = { 'الأحد': 0, 'الاثنين': 0, 'الثلاثاء': 0, 'الأربعاء': 0, 'الخميس': 0 };
+        const levels = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي'];
+        const reports: LevelReport[] = [];
 
-        const absencesByStudent = new Map<string, number>();
-        const absencesByDepartment = new Map<string, number>();
+        for (const level of levels) {
+            const studentsInLevel = allStudentsInInst.filter(s => s.level === level);
+            if (studentsInLevel.length === 0) continue;
 
-        const schoolDaysInRange = eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).filter(d => d.getDay() !== 5 && d.getDay() !== 6).length;
+            const studentIdsInLevel = new Set(studentsInLevel.map(s => s.id));
+            const attendancesInLevel = allAttendancesInMonth.filter(a => studentIdsInLevel.has(a.studentId));
+            
+            let totalAbsences = 0;
+            const absencesByStudent = new Map<string, number>();
 
-        allAttendances.forEach(att => {
-            const monthDate = new Date(att.month + '-01T12:00:00');
-            const student = students.find(s => s.id === att.studentId);
-            if (!student) return;
-
-            const attDate = new Date(att.month);
-            // Check if attendance month is within the selected date range
-            if(attDate >= dateRange.from! && attDate <= dateRange.to!) {
-                 Object.entries(att.records).forEach(([day, status]) => {
+            attendancesInLevel.forEach(att => {
+                Object.values(att.records).forEach(status => {
                     if (status === 'absent') {
                         totalAbsences++;
-                        const monthKey = format(monthDate, 'yyyy-MM');
-                        absencesByMonth[monthKey] = (absencesByMonth[monthKey] || 0) + 1;
-                        
                         absencesByStudent.set(att.studentId, (absencesByStudent.get(att.studentId) || 0) + 1);
-
-                        if (student.departmentId) {
-                            absencesByDepartment.set(student.departmentId, (absencesByDepartment.get(student.departmentId) || 0) + 1);
-                        }
                     }
                 });
-            }
-        });
-        
-        const totalPossibleAttendances = totalStudents * schoolDaysInRange;
-        const attendanceRate = totalPossibleAttendances > 0 ? ((totalPossibleAttendances - totalAbsences) / totalPossibleAttendances) * 100 : 100;
-        const absenceRate = totalPossibleAttendances > 0 ? (totalAbsences / totalPossibleAttendances) * 100 : 0;
-        const averageAbsencePerStudent = totalStudents > 0 ? totalAbsences / totalStudents : 0;
+            });
 
-        const monthlyAbsenceData = Object.entries(absencesByMonth).map(([month, count]) => ({
-            name: format(new Date(month + '-01T12:00:00'), 'MMM', { locale: ar }),
-            total: count
-        }));
-        
-        const weeklyAbsenceData = Object.entries(absencesByWeekday).map(([day, count]) => ({
-            name: day,
-            total: count
-        }));
+            const totalPossibleAttendances = studentsInLevel.length * getWeeksInMonth(currentDate, {weekStartsOn: 6});
+            const attendanceCount = totalPossibleAttendances - totalAbsences;
 
-        const topAbsences: TopAbsence[] = Array.from(absencesByStudent.entries()).map(([studentId, absenceCount]) => {
-            const student = students.find(s => s.id === studentId);
-            const department = departments.find(d => d.id === student?.departmentId);
-            return {
-                studentId,
-                studentName: `${student?.lastName || ''} ${student?.firstName || ''}`,
-                departmentName: department?.name || 'غير محدد',
-                absenceCount
-            };
-        }).sort((a,b) => b.absenceCount - a.absenceCount);
+            const attendancePercentage = totalPossibleAttendances > 0 ? (attendanceCount / totalPossibleAttendances) * 100 : 100;
+            const absencePercentage = totalPossibleAttendances > 0 ? (totalAbsences / totalPossibleAttendances) * 100 : 0;
+            
+            const topAbsences = Array.from(absencesByStudent.entries()).map(([studentId, absenceCount]) => {
+                const student = studentsInLevel.find(s => s.id === studentId);
+                return {
+                    studentName: `${student?.lastName || ''} ${student?.firstName || ''}`,
+                    absenceCount
+                };
+            }).sort((a,b) => b.absenceCount - a.absenceCount).slice(0, 5); // Top 5
 
-        const studentsByDept = students.reduce((acc, student) => {
-            if(student.departmentId) {
-                acc[student.departmentId] = (acc[student.departmentId] || 0) + 1;
-            }
-            return acc;
-        }, {} as Record<string, number>);
+            reports.push({
+                level,
+                totalStudents: studentsInLevel.length,
+                totalAbsences,
+                attendancePercentage,
+                absencePercentage,
+                topAbsences
+            });
+        }
 
-        const departmentAbsences: DepartmentAbsence[] = departments.map(dept => {
-            const absenceCount = absencesByDepartment.get(dept.id) || 0;
-            const studentCount = studentsByDept[dept.id] || 0;
-            const totalPossible = studentCount * schoolDaysInRange;
-            const absencePercentage = totalPossible > 0 ? (absenceCount / totalPossible) * 100 : 0;
-            return {
-                departmentId: dept.id,
-                departmentName: dept.name,
-                studentCount: studentCount,
-                absenceCount: absenceCount,
-                absencePercentage: parseFloat(absencePercentage.toFixed(1)),
-            }
-        }).sort((a,b) => b.absenceCount - a.absenceCount);
-
-
-        setReportData({
-            totalStudents: totalStudents,
-            totalDepartments: departments.length,
-            totalAbsences: totalAbsences,
-            totalAbsencePercentage: absenceRate,
-            attendancePercentage: attendanceRate,
-            schoolDays: schoolDaysInRange,
-            averageAbsencePerStudent: averageAbsencePerStudent,
-            monthlyAbsenceDistribution: monthlyAbsenceData,
-            weeklyAbsenceDistribution: weeklyAbsenceData,
-            topAbsences,
-            departmentAbsences,
-        });
+        setReportData(reports);
         setIsLoading(false);
+        if (reports.length === 0) {
+             toast({ title: "لا توجد بيانات", description: "لم يتم العثور على تلاميذ أو سجلات حضور لهذا الشهر في المؤسسة المحددة." });
+        }
     };
-
+    
     const handlePrintReport = () => {
-        if (!reportData || !dateRange.from || !dateRange.to) {
+        if (!reportData || !selectedInstitution) {
             toast({
                 title: "لا توجد بيانات للطباعة",
                 description: "الرجاء إنشاء التقرير أولاً.",
@@ -498,18 +400,14 @@ function AttendanceReports() {
             return;
         }
 
-        // We need to pass the report data to the print page.
-        // The easiest way is to store it in sessionStorage and read it on the print page.
-        // Using URL params could be too long for complex data.
         try {
-            const reportPrintData = {
+            const institutionName = institutions?.find(i => i.id === selectedInstitution)?.name || '';
+            const printData = {
                 reportData,
-                dateRange: {
-                    from: dateRange.from.toISOString(),
-                    to: dateRange.to.toISOString(),
-                }
+                institutionName,
+                month: format(currentDate, 'MMMM yyyy', { locale: ar }),
             };
-            sessionStorage.setItem('attendanceReportPrintData', JSON.stringify(reportPrintData));
+            sessionStorage.setItem('attendanceReportPrintData', JSON.stringify(printData));
             const printWindow = window.open('/attendance/print-report', '_blank');
             printWindow?.focus();
         } catch (e) {
@@ -528,262 +426,122 @@ function AttendanceReports() {
                 <CardHeader>
                     <div className="flex items-center gap-2">
                         <Filter className="h-5 w-5 text-primary"/>
-                        <CardTitle>تصفية الإحصائيات</CardTitle>
+                        <CardTitle>إنشاء تقرير شهري</CardTitle>
                     </div>
+                     <CardDescription>اختر المؤسسة والشهر لعرض تقرير الغيابات المفصل حسب المستوى الدراسي.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col md:flex-row items-center gap-4">
+                    <Select onValueChange={setSelectedInstitution} value={selectedInstitution} disabled={loadingInstitutions}>
+                        <SelectTrigger className="w-full md:w-[250px]">
+                            <SelectValue placeholder="اختر المؤسسة..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {institutions?.map(inst => (
+                                <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <div className="flex items-center gap-2">
-                        <span>من تاريخ:</span>
-                         <Popover>
-                            <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn(
-                                "w-[240px] justify-start text-left font-normal",
-                                !dateRange.from && "text-muted-foreground"
-                                )}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateRange.from ? format(dateRange.from, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                                mode="single"
-                                selected={dateRange.from}
-                                onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                                initialFocus
-                            />
-                            </PopoverContent>
-                        </Popover>
-                    </div>
-                     <div className="flex items-center gap-2">
-                        <span>إلى تاريخ:</span>
-                         <Popover>
-                            <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn(
-                                "w-[240px] justify-start text-left font-normal",
-                                !dateRange.to && "text-muted-foreground"
-                                )}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateRange.to ? format(dateRange.to, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                                mode="single"
-                                selected={dateRange.to}
-                                onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                                initialFocus
-                            />
-                            </PopoverContent>
-                        </Popover>
+                         <Button size="icon" variant="outline" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <h3 className="text-lg font-bold text-primary w-32 text-center">
+                            {format(currentDate, 'MMMM yyyy', { locale: ar })}
+                        </h3>
+                        <Button size="icon" variant="outline" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
                     </div>
                     <Button onClick={handleGenerateReport} disabled={isLoading} className="bg-primary hover:bg-primary/90">
                         <Search className="me-2 h-4 w-4" />
-                        {isLoading ? 'جاري العرض...' : 'عرض الإحصائيات'}
+                        {isLoading ? 'جاري العرض...' : 'عرض التقرير'}
                     </Button>
-                    <Button variant="destructive" onClick={handlePrintReport} disabled={!reportData}>
+                     <Button variant="destructive" onClick={handlePrintReport} disabled={!reportData || reportData.length === 0}>
                         <Printer className="me-2 h-4 w-4" />
                         طباعة التقرير
                     </Button>
                 </CardContent>
             </Card>
 
-             <Tabs defaultValue="general" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="general"><BarChart3 className="me-2"/>الإحصائيات العامة</TabsTrigger>
-                    <TabsTrigger value="department" disabled><BarChart3 className="me-2"/>إحصائيات القسم</TabsTrigger>
-                    <TabsTrigger value="student" disabled><BarChart3 className="me-2"/>إحصائيات متعلم</TabsTrigger>
-                </TabsList>
-                <TabsContent value="general">
-                    {reportData ? (
-                        <div className="space-y-6">
-                            <Card>
-                                <CardHeader>
-                                    <div className="flex justify-between items-center">
-                                        <CardTitle>الإحصائيات العامة للحضور والغياب</CardTitle>
-                                        <Badge>الفترة: {dateRange.from ? format(dateRange.from, 'dd/MM/yyyy') : ''} - {dateRange.to ? format(dateRange.to, 'dd/MM/yyyy') : ''}</Badge>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                                        <StatCard title="إجمالي التلاميذ" value={reportData.totalStudents} icon={Users} description={`${reportData.totalDepartments} قسم دراسي`} />
-                                        <StatCard title="إجمالي الغيابات" value={reportData.totalAbsences} icon={CalendarX} description={`+${reportData.totalAbsencePercentage.toFixed(1)}% نسبة الغياب الإجمالية`} />
-                                        <StatCard title="نسبة الحضور" value={`${reportData.attendancePercentage.toFixed(1)}%`} icon={UserCheck} description={`${reportData.schoolDays} يوم دراسي`}/>
-                                        <StatCard title="متوسط الغياب" value={reportData.averageAbsencePerStudent.toFixed(1)} icon={Clock} description="لكل متعلم"/>
-                                    </div>
-                                    <div className="grid gap-8 md:grid-cols-2">
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle>توزيع الغياب حسب الأشهر</CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <ResponsiveContainer width="100%" height={300}>
-                                                    <BarChart data={reportData.monthlyAbsenceDistribution}>
-                                                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                                                        <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                            </CardContent>
-                                        </Card>
-                                        <Card>
-                                            <CardHeader>
-                                                <CardTitle>توزيع الغياب حسب أيام الأسبوع</CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <ResponsiveContainer width="100%" height={300}>
-                                                    <BarChart data={reportData.weeklyAbsenceDistribution}>
-                                                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                                                        <Bar dataKey="total" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                            
-                            <div className="grid gap-8 md:grid-cols-2">
-                                <Card>
-                                    <CardHeader>
-                                        <div className="flex justify-between items-center">
-                                            <CardTitle>التلاميذ الأكثر غياباً</CardTitle>
-                                            <Button variant="outline" size="sm" onClick={() => exportTableToXLSX(reportData.topAbsences.map(({studentId, ...rest}) => rest), 'التلاميذ-الاكثر-غيابا.xlsx')}>
-                                                <FileDown className="me-2 h-4 w-4" />
-                                                تصدير
-                                            </Button>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-2">
-                                            <Input placeholder="ابحث..." value={topAbsencesTable.searchTerm} onChange={(e) => topAbsencesTable.dispatch({ type: 'SEARCH', payload: e.target.value })} className="max-w-sm"/>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>#</TableHead>
-                                                    <TableHead>
-                                                        <Button variant="ghost" onClick={() => topAbsencesTable.dispatch({ type: 'SORT', payload: 'studentName' })}>
-                                                            التلميذ <ArrowUpDown className="ms-2 h-4 w-4" />
-                                                        </Button>
-                                                    </TableHead>
-                                                    <TableHead>
-                                                        <Button variant="ghost" onClick={() => topAbsencesTable.dispatch({ type: 'SORT', payload: 'departmentName' })}>
-                                                            القسم <ArrowUpDown className="ms-2 h-4 w-4" />
-                                                        </Button>
-                                                    </TableHead>
-                                                    <TableHead>
-                                                         <Button variant="ghost" onClick={() => topAbsencesTable.dispatch({ type: 'SORT', payload: 'absenceCount' })}>
-                                                            عدد الغيابات <ArrowUpDown className="ms-2 h-4 w-4" />
-                                                        </Button>
-                                                    </TableHead>
-                                                    <TableHead>عرض</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {topAbsencesTable.paginatedData.map((item, index) => (
-                                                    <TableRow key={item.studentId}>
-                                                        <TableCell>{(topAbsencesTable.currentPage - 1) * topAbsencesTable.rowsPerPage + index + 1}</TableCell>
-                                                        <TableCell>{item.studentName}</TableCell>
-                                                        <TableCell>{item.departmentName}</TableCell>
-                                                        <TableCell><Badge variant="destructive">{item.absenceCount}</Badge></TableCell>
-                                                        <TableCell><Button variant="ghost" size="icon"><Eye className="h-4 w-4"/></Button></TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                         <div className="flex items-center justify-end space-x-2 py-4">
-                                            <span className="text-sm text-muted-foreground">
-                                                إظهار {topAbsencesTable.paginatedData.length} من أصل {topAbsencesTable.totalEntries} مدخل
-                                            </span>
-                                            <Button variant="outline" size="sm" onClick={() => topAbsencesTable.dispatch({ type: 'PAGINATE', payload: topAbsencesTable.currentPage - 1 })} disabled={topAbsencesTable.currentPage === 1}>
-                                                السابق
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => topAbsencesTable.dispatch({ type: 'PAGINATE', payload: topAbsencesTable.currentPage + 1 })} disabled={topAbsencesTable.currentPage === topAbsencesTable.totalPages}>
-                                                التالي
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                 <Card>
-                                    <CardHeader>
-                                        <div className="flex justify-between items-center">
-                                            <CardTitle>الأقسام حسب نسبة الغياب</CardTitle>
-                                             <Button variant="outline" size="sm" onClick={() => exportTableToXLSX(reportData.departmentAbsences.map(({departmentId, ...rest}) => ({...rest, absencePercentage: `${rest.absencePercentage}%`})), 'الاقسام-حسب-الغياب.xlsx')}>
-                                                <FileDown className="me-2 h-4 w-4" />
-                                                تصدير
-                                            </Button>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-2">
-                                            <Input placeholder="ابحث..." value={deptAbsencesTable.searchTerm} onChange={(e) => deptAbsencesTable.dispatch({ type: 'SEARCH', payload: e.target.value })} className="max-w-sm"/>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                     <TableHead>#</TableHead>
-                                                    <TableHead>
-                                                         <Button variant="ghost" onClick={() => deptAbsencesTable.dispatch({ type: 'SORT', payload: 'departmentName' })}>
-                                                            القسم <ArrowUpDown className="ms-2 h-4 w-4" />
-                                                        </Button>
-                                                    </TableHead>
-                                                    <TableHead>عدد التلاميذ</TableHead>
-                                                    <TableHead>
-                                                         <Button variant="ghost" onClick={() => deptAbsencesTable.dispatch({ type: 'SORT', payload: 'absenceCount' })}>
-                                                            عدد الغيابات <ArrowUpDown className="ms-2 h-4 w-4" />
-                                                        </Button>
-                                                    </TableHead>
-                                                    <TableHead>
-                                                         <Button variant="ghost" onClick={() => deptAbsencesTable.dispatch({ type: 'SORT', payload: 'absencePercentage' })}>
-                                                            نسبة الغياب <ArrowUpDown className="ms-2 h-4 w-4" />
-                                                        </Button>
-                                                    </TableHead>
-                                                    <TableHead>عرض</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {deptAbsencesTable.paginatedData.map((item, index) => (
-                                                    <TableRow key={item.departmentId}>
-                                                         <TableCell>{(deptAbsencesTable.currentPage - 1) * deptAbsencesTable.rowsPerPage + index + 1}</TableCell>
-                                                        <TableCell>{item.departmentName}</TableCell>
-                                                        <TableCell>{item.studentCount}</TableCell>
-                                                        <TableCell>{item.absenceCount}</TableCell>
-                                                        <TableCell><Badge variant={item.absencePercentage > 5 ? "destructive" : "default"}>{item.absencePercentage.toFixed(1)}%</Badge></TableCell>
-                                                        <TableCell><Button variant="ghost" size="icon"><Eye className="h-4 w-4"/></Button></TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                        <div className="flex items-center justify-end space-x-2 py-4">
-                                            <span className="text-sm text-muted-foreground">
-                                                إظهار {deptAbsencesTable.paginatedData.length} من أصل {deptAbsencesTable.totalEntries} مدخل
-                                            </span>
-                                            <Button variant="outline" size="sm" onClick={() => deptAbsencesTable.dispatch({ type: 'PAGINATE', payload: deptAbsencesTable.currentPage - 1 })} disabled={deptAbsencesTable.currentPage === 1}>
-                                                السابق
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => deptAbsencesTable.dispatch({ type: 'PAGINATE', payload: deptAbsencesTable.currentPage + 1 })} disabled={deptAbsencesTable.currentPage === deptAbsencesTable.totalPages}>
-                                                التالي
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+            {isLoading ? (
+                 <div className="flex items-center justify-center h-60">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary"/>
+                    <p className="ms-2 text-muted-foreground">جاري إنشاء التقارير...</p>
+                </div>
+            ) : reportData ? (
+                <div className="space-y-8">
+                {reportData.map(report => (
+                    <Card key={report.level} className="shadow-lg">
+                        <CardHeader>
+                            <CardTitle className="text-2xl text-primary">{report.level}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid md:grid-cols-3 gap-6">
+                            <div className="md:col-span-1 space-y-4">
+                                <StatCard title="إجمالي التلاميذ" value={report.totalStudents} icon={Users} description="في هذا المستوى"/>
+                                <StatCard title="إجمالي الغيابات" value={report.totalAbsences} icon={CalendarX} description="خلال هذا الشهر"/>
                             </div>
-                        </div>
-                    ) : (
-                        <Card className="flex items-center justify-center h-60">
-                            <p className="text-muted-foreground">الرجاء تحديد فترة زمنية وعرض الإحصائيات.</p>
-                        </Card>
-                    )}
-                </TabsContent>
-            </Tabs>
+                             <div className="md:col-span-1">
+                                <h3 className="text-center font-semibold mb-2">نسبة الحضور والغياب</h3>
+                                <ResponsiveContainer width="100%" height={200}>
+                                    <PieChart>
+                                        <Pie
+                                            data={[
+                                                { name: 'حضور', value: report.attendancePercentage },
+                                                { name: 'غياب', value: report.absencePercentage }
+                                            ]}
+                                            dataKey="value"
+                                            nameKey="name"
+                                            cx="50%"
+                                            cy="50%"
+                                            outerRadius={80}
+                                            innerRadius={50}
+                                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                                            labelLine={false}
+                                        >
+                                           {[
+                                                { value: report.attendancePercentage },
+                                                { value: report.absencePercentage }
+                                            ].map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={ReportChartColors[index % ReportChartColors.length]} />
+                                           ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                                        <Legend iconType="circle"/>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <div className="md:col-span-1">
+                                 <h3 className="text-center font-semibold mb-2">التلاميذ الأكثر غياباً</h3>
+                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>التلميذ</TableHead>
+                                            <TableHead className="text-center">عدد الغيابات</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {report.topAbsences.length > 0 ? report.topAbsences.map(s => (
+                                            <TableRow key={s.studentName}>
+                                                <TableCell>{s.studentName}</TableCell>
+                                                <TableCell className="text-center"><Badge variant="destructive">{s.absenceCount}</Badge></TableCell>
+                                            </TableRow>
+                                        )) : (
+                                            <TableRow>
+                                                <TableCell colSpan={2} className="text-center h-24 text-muted-foreground">لا توجد غيابات مسجلة.</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                 </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+                </div>
+            ) : (
+                <Card className="flex items-center justify-center h-60">
+                    <p className="text-muted-foreground">الرجاء اختيار مؤسسة وشهر ثم الضغط على "عرض التقرير".</p>
+                </Card>
+            )}
         </div>
     );
 }
@@ -793,7 +551,7 @@ export default function AttendancePage() {
         <div className="container mx-auto p-4 space-y-6">
             <div className="flex flex-col items-center gap-2">
                 <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحضورو الغياب)
+                المناداة (الحضور والغياب)
                 <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
                 </h1>
             </div>
@@ -814,7 +572,3 @@ export default function AttendancePage() {
         </div>
     );
 }
-
-    
-
-    
