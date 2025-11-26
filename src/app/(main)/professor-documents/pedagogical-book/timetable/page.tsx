@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,7 @@ export default function TimetablePage() {
 
     for (const day of days) {
         for (const timeSlot of timeSlots) {
-            const content = localTimetable[day]?.[timeSlot] || "";
+            const content = localTimetable[day]?.[slot] || "";
             const docId = `${user.uid}_${day}_${timeSlot}`;
             const docRef = doc(firestore, 'timetable_entries', docId);
             batch.set(docRef, {
