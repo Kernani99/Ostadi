@@ -12,7 +12,7 @@ import type { ProfessorProfile, TimetableEntry } from "@/lib/types";
 import { collection, query, where, doc, writeBatch } from "firebase/firestore";
 import { useState, useMemo, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 const timeSlots = [
@@ -85,10 +85,17 @@ export default function TimetablePage() {
     setIsSaving(true);
     const batch = writeBatch(firestore);
 
+    // Get existing entries to delete the ones not present in the new localTimetable
+    const existingEntries = timetableEntries || [];
+    const newEntriesMap = new Map<string, string>();
+
     for (const day of days) {
         for (const timeSlot of timeSlots) {
-            const content = localTimetable[day]?.[slot] || "";
+            const content = localTimetable[day]?.[timeSlot] || "";
             const docId = `${user.uid}_${day}_${timeSlot}`;
+            newEntriesMap.set(docId, content);
+
+            // Set (create or overwrite) the document
             const docRef = doc(firestore, 'timetable_entries', docId);
             batch.set(docRef, {
                 userId: user.uid,
@@ -98,6 +105,10 @@ export default function TimetablePage() {
             });
         }
     }
+    
+    // This part is to clean up old entries if they are removed, but the above logic handles it by overwriting with empty content.
+    // So we can simplify the saving logic to just set/update.
+
     try {
         await batch.commit();
         toast({ title: "تم الحفظ بنجاح", description: "تم تحديث جدول التوقيت الخاص بك." });
@@ -116,32 +127,40 @@ export default function TimetablePage() {
         @media print {
           body {
             background-color: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           .no-print {
             display: none !important;
           }
           @page {
             size: A4 landscape;
-            margin: 1cm;
+            margin: 0;
           }
           .printable-area {
-            padding: 0;
+            padding: 2rem;
             margin: 0;
             border: none;
             box-shadow: none;
           }
-           .timetable-input {
+          .timetable-input {
                 border: none !important;
                 background-color: transparent !important;
-                padding: 0 !important;
+                padding: 2px !important;
                 text-align: center;
                 height: auto;
+                resize: none;
+                overflow: hidden;
+           }
+           .print-table th, .print-table td {
+                border-color: #aaa !important;
            }
         }
       `}</style>
-      <div className="flex flex-col items-center gap-2 no-print">
-        <h1 className="font-bold text-3xl text-center text-green-700">
-          جدول التوقيت - التعليم الإبتدائي (الدوام الواحد)
+
+      <div className="flex flex-col items-center gap-2 mb-8 no-print">
+        <h1 className="font-bold text-3xl text-center text-primary">
+          جدول التوقيت
         </h1>
          <div className="flex items-center gap-4 mt-4">
             {!isEditing ? (
@@ -153,47 +172,49 @@ export default function TimetablePage() {
                     {isSaving ? <Loader2 className="animate-spin me-2" /> : <Save className="me-2"/>} حفظ التغييرات
                 </Button>
             )}
-            <Button onClick={handlePrint} variant="destructive" className="bg-red-600 hover:bg-red-700 rounded-full shadow-md">
+            <Button onClick={handlePrint} variant="outline" className="text-red-600 border-red-600 hover:bg-red-50 hover:text-red-700 rounded-full shadow-md">
                 <Printer className="me-2"/> طباعة الجدول
             </Button>
         </div>
       </div>
 
-    <div className="printable-area">
-        <Card className="w-full max-w-7xl mx-auto border-2 border-green-600 rounded-2xl shadow-lg p-6">
-            <CardHeader className="text-center">
-                <div className="grid grid-cols-3 items-center">
-                     <div className="text-right space-y-2">
-                        <p className="flex items-center justify-end gap-2 text-sm font-semibold"><User className="text-green-700"/> الأستاذ(ة): {profileData?.firstName} {profileData?.lastName}</p>
-                        <p className="flex items-center justify-end gap-2 text-sm font-semibold"><CalendarDays className="text-green-700"/> السنة الدراسية: {profileData?.schoolYear}</p>
-                    </div>
-                    <div className="flex flex-col items-center">
-                        <Image src="https://firebasestorage.googleapis.com/v0/b/studio-3773063615-aada3.appspot.com/o/resources%2Falgeria-flag.png?alt=media&token=38337a28-2e11-43b3-9022-38ceb3252573" alt="شعار" width={50} height={50} />
-                        <CardTitle className="text-xl font-bold mt-2 text-green-800">جدول التوقيت</CardTitle>
-                    </div>
-                    <div className="text-left">
-                         <p className="flex items-center gap-2 text-sm font-semibold"><Building className="text-green-700"/> المؤسسة: {profileData?.schoolName}</p>
-                    </div>
+    <div className="printable-area p-8 border rounded-lg bg-white shadow-lg">
+        <header className="mb-8">
+            <div className="flex justify-between items-start">
+                <div className="text-sm space-y-1 text-right">
+                    <p className="font-semibold flex items-center gap-2"><User className="text-green-700" size={16}/> الأستاذ(ة): {profileData?.firstName} {profileData?.lastName}</p>
+                    <p className="flex items-center gap-2"><CalendarDays className="text-green-700" size={16}/> السنة الدراسية: {profileData?.schoolYear}</p>
                 </div>
-            </CardHeader>
-        </Card>
+                <div className="flex flex-col items-center">
+                    <Image src="https://firebasestorage.googleapis.com/v0/b/studio-3773063615-aada3.appspot.com/o/resources%2Falgeria-flag.png?alt=media&token=38337a28-2e11-43b3-9022-38ceb3252573" alt="شعار" width={40} height={40} className="object-contain" />
+                    <h1 className="text-xl font-bold mt-2 text-green-800">جدول التوقيت</h1>
+                </div>
+                <div className="text-sm space-y-1 text-right">
+                    <p className="font-semibold flex items-center gap-2"><Building className="text-green-700" size={16}/> المؤسسة: {profileData?.schoolName}</p>
+                    <p>{profileData?.address}</p>
+                </div>
+            </div>
+        </header>
 
-      <Card className="w-full max-w-7xl mx-auto shadow-xl mt-6">
-        <CardHeader className="bg-white rounded-t-lg">
-          <CardTitle className="flex items-center gap-3 text-red-600 font-bold">
-            <Calendar className="h-7 w-7" />
+      <Card className="w-full mx-auto shadow-xl border-gray-300">
+        <CardHeader className="bg-white rounded-t-lg pb-2">
+          <CardTitle className="flex items-center gap-3 text-red-600 font-bold relative pb-2 w-fit mx-auto">
+            <Calendar className="h-6 w-6" />
             التوقيت الأسبوعي
+            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-0.5 bg-red-200"></span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
              {isLoadingTimetable ? <div className="text-center p-8">جاري تحميل الجدول...</div> : (
-                <Table className="border-collapse border border-gray-300">
+                <Table className="border-collapse border-t border-gray-300 print-table">
                 <TableHeader>
-                    <TableRow className="bg-green-700 text-white">
-                    <TableHead className="border border-gray-300 p-2 text-center text-white font-bold w-32">اليوم / التوقيت</TableHead>
+                    <TableRow className="bg-gray-100">
+                    <TableHead className="border border-gray-300 p-2 font-bold text-center align-middle w-28">
+                        اليوم /<br/> التوقيت
+                    </TableHead>
                     {timeSlots.map(slot => (
-                        <TableHead key={slot} className="border border-gray-300 p-2 text-center text-white font-bold">{slot.replace('-', '\n')}</TableHead>
+                        <TableHead key={slot} className="border border-gray-300 p-2 text-center align-middle font-bold text-xs" dangerouslySetInnerHTML={{ __html: slot.replace('-', '<br/>') }}/>
                     ))}
                     </TableRow>
                 </TableHeader>
@@ -204,14 +225,13 @@ export default function TimetablePage() {
                         {timeSlots.map(slot => (
                         <TableCell key={slot} className="border border-gray-300 p-1 text-center align-middle h-24">
                            {isEditing ? (
-                             <Input
-                                type="text"
+                             <Textarea
                                 value={localTimetable[day]?.[slot] || ''}
                                 onChange={(e) => handleCellChange(day, slot, e.target.value)}
-                                className="w-full h-full text-center border-dashed timetable-input"
+                                className="w-full h-full text-center text-xs p-1 border-dashed timetable-input bg-blue-50/50 focus:bg-blue-100"
                              />
                            ) : (
-                            localTimetable[day]?.[slot] || ''
+                            <div className="text-xs whitespace-pre-wrap">{localTimetable[day]?.[slot] || ''}</div>
                            )}
                         </TableCell>
                         ))}
@@ -224,7 +244,7 @@ export default function TimetablePage() {
         </CardContent>
       </Card>
       
-       <div className="flex justify-around items-center mt-10 text-lg font-semibold">
+       <div className="flex justify-around items-center mt-12 text-sm font-semibold">
             <p>الأستاذ(ة): ...............................</p>
             <p>المدير(ة): ...............................</p>
             <p>المفتش: ...............................</p>
