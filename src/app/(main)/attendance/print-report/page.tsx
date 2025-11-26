@@ -1,11 +1,8 @@
 
 'use client';
 
-import { Suspense, useEffect, useState, useMemo } from 'react';
-import type { ProfessorProfile } from "@/lib/types";
+import { Suspense, useEffect, useState } from 'react';
 import { Loader2, Users, CalendarX } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
 type LevelReport = {
@@ -44,7 +41,8 @@ function PrintContent() {
 
     useEffect(() => {
         if (!isLoading && printData) {
-            setTimeout(() => window.print(), 1000); // Delay to allow charts to render
+            const timer = setTimeout(() => window.print(), 1000); // Delay to allow charts to render
+            return () => clearTimeout(timer);
         }
     }, [isLoading, printData]);
 
@@ -67,8 +65,9 @@ function PrintContent() {
                     @page { size: A4 portrait; margin: 20px; }
                     .no-print { display: none; }
                     .print-header, .print-footer { position: relative; }
-                    .print-card { border: 1px solid #e2e8f0; border-radius: 0.5rem; margin-bottom: 1rem; page-break-inside: avoid; }
+                    .print-card { border: 1px solid #e2e8f0; border-radius: 0.5rem; margin-bottom: 1.5rem; page-break-inside: avoid; }
                     .recharts-wrapper { width: 100% !important; height: 150px !important; }
+                    .recharts-legend-wrapper { font-size: 10px; }
                 }
             `}</style>
             
@@ -83,7 +82,7 @@ function PrintContent() {
                 {reportData.map(report => (
                     <div key={report.level} className="print-card p-4">
                         <h2 className="text-center font-bold text-lg mb-4 bg-gray-100 p-2 rounded">{report.level}</h2>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', alignItems: 'flex-start' }}>
                              <div className="col-span-1 space-y-2 text-center">
                                  <div className="p-2 border rounded">
                                     <Users className="mx-auto h-6 w-6 text-blue-600 mb-1" />
@@ -111,8 +110,8 @@ function PrintContent() {
                                             cy="50%"
                                             outerRadius={60}
                                             innerRadius={40}
-                                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                                             labelLine={false}
+                                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                                         >
                                            {[
                                                 { value: report.attendancePercentage },
@@ -136,7 +135,7 @@ function PrintContent() {
                                          </tr>
                                      </thead>
                                      <tbody>
-                                         {report.topAbsences.length > 0 ? report.topAbsences.map(s => (
+                                         {report.topAbsences.length > 0 ? report.topAbsences.slice(0, 5).map(s => ( // Limit to top 5
                                             <tr key={s.studentName}>
                                                 <td className="p-1 border">{s.studentName}</td>
                                                 <td className="p-1 border text-center font-bold text-red-600">{s.absenceCount}</td>
@@ -154,7 +153,7 @@ function PrintContent() {
                 ))}
             </main>
              <footer className="print-footer mt-8 pt-4 text-sm">
-                <div className="flex justify-around">
+                <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '50px' }}>
                     <div className="text-center">
                         <h4 className="font-bold">إمضاء المفتش</h4>
                          <div className="mt-12">...........................</div>
