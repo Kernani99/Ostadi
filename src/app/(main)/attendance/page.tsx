@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useCollection, useDoc, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Attendance, Institution, Department, ProfessorProfile } from "@/lib/types";
-import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
+import { collection, doc, query, where, setDoc, getDocs, writeBatch } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown, Activity, ShieldOff, Loader2 } from "lucide-react";
@@ -20,6 +20,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
 import * as XLSX from 'xlsx';
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 
 // Helper function to get number of weeks in a month
@@ -125,6 +126,47 @@ function AttendanceRegistration() {
                 description: "فشل في حفظ بيانات الحضور.",
                 variant: "destructive"
              });
+        }
+    };
+    
+    const handleMarkAll = async (week: number, session: 1 | 2, status: string) => {
+        if (!firestore || !students || students.length === 0) {
+            toast({ title: "لا يوجد تلاميذ لتسجيل حضورهم", variant: "destructive" });
+            return;
+        }
+
+        const statusTextMap = { present: 'حاضر', absent: 'غائب', justified: 'مبرر', 'no-outfit': 'بدون لباس' };
+        const statusText = statusTextMap[status as keyof typeof statusTextMap] || 'الحالة';
+
+        const batch = writeBatch(firestore);
+        const recordKey = `${week}_${session}`;
+
+        students.forEach(student => {
+            const attendanceId = `${student.id}_${monthStr}`;
+            const attendanceRef = doc(firestore, 'attendances', attendanceId);
+
+            const existingRecords = attendanceMap.get(student.id) || {};
+            const newRecords = { ...existingRecords, [recordKey]: status };
+            
+            batch.set(attendanceRef, {
+                studentId: student.id,
+                departmentId: student.departmentId || null,
+                month: monthStr,
+                records: newRecords,
+                institutionId: student.institutionId,
+                level: student.level,
+            }, { merge: true });
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "تم التسجيل الجماعي",
+                description: `تم تسجيل كل التلاميذ كـ'${statusText}' للحصة ${session} من الأسبوع ${week}.`,
+            });
+        } catch (error) {
+            console.error("Failed to batch save attendance: ", error);
+            toast({ title: "خطأ", description: "فشل في حفظ بيانات الحضور الجماعية.", variant: "destructive" });
         }
     };
     
@@ -268,17 +310,63 @@ function AttendanceRegistration() {
                                             </TableHead>
                                         ))}
                                     </TableRow>
-                                    {hasTwoSessions && (
-                                        <TableRow>
-                                            <TableHead className="sticky left-0 bg-card z-10 border-e"></TableHead>
+                                    <TableRow>
+                                        <TableHead className="sticky left-0 bg-card z-10 border-e"></TableHead>
                                             {weeksOfMonth.map(week => (
+                                                hasTwoSessions ? (
                                                 <Fragment key={week}>
-                                                    <TableHead key={`${week}-1`} className="text-center text-xs p-1 border-t">ح1</TableHead>
-                                                    <TableHead key={`${week}-2`} className="text-center text-xs p-1 border-t">ح2</TableHead>
+                                                    <TableHead className="text-center text-xs p-1 border-t">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                        <span>ح1</span>
+                                                         <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-6 w-6"><UserCheck className="h-4 w-4 text-primary" /></Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'present')}>تسجيل الكل حاضر</DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'absent')}>تسجيل الكل غائب</DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'justified')}>تسجيل الكل مبرر</DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'no-outfit')}>تسجيل الكل بدون لباس</DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                        </div>
+                                                    </TableHead>
+                                                    <TableHead className="text-center text-xs p-1 border-t">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                        <span>ح2</span>
+                                                         <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-6 w-6"><UserCheck className="h-4 w-4 text-primary" /></Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 2, 'present')}>تسجيل الكل حاضر</DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 2, 'absent')}>تسجيل الكل غائب</DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 2, 'justified')}>تسجيل الكل مبرر</DropdownMenuItem>
+                                                                <DropdownMenuItem onClick={() => handleMarkAll(week, 2, 'no-outfit')}>تسجيل الكل بدون لباس</DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                        </div>
+                                                    </TableHead>
                                                 </Fragment>
-                                            ))}
-                                        </TableRow>
-                                    )}
+                                            ) : (
+                                                 <TableHead key={`${week}-1`} className="text-center text-xs p-1 border-t">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                     <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6"><UserCheck className="h-4 w-4 text-primary" /></Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'present')}>تسجيل الكل حاضر</DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'absent')}>تسجيل الكل غائب</DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'justified')}>تسجيل الكل مبرر</DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleMarkAll(week, 1, 'no-outfit')}>تسجيل الكل بدون لباس</DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                    </div>
+                                                </TableHead>
+                                            )
+                                        ))}
+                                    </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {loadingStudents || loadingAttendances ? (
@@ -653,3 +741,5 @@ export default function AttendancePage() {
         </div>
     );
 }
+
+    
