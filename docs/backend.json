@@ -108,9 +108,17 @@
           "type": "string",
           "description": "The month of the record in 'YYYY-MM' format."
         },
+        "institutionId": {
+            "type": "string",
+            "description": "Reference to the Institution."
+        },
+        "level": {
+            "type": "string",
+            "description": "The student's level at the time of attendance."
+        },
         "records": {
           "type": "object",
-          "description": "An object where keys are days of the month and values are the attendance status.",
+          "description": "An object where keys are week and session (e.g., '1_1', '1_2') and values are the attendance status.",
           "additionalProperties": {
             "type": "string",
             "enum": ["present", "absent", "justified", "no-outfit"]
@@ -119,9 +127,10 @@
       },
       "required": [
         "studentId",
-        "departmentId",
         "month",
-        "records"
+        "records",
+        "institutionId",
+        "level"
       ]
     },
     "EvaluationCriteria": {

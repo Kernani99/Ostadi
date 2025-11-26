@@ -77,9 +77,11 @@ export type DailyLog = {
 export type Attendance = {
   id: string; // e.g., studentId_yyyy-MM
   studentId: string;
-  departmentId: string;
+  departmentId: string | null;
+  institutionId: string;
+  level: string;
   month: string; // "yyyy-MM" format
-  records: { [week: number]: 'present' | 'absent' | 'justified' | 'no-outfit' };
+  records: { [week_session: string]: 'present' | 'absent' | 'justified' | 'no-outfit' };
 };
 
 export type EvaluationCriteria = {
@@ -95,6 +97,8 @@ export type Evaluation = {
     studentId: string;
     criteriaId: string;
     semester: string;
+    level: string;
+    institutionId: string;
     score: number | null;
     observation?: string;
 };

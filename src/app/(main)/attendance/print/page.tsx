@@ -46,7 +46,7 @@ function PrintContent() {
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
 
     const attendanceMap = useMemo(() => {
-        const map = new Map<string, { [week: number]: string }>();
+        const map = new Map<string, { [week_session: string]: string }>();
         attendances?.forEach(att => {
             map.set(att.studentId, att.records);
         });
@@ -74,6 +74,7 @@ function PrintContent() {
     const printDate = new Date(`${month}-01T12:00:00`);
     const weeksOfMonth = Array.from({ length: getWeeksInMonth(printDate, { weekStartsOn: 6 }) }, (_, i) => i + 1);
     const professorName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
+    const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(department.level || '');
 
 
     return (
@@ -81,11 +82,12 @@ function PrintContent() {
             <style>{`
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    @page { size: A4 portrait; margin: 0; }
+                    @page { size: A4 portrait; margin: 0.5cm; }
                     .print-header, .print-footer { position: relative; }
                     .print-table { page-break-inside: auto; }
                     .print-table thead { display: table-header-group; }
                     .print-table tbody tr { page-break-inside: avoid; }
+                    .print-table th, .print-table td { font-size: 9pt; }
                 }
             `}</style>
 
@@ -105,12 +107,22 @@ function PrintContent() {
                 <table className="w-full border-collapse border border-gray-600 print-table">
                     <thead>
                         <tr className="bg-gray-200">
-                            <th className="border border-gray-500 p-1">الرقم</th>
-                            <th className="border border-gray-500 p-1 text-right">اللقب والإسم</th>
+                            <th className="border border-gray-500 p-1" rowSpan={hasTwoSessions ? 2 : 1}>الرقم</th>
+                            <th className="border border-gray-500 p-1 text-right" rowSpan={hasTwoSessions ? 2 : 1}>اللقب والإسم</th>
                             {weeksOfMonth.map(week => (
-                                <th key={week} className="border border-gray-500 p-1 w-16">الأسبوع {week}</th>
+                                <th key={week} className="border border-gray-500 p-1" colSpan={hasTwoSessions ? 2 : 1}>الأسبوع {week}</th>
                             ))}
                         </tr>
+                        {hasTwoSessions && (
+                             <tr className="bg-gray-200">
+                                {weeksOfMonth.map(week => (
+                                    <>
+                                        <th key={`${week}-h1`} className="border border-gray-500 p-1 w-10">ح1</th>
+                                        <th key={`${week}-h2`} className="border border-gray-500 p-1 w-10">ح2</th>
+                                    </>
+                                ))}
+                            </tr>
+                        )}
                     </thead>
                     <tbody>
                         {sortedStudents.map((student, index) => (
@@ -118,9 +130,20 @@ function PrintContent() {
                                 <td className="border border-gray-500 p-1 text-center">{index + 1}</td>
                                 <td className="border border-gray-500 p-1">{student.lastName} {student.firstName}</td>
                                 {weeksOfMonth.map(week => (
-                                    <td key={week} className="border border-gray-500 p-1 text-center font-bold">
-                                        {attendanceStatusMap[attendanceMap.get(student.id)?.[week] || ''] || ''}
-                                    </td>
+                                    hasTwoSessions ? (
+                                        <>
+                                            <td key={`${week}-1`} className="border border-gray-500 p-1 text-center font-bold">
+                                                {attendanceStatusMap[attendanceMap.get(student.id)?.[`${week}_1`] || ''] || ''}
+                                            </td>
+                                            <td key={`${week}-2`} className="border border-gray-500 p-1 text-center font-bold">
+                                                {attendanceStatusMap[attendanceMap.get(student.id)?.[`${week}_2`] || ''] || ''}
+                                            </td>
+                                        </>
+                                    ) : (
+                                        <td key={week} className="border border-gray-500 p-1 text-center font-bold">
+                                            {attendanceStatusMap[attendanceMap.get(student.id)?.[`${week}_1`] || ''] || ''}
+                                        </td>
+                                    )
                                 ))}
                             </tr>
                         ))}

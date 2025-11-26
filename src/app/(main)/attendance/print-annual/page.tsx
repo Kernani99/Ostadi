@@ -46,7 +46,11 @@ function PrintAnnualContent() {
     // We pass the data into the dangerouslySetInnerHTML to be used by the script tag
     const tableBodyContent = useMemo(() => {
         if (isLoading || !sortedStudents) return '';
-        const emptyCells = '<td></td>'.repeat(40); // 8 months * 5 weeks
+
+        const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(level || '');
+        const emptyCellsCount = hasTwoSessions ? 80 : 40; // 8 months * 5 weeks * (2 sessions or 1)
+        const emptyCells = '<td></td>'.repeat(emptyCellsCount);
+        
         return sortedStudents.map((student, index) => `
             <tr>
                 <td>${index + 1}</td>
@@ -55,7 +59,7 @@ function PrintAnnualContent() {
                 ${emptyCells}
             </tr>
         `).join('');
-    }, [isLoading, sortedStudents]);
+    }, [isLoading, sortedStudents, level]);
 
     useEffect(() => {
         if (!isLoading && students && students.length > 0) {
@@ -72,7 +76,50 @@ function PrintAnnualContent() {
     }, [isLoading, students, tableBodyContent, institution, profileData, level]);
 
 
-    const htmlContent = useMemo(() => `
+    const htmlContent = useMemo(() => {
+        const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(level || '');
+        
+        const monthHeaders = ['نوفمبر', 'ديسمبر', 'جانفي', 'فيفري', 'مارس', 'أفريل', 'ماي', 'جوان'];
+        
+        const mainHeaderRow = monthHeaders.map(month => `<th colspan="${hasTwoSessions ? 10 : 5}">${month}</th>`).join('');
+
+        let weekHeaderRow = '';
+        if (hasTwoSessions) {
+            weekHeaderRow = monthHeaders.map(() => '<th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>'.repeat(2)).join('');
+        } else {
+            weekHeaderRow = '<th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>'.repeat(8);
+        }
+
+        let sessionHeaderRow = '';
+        if (hasTwoSessions) {
+            sessionHeaderRow = monthHeaders.map(() => '<th colspan="5">ح1</th><th colspan="5">ح2</th>').join('');
+             return `
+                <tr>${mainHeaderRow}</tr>
+                <tr>${sessionHeaderRow}</tr>
+                <tr>${weekHeaderRow}</tr>
+            `;
+        }
+        
+        const finalHeader = hasTwoSessions ? 
+        `<tr>
+            <th rowspan="3">الرقم</th>
+            <th rowspan="3">اللقب</th>
+            <th rowspan="3">الاسم</th>
+            ${mainHeaderRow}
+        </tr>
+        <tr>${sessionHeaderRow}</tr>
+        <tr>${weekHeaderRow}</tr>
+        ` : `
+        <tr>
+            <th rowspan="2">الرقم</th>
+            <th rowspan="2">اللقب</th>
+            <th rowspan="2">الاسم</th>
+            ${mainHeaderRow}
+        </tr>
+        <tr>${weekHeaderRow}</tr>`;
+
+
+        return `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -142,16 +189,15 @@ function PrintAnnualContent() {
             font-weight: 700;
             vertical-align: middle;
         }
-
+        
         thead tr:last-child th {
-            background-color: #f0f0f0;
-            font-weight: 400;
-            width: 2.2%;
+             width: ${hasTwoSessions ? '1.1%' : '2.2%'} !important;
         }
 
         th:nth-child(1), td:nth-child(1) { width: 3%; }
         th:nth-child(2), td:nth-child(2) { width: 9%; text-align: right; padding-right: 5px; }
         th:nth-child(3), td:nth-child(3) { width: 9%; text-align: right; padding-right: 5px; }
+
 
         tbody tr:nth-child(even) {
             background-color: #f9f9f9;
@@ -177,22 +223,7 @@ function PrintAnnualContent() {
     <div class="container">
         <table>
             <thead>
-                <tr>
-                    <th rowspan="2">الرقم</th>
-                    <th rowspan="2">اللقب</th>
-                    <th rowspan="2">الاسم</th>
-                    <th colspan="5">نوفمبر</th>
-                    <th colspan="5">ديسمبر</th>
-                    <th colspan="5">جانفي</th>
-                    <th colspan="5">فيفري</th>
-                    <th colspan="5">مارس</th>
-                    <th colspan="5">أفريل</th>
-                    <th colspan="5">ماي</th>
-                    <th colspan="5">جوان</th>
-                </tr>
-                <tr>
-                    ${'<th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>'.repeat(8)}
-                </tr>
+                ${finalHeader}
             </thead>
             <tbody id="studentListBody">
                 ${tableBodyContent}
@@ -202,7 +233,7 @@ function PrintAnnualContent() {
 
 </body>
 </html>
-    `, [profileData, institution, level, tableBodyContent]);
+    `}, [profileData, institution, level, tableBodyContent]);
 
     if(isLoading) {
         return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><span className="ms-2">جاري تحميل بيانات الطباعة...</span></div>

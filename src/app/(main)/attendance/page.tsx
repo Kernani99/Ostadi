@@ -19,6 +19,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, PieChart, Pie, Cell, 
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
 import * as XLSX from 'xlsx';
+import { Input } from "@/components/ui/input";
 
 
 // Helper function to get number of weeks in a month
@@ -35,6 +36,7 @@ function AttendanceRegistration() {
     const [selectedInstitution, setSelectedInstitution] = useState<string>('');
     const [selectedLevel, setSelectedLevel] = useState<string>('');
     const [currentDate, setCurrentDate] = useState(new Date());
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Fetching data from Firestore
     const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
@@ -51,6 +53,13 @@ function AttendanceRegistration() {
     , [firestore, selectedInstitution, selectedLevel]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
+    const filteredStudents = useMemo(() => {
+        if (!students) return [];
+        return students.filter(student =>
+            `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [students, searchTerm]);
+
     const monthStr = format(currentDate, 'yyyy-MM');
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
@@ -61,7 +70,7 @@ function AttendanceRegistration() {
     
     // Memoize processed attendance data for performance
     const attendanceMap = useMemo(() => {
-        const map = new Map<string, { [week: number]: string }>();
+        const map = new Map<string, { [week_session: string]: string }>();
         if (!attendances) return map;
         attendances.forEach(att => {
             // Ensure records is an object before setting
@@ -83,15 +92,16 @@ function AttendanceRegistration() {
         setSelectedLevel(level);
     };
 
-    const handleAttendanceChange = async (student: Student, week: number, status: string) => {
+    const handleAttendanceChange = async (student: Student, week: number, session: 1 | 2, status: string) => {
         if (!firestore) return;
         const studentId = student.id;
         
         const attendanceId = `${studentId}_${monthStr}`;
         const attendanceRef = doc(firestore, 'attendances', attendanceId);
         
+        const recordKey = `${week}_${session}`;
         const existingRecords = attendanceMap.get(studentId) || {};
-        const newRecords = { ...existingRecords, [week]: status };
+        const newRecords = { ...existingRecords, [recordKey]: status };
 
         try {
             await setDoc(attendanceRef, {
@@ -105,7 +115,7 @@ function AttendanceRegistration() {
 
              toast({
                 title: "تم الحفظ",
-                description: `تم تسجيل حضور التلميذ للأسبوع ${week}.`,
+                description: `تم تسجيل حضور التلميذ للحصة ${session} من الأسبوع ${week}.`,
                 duration: 2000,
              });
         } catch (error) {
@@ -119,6 +129,8 @@ function AttendanceRegistration() {
     };
     
     const weeksOfMonth = getWeeksOfMonth(currentDate);
+    const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(selectedLevel);
+
 
     const handlePrint = () => {
         if (!selectedInstitution || !selectedLevel) {
@@ -156,8 +168,15 @@ function AttendanceRegistration() {
             };
             const studentAttendance = attendanceMap.get(student.id) || {};
             weeksOfMonth.forEach(week => {
-                const statusKey = studentAttendance[week] as keyof typeof statusMap;
-                row[`الأسبوع ${week}`] = statusKey ? statusMap[statusKey] : '';
+                if (hasTwoSessions) {
+                    const statusKey1 = studentAttendance[`${week}_1`] as keyof typeof statusMap;
+                    row[`الأسبوع ${week} (ح1)`] = statusKey1 ? statusMap[statusKey1] : '';
+                    const statusKey2 = studentAttendance[`${week}_2`] as keyof typeof statusMap;
+                    row[`الأسبوع ${week} (ح2)`] = statusKey2 ? statusMap[statusKey2] : '';
+                } else {
+                    const statusKey = studentAttendance[`${week}_1`] as keyof typeof statusMap; // Use _1 for consistency
+                    row[`الأسبوع ${week}`] = statusKey ? statusMap[statusKey] : '';
+                }
             });
             return row;
         });
@@ -204,7 +223,7 @@ function AttendanceRegistration() {
             {selectedLevel && (
                 <Card>
                     <CardHeader>
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center mb-4">
                              <div className="flex items-center gap-4">
                                 <Button size="icon" variant="outline" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
                                     <ChevronRight className="h-4 w-4" />
@@ -227,6 +246,15 @@ function AttendanceRegistration() {
                                 </Button>
                             </div>
                         </div>
+                        <div className="relative w-full max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="البحث عن تلميذ..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="ps-10"
+                            />
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">
@@ -235,45 +263,91 @@ function AttendanceRegistration() {
                                     <TableRow>
                                         <TableHead className="sticky left-0 bg-card z-10 min-w-[150px] border-e">اسم التلميذ</TableHead>
                                         {weeksOfMonth.map(week => (
-                                            <TableHead key={week} className="text-center min-w-[100px]">الأسبوع {week}</TableHead>
+                                            <TableHead key={week} className="text-center" colSpan={hasTwoSessions ? 2 : 1}>
+                                                الأسبوع {week}
+                                            </TableHead>
                                         ))}
                                     </TableRow>
+                                    {hasTwoSessions && (
+                                        <TableRow>
+                                            <TableHead className="sticky left-0 bg-card z-10 border-e"></TableHead>
+                                            {weeksOfMonth.map(week => (
+                                                <>
+                                                    <TableHead key={`${week}-1`} className="text-center text-xs p-1 border-t">ح1</TableHead>
+                                                    <TableHead key={`${week}-2`} className="text-center text-xs p-1 border-t">ح2</TableHead>
+                                                </>
+                                            ))}
+                                        </TableRow>
+                                    )}
                                 </TableHeader>
                                 <TableBody>
                                     {loadingStudents || loadingAttendances ? (
                                         <TableRow>
-                                            <TableCell colSpan={weeksOfMonth.length + 1} className="text-center h-24">
+                                            <TableCell colSpan={weeksOfMonth.length * (hasTwoSessions ? 2 : 1) + 1} className="text-center h-24">
                                                 جاري تحميل البيانات...
                                             </TableCell>
                                         </TableRow>
-                                    ) : students && students.length > 0 ? (
-                                        students.map(student => (
+                                    ) : filteredStudents && filteredStudents.length > 0 ? (
+                                        filteredStudents.map(student => (
                                             <TableRow key={student.id}>
                                                 <TableCell className="sticky left-0 bg-card z-10 font-medium border-e">{student.lastName} {student.firstName}</TableCell>
                                                 {weeksOfMonth.map(week => (
-                                                    <TableCell key={week} className="p-1 text-center">
-                                                        <Select
-                                                            value={attendanceMap.get(student.id)?.[week] || ''}
-                                                            onValueChange={(status) => handleAttendanceChange(student, week, status)}
-                                                        >
-                                                            <SelectTrigger className="h-8 w-20 text-xs">
-                                                                <SelectValue placeholder="-" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="present">ح</SelectItem>
-                                                                <SelectItem value="absent">غ</SelectItem>
-                                                                <SelectItem value="justified">م</SelectItem>
-                                                                <SelectItem value="no-outfit">ب.ل</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </TableCell>
+                                                    hasTwoSessions ? (
+                                                        <>
+                                                            <TableCell key={`${week}-1`} className="p-1 text-center">
+                                                                <Select
+                                                                    value={attendanceMap.get(student.id)?.[`${week}_1`] || ''}
+                                                                    onValueChange={(status) => handleAttendanceChange(student, week, 1, status)}
+                                                                >
+                                                                    <SelectTrigger className="h-8 w-16 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="present">ح</SelectItem>
+                                                                        <SelectItem value="absent">غ</SelectItem>
+                                                                        <SelectItem value="justified">م</SelectItem>
+                                                                        <SelectItem value="no-outfit">ب.ل</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </TableCell>
+                                                             <TableCell key={`${week}-2`} className="p-1 text-center">
+                                                                <Select
+                                                                    value={attendanceMap.get(student.id)?.[`${week}_2`] || ''}
+                                                                    onValueChange={(status) => handleAttendanceChange(student, week, 2, status)}
+                                                                >
+                                                                    <SelectTrigger className="h-8 w-16 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="present">ح</SelectItem>
+                                                                        <SelectItem value="absent">غ</SelectItem>
+                                                                        <SelectItem value="justified">م</SelectItem>
+                                                                        <SelectItem value="no-outfit">ب.ل</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </TableCell>
+                                                        </>
+                                                    ) : (
+                                                        <TableCell key={week} className="p-1 text-center">
+                                                            <Select
+                                                                value={attendanceMap.get(student.id)?.[`${week}_1`] || ''}
+                                                                onValueChange={(status) => handleAttendanceChange(student, week, 1, status)}
+                                                            >
+                                                                <SelectTrigger className="h-8 w-20 text-xs">
+                                                                    <SelectValue placeholder="-" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="present">ح</SelectItem>
+                                                                    <SelectItem value="absent">غ</SelectItem>
+                                                                    <SelectItem value="justified">م</SelectItem>
+                                                                    <SelectItem value="no-outfit">ب.ل</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TableCell>
+                                                    )
                                                 ))}
                                             </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={weeksOfMonth.length + 1} className="text-center h-24">
-                                               لا يوجد تلاميذ في هذا المستوى.
+                                            <TableCell colSpan={weeksOfMonth.length * (hasTwoSessions ? 2 : 1) + 1} className="text-center h-24">
+                                               لا يوجد تلاميذ مطابقون للبحث أو في هذا المستوى.
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -362,7 +436,9 @@ function AttendanceReports() {
                 });
             });
 
-            const totalPossibleAttendances = studentsInLevel.length * getWeeksInMonth(currentDate, {weekStartsOn: 6});
+            const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(level);
+            const sessionsPerWeek = hasTwoSessions ? 2 : 1;
+            const totalPossibleAttendances = studentsInLevel.length * getWeeksInMonth(currentDate, {weekStartsOn: 6}) * sessionsPerWeek;
             const attendanceCount = totalPossibleAttendances - totalAbsences;
 
             const attendancePercentage = totalPossibleAttendances > 0 ? (attendanceCount / totalPossibleAttendances) * 100 : 100;
