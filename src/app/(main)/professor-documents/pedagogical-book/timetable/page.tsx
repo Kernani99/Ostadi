@@ -26,6 +26,21 @@ const timeSlots = [
     "16:00 - 17:00"
 ];
 
+const AlgerianFlagIcon = () => (
+    <div className="h-7 w-7 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" className="h-full w-auto">
+            <rect width="1200" height="800" fill="#fff"/>
+            <rect width="600" height="800" fill="#006233"/>
+            <g transform="translate(600,400)">
+                <path d="M 0 -150 A 150 150 0 0 0 0 150 A 120 120 0 0 1 0 -150" fill="#d21034"/>
+                <g transform="rotate(18)">
+                    <path d="M 0 -70 L 22 -22 L 70 0 L 22 22 L 0 70 L -22 22 L -70 0 L -22 -22 Z" fill="#d21034"/>
+                </g>
+            </g>
+        </svg>
+    </div>
+);
+
 
 export default function TimetablePage() {
   const { toast } = useToast();
@@ -187,7 +202,7 @@ export default function TimetablePage() {
                     <p className="flex items-center gap-2"><CalendarDays className="text-green-700" size={16}/> السنة الدراسية: {profileData?.schoolYear || ''}</p>
                 </div>
                 <div className="flex flex-col items-center">
-                    <Image src="https://firebasestorage.googleapis.com/v0/b/studio-3773063615-aada3.appspot.com/o/resources%2Falgeria-flag.png?alt=media&token=38337a28-2e11-43b3-9022-38ceb3252573" alt="شعار" width={40} height={40} className="object-contain" />
+                    <AlgerianFlagIcon />
                     <h1 className="text-xl font-bold mt-2 text-green-800">جدول التوقيت</h1>
                 </div>
                 <div className="text-sm space-y-1 text-right">
