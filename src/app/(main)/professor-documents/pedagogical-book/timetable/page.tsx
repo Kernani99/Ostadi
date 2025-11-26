@@ -207,7 +207,6 @@ export default function TimetablePage() {
                 </div>
                 <div className="text-sm space-y-1 text-right">
                     <p className="font-semibold flex items-center gap-2"><Building className="text-green-700" size={16}/> المؤسسة: {profileData?.schoolName || ''}</p>
-                    <p>{profileData?.address || ''}</p>
                 </div>
             </div>
         </header>
