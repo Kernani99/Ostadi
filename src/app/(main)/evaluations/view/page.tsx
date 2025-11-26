@@ -418,8 +418,6 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                                     students.map((student, index) => {
                                         const totalScore = calculateTotal(student.id);
                                         const availableObservations = getObservationsForScore(totalScore, student.gender);
-                                        const isAbsenceCriteria = (name: string) => name === 'الغيابات و التأخرات' || name === 'المواظبة (غياب/تأخر)';
-                                        const isOutfitCriteria = (name: string) => name === 'البدلة الرياضية';
                                         
                                         return (
                                         <TableRow key={student.id}>
@@ -435,7 +433,6 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
                                                         value={scores[student.id]?.[crit.id] ?? ''}
                                                         onChange={(e) => handleScoreChange(student.id, crit.id, e.target.value)}
                                                         className="w-20 text-center mx-auto"
-                                                        disabled={isAbsenceCriteria(crit.name) || isOutfitCriteria(crit.name)}
                                                     />
                                                 </TableCell>
                                             ))}
