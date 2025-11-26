@@ -138,7 +138,7 @@ export default function TimetablePage() {
             margin: 0;
           }
           .printable-area {
-            padding: 2rem;
+            padding: 1rem;
             margin: 0;
             border: none;
             box-shadow: none;
@@ -223,7 +223,7 @@ export default function TimetablePage() {
                     <TableRow key={day} className="even:bg-gray-50">
                         <TableCell className="border border-gray-300 p-2 font-bold text-center align-middle">{day}</TableCell>
                         {timeSlots.map(slot => (
-                        <TableCell key={slot} className="border border-gray-300 p-1 text-center align-middle h-24">
+                        <TableCell key={slot} className="border border-gray-300 p-1 text-center align-middle h-20">
                            {isEditing ? (
                              <Textarea
                                 value={localTimetable[day]?.[slot] || ''}
