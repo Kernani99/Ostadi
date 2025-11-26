@@ -16,23 +16,25 @@ import Link from "next/link";
 import { useState } from "react";
 import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const firestore = useFirestore();
   const [name, setName] = useState('');
   const [municipality, setMunicipality] = useState('');
+  const [type, setType] = useState('');
 
   const handleSubmit = async () => {
-    if (!name || !municipality) {
-      // Basic validation
-      alert('الرجاء إدخال اسم المؤسسة والبلدية.');
+    if (!name || !municipality || !type) {
+      alert('الرجاء إدخال اسم المؤسسة، البلدية، ونوع المؤسسة.');
       return;
     }
     const institutionsRef = collection(firestore, 'institutions');
-    addDocumentNonBlocking(institutionsRef, { name, municipality });
+    addDocumentNonBlocking(institutionsRef, { name, municipality, type });
     setName('');
     setMunicipality('');
+    setType('');
     onOpenChange(false);
   };
 
@@ -42,7 +44,7 @@ function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChang
         <DialogHeader>
           <DialogTitle>إضافة مؤسسة جديدة</DialogTitle>
           <DialogDescription>
-            أدخل اسم المؤسسة والبلدية.
+            أدخل تفاصيل المؤسسة الجديدة.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -57,6 +59,21 @@ function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChang
               البلدية
             </Label>
             <Input id="municipality" value={municipality} onChange={(e) => setMunicipality(e.target.value)} className="col-span-3" />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="type" className="text-right">
+              النوع
+            </Label>
+             <Select onValueChange={setType} value={type}>
+                <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="اختر نوع المؤسسة" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="ابتدائية">ابتدائية</SelectItem>
+                    <SelectItem value="متوسطة">متوسطة</SelectItem>
+                    <SelectItem value="ثانوية">ثانوية</SelectItem>
+                </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
@@ -145,16 +162,18 @@ export default function SettingsPage() {
                   <TableHead className="text-white">#</TableHead>
                   <TableHead className="text-white">إسم المؤسسة</TableHead>
                   <TableHead className="text-white">البلدية</TableHead>
+                  <TableHead className="text-white">النوع</TableHead>
                   <TableHead className="text-white text-center">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={4} className="text-center">جاري تحميل المؤسسات...</TableCell></TableRow>}
+                {isLoading && <TableRow><TableCell colSpan={5} className="text-center">جاري تحميل المؤسسات...</TableCell></TableRow>}
                 {!isLoading && institutions?.map((inst, index) => (
                   <TableRow key={inst.id} className="hover:bg-muted/50">
                     <TableCell>{index + 1}</TableCell>
                     <TableCell className="font-medium">{inst.name}</TableCell>
                     <TableCell>{inst.municipality}</TableCell>
+                    <TableCell>{inst.type || 'غير محدد'}</TableCell>
                     <TableCell className="text-center">
                       <Button variant="ghost" size="icon" onClick={() => handleDelete(inst.id)} className="text-red-600 hover:text-red-700">
                         <Trash2 className="h-5 w-5" />
@@ -170,5 +189,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    

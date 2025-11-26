@@ -24,6 +24,7 @@ export type Institution = {
   id:string;
   name: string;
   municipality: string;
+  type?: string;
 };
 
 export type ProfessorProfile = {
