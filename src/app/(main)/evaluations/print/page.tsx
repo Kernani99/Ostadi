@@ -94,7 +94,7 @@ function PrintContent() {
         return map;
     }, [evaluations]);
 
-    const sortedStudents = useMemo(() => students?.sort((a,b) => a.lastName.localeCompare(b.lastName)) || [], [students]);
+    const sortedStudents = useMemo(() => students?.sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)) || [], [students]);
 
     const calculateTotal = (studentId: string) => {
         const studentScores = scoresMap.get(studentId) || {};
@@ -126,7 +126,7 @@ function PrintContent() {
             <style>{`
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
-                    @page { size: A4 portrait; margin: 0; }
+                    @page { size: A4 portrait; margin: 1cm; }
                     .print-header, .print-footer { position: relative; }
                     .print-table { page-break-inside: auto; }
                     .print-table thead { display: table-header-group; }
@@ -141,7 +141,7 @@ function PrintContent() {
                 <h2 className="text-sm font-semibold">المدرسة الابتدائية: {institution?.name || '...'}</h2>
                 <div className="flex justify-between text-xs">
                     <span>السنة الدراسية: {profileData?.schoolYear || '...'}</span>
-                    <span>الأستاذ: {professorName || '...'}</span>
+                    <span>الأستاذ(ة): {professorName || '...'}</span>
                 </div>
                 <h1 className="text-lg font-bold mt-2 underline decoration-double">
                     كشف تقييم {level} - الفصل {semester}

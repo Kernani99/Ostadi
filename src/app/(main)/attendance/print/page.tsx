@@ -53,7 +53,7 @@ function PrintContent() {
         return map;
     }, [attendances]);
     
-    const sortedStudents = useMemo(() => students?.sort((a,b) => a.lastName.localeCompare(b.lastName)) || [], [students]);
+    const sortedStudents = useMemo(() => students?.sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)) || [], [students]);
 
     const isLoading = loadingProfile || loadingDepartment || loadingInstitution || loadingStudents || loadingAttendances;
     
@@ -94,7 +94,7 @@ function PrintContent() {
                 <h2 className="text-base font-semibold">المدرسة الابتدائية: {institution?.name || '...'}</h2>
                 <div className="flex justify-between text-sm">
                     <span>السنة الدراسية: {profileData?.schoolYear || '...'}</span>
-                    <span>الأستاذ: {professorName || '...'}</span>
+                    <span>الأستاذ(ة): {professorName || '...'}</span>
                 </div>
                 <h1 className="text-xl font-bold mt-2 underline decoration-double">
                     كشف الحضور الشهري - {department.name} - {format(printDate, 'MMMM yyyy', { locale: ar })}

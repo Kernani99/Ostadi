@@ -4,7 +4,7 @@
 import { Suspense, useEffect, useMemo } from 'react';
 import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import type { SportsEquipment, ProfessorProfile } from '@/lib/types';
+import type { SportsEquipment, ProfessorProfile, Institution } from '@/lib/types';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 
@@ -121,5 +121,3 @@ export default function SportsEquipmentPrintPage() {
         </Suspense>
     );
 }
-
-    

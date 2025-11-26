@@ -16,9 +16,9 @@ function PrintAnnualContent() {
     const level = searchParams.get('level');
     const institutionId = searchParams.get('institutionId');
 
-    const profileDocRef = useMemoFirebase(() => firestore ? collection(firestore, 'professor_profile') : null, [firestore]);
-    const { data: profileDataArr, isLoading: loadingProfile } = useCollection<ProfessorProfile>(profileDocRef);
-    const profileData = useMemo(() => (profileDataArr && profileDataArr.length > 0 ? profileDataArr[0] : null), [profileDataArr]);
+    const profileDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore]);
+    const { data: profileData, isLoading: loadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
+
 
     const institutionDocRef = useMemoFirebase(() => institutionId && firestore ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
     const { data: institution, isLoading: loadingInstitution } = useDoc<Institution>(institutionDocRef);
@@ -47,8 +47,9 @@ function PrintAnnualContent() {
     const tableBodyContent = useMemo(() => {
         if (isLoading || !sortedStudents) return '';
         const emptyCells = '<td></td>'.repeat(40); // 8 months * 5 weeks
-        return sortedStudents.map(student => `
+        return sortedStudents.map((student, index) => `
             <tr>
+                <td>${index + 1}</td>
                 <td>${student.lastName}</td>
                 <td>${student.firstName}</td>
                 ${emptyCells}
@@ -63,27 +64,15 @@ function PrintAnnualContent() {
                 if (tableBody) {
                     tableBody.innerHTML = tableBodyContent;
                 }
-                // Also update header fields
-                const schoolInput = document.getElementById('schoolNameInput') as HTMLInputElement;
-                const sectionInput = document.getElementById('sectionInput') as HTMLInputElement;
-                const yearInput = document.getElementById('schoolYearInput') as HTMLInputElement;
-                const professorNameDiv = document.getElementById('professorName');
-
-                if(schoolInput && institution) schoolInput.value = institution.name;
-                if(sectionInput && level) sectionInput.value = level;
-                if(yearInput && profileData) yearInput.value = profileData.schoolYear || '';
-                if(professorNameDiv && profileData) professorNameDiv.textContent = `الأستاذ : ${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
-
-
                 window.print();
-            }, 100); // Small delay to ensure DOM is ready for manipulation
+            }, 100); 
             
             return () => clearTimeout(timer);
         }
     }, [isLoading, students, tableBodyContent, institution, profileData, level]);
 
 
-    const htmlContent = `
+    const htmlContent = useMemo(() => `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -95,121 +84,55 @@ function PrintAnnualContent() {
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     
     <style>
-        /* إعدادات الصفحة للطباعة */
         @page {
             size: A4 landscape;
-            margin: 0;
+            margin: 1cm;
         }
 
         body {
             font-family: 'Cairo', sans-serif;
             direction: rtl;
             margin: 0;
-            padding: 20px;
             background-color: #fff;
         }
         
-        .no-print {
-            display: block;
-        }
-
-        /* --- قسم رأس الصفحة الرسمي --- */
         .page-header {
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            padding: 15px 30px;
-            margin: 0 auto 20px auto;
-            max-width: 1000px;
-            text-align: right;
-            line-height: 1.8;
-        }
-        .page-header div {
-            font-size: 14pt;
-        }
-        .page-header div:first-child {
-            font-weight: 700;
-            font-size: 16pt;
-            color: #000;
             text-align: center;
+            margin-bottom: 20px;
         }
-         .page-header div:nth-child(2) {
-            font-weight: 600;
+        .page-header h1 {
+            font-size: 18pt;
+            font-weight: 700;
+            margin: 0;
         }
-        .input-row {
+        .page-header h2 {
+            font-size: 14pt;
+            margin: 5px 0;
+        }
+         .page-header .info {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin: 10px 0;
-            gap: 15px;
-        }
-        .input-row label {
-            font-weight: 600;
-            font-size: 14pt;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .page-header input {
-            font-family: 'Cairo', sans-serif;
             font-size: 12pt;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 4px 8px;
-            flex-grow: 1;
-            min-width: 150px;
+            margin-top: 15px;
         }
-
-        /* --- قسم الأزرار --- */
-        .actions-section {
-            background-color: #fff;
-            border: 2px dashed #007bff;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 1000px;
-            text-align: center;
-        }
-
-        .actions-section button {
-            font-family: 'Cairo', sans-serif;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
-            transition: background-color 0.3s;
-        }
-        
-        #printButton {
-            background-color: #28a745;
-        }
-        #printButton:hover {
-            background-color: #218838;
-        }
-
 
         .container {
             width: 100%;
             margin: 0;
-            overflow-x: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            font-size: 10pt;
-            background-color: #fff;
+            font-size: 8pt;
         }
 
         th, td {
             border: 1px solid #333;
-            padding: 5px;
+            padding: 2px;
             text-align: center;
-            height: 28px;
+            height: 20px;
             overflow: hidden;
             white-space: nowrap;
         }
@@ -218,102 +141,44 @@ function PrintAnnualContent() {
             background-color: #e0e0e0;
             font-weight: 700;
             vertical-align: middle;
-            position: sticky;
-            top: 0;
-            z-index: 10;
         }
 
         thead tr:last-child th {
             background-color: #f0f0f0;
             font-weight: 400;
-            font-size: 9pt;
-            width: 2.5%;
+            width: 2.2%;
         }
 
-        th:nth-child(1), th:nth-child(2),
-        td:nth-child(1), td:nth-child(2) {
-            text-align: right;
-            font-weight: 600;
-            width: 10%;
-            padding-right: 8px;
-        }
+        th:nth-child(1), td:nth-child(1) { width: 3%; }
+        th:nth-child(2), td:nth-child(2) { width: 9%; text-align: right; padding-right: 5px; }
+        th:nth-child(3), td:nth-child(3) { width: 9%; text-align: right; padding-right: 5px; }
 
         tbody tr:nth-child(even) {
             background-color: #f9f9f9;
         }
 
-        /* إعدادات خاصة بالطباعة */
         @media print {
-             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; }
-            .no-print { display: none !important; }
-            
-            body {
-                background-color: #fff;
-                margin: 0;
-                padding: 0;
-            }
-            .page-header {
-                background: none;
-                border: none;
-                text-align: right;
-                margin: 0 0 20px 0;
-                width: 100%;
-                max-width: 100%;
-            }
-             .page-header div {
-                 color: #000 !important;
-             }
-            
-            .page-header input {
-                border: none;
-                background: none;
-                padding: 0;
-                font-weight: normal;
-                font-size: 14pt;
-                color: #000 !important;
-                width: auto; 
-            }
-            .input-row label {
-                font-size: 14pt;
-            }
-
-            .container {
-                overflow-x: visible;
-            }
-            th, td {
-                border: 1px solid #000 !important;
-            }
-            thead th {
-                 background-color: #e0e0e0 !important;
-            }
-            thead tr:last-child th {
-                 background-color: #f0f0f0 !important;
-            }
-            tbody tr:nth-child(even) {
-                background-color: #f9f9f9 !important;
-            }
+             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+             thead { display: table-header-group; }
         }
     </style>
 </head>
 <body>
     <div class="page-header">
-        <div><strong>مديرية التربية لولاية ${profileData?.wilaya || '...'}</strong></div>
-        <div class="input-row">
-            <label>المدرسة: <input type="text" id="schoolNameInput" value="${institution?.name || '...'}"></label>
-            <label>القسم: <input type="text" id="sectionInput" value="${level || ''}"></label>
-            <label>السنة: <input type="text" id="schoolYearInput" value="${profileData?.schoolYear || '...'}"></label>
+        <h1>مديرية التربية لولاية ${profileData?.wilaya || '...'}</h1>
+        <h2>المدرسة: ${institution?.name || '...'}</h2>
+        <div class="info">
+            <span>القسم: ${level || ''}</span>
+            <span>الأستاذ(ة): ${ (profileData?.firstName || '') + ' ' + (profileData?.lastName || '') }</span>
+            <span>السنة الدراسية: ${profileData?.schoolYear || '...'}</span>
         </div>
-        <div id="professorName">الأستاذ : ${ (profileData?.firstName || '') + ' ' + (profileData?.lastName || '') }</div>
     </div>
     
-    <div class="actions-section no-print">
-        <button id="printButton">طباعة القائمة</button>
-    </div>
-
     <div class="container">
         <table>
             <thead>
                 <tr>
+                    <th rowspan="2">الرقم</th>
                     <th rowspan="2">اللقب</th>
                     <th rowspan="2">الاسم</th>
                     <th colspan="5">نوفمبر</th>
@@ -335,15 +200,9 @@ function PrintAnnualContent() {
         </table>
     </div>
 
-    <script>
-        document.getElementById('printButton').addEventListener('click', function() {
-            window.print();
-        });
-    </script>
-
 </body>
 </html>
-    `;
+    `, [profileData, institution, level, tableBodyContent]);
 
     if(isLoading) {
         return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /><span className="ms-2">جاري تحميل بيانات الطباعة...</span></div>
@@ -366,5 +225,3 @@ export default function PrintAnnualAttendancePage() {
         </Suspense>
     );
 }
-
-    

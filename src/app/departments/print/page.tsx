@@ -25,6 +25,11 @@ function PrintDepartmentsContent() {
 
     const institutionQuery = useMemoFirebase(() => institutionId ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
     const { data: filteredInstitution } = useDoc<Institution>(institutionQuery);
+    
+    // Fetch all institutions to build a map for cases where no single institution is filtered
+    const allInstitutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
+    const { data: allInstitutions } = useCollection<Institution>(allInstitutionsQuery);
+    const institutionMap = useMemo(() => new Map(allInstitutions?.map(i => [i.id, i.name])), [allInstitutions]);
 
     const allStudentsQuery = useMemoFirebase(() => {
       if (!firestore) return null;
@@ -44,7 +49,7 @@ function PrintDepartmentsContent() {
         const map = new Map<string, Student[]>();
         
         departments.forEach(dept => {
-          map.set(dept.id, allStudents.filter(s => s.departmentId === dept.id).sort((a, b) => a.lastName.localeCompare(b.lastName)));
+          map.set(dept.id, allStudents.filter(s => s.departmentId === dept.id).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)));
         });
 
         return map;
@@ -106,7 +111,7 @@ function PrintDepartmentsContent() {
     }
 
     const professorName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
-    const schoolName = filteredInstitution?.name || profileData?.schoolName || '...';
+    const schoolName = filteredInstitution?.name || 'جميع المؤسسات';
 
     return (
         <div className="p-8 bg-white text-black font-body">
@@ -121,7 +126,7 @@ function PrintDepartmentsContent() {
                     }
                     @page {
                         size: A4 portrait;
-                        margin: 0;
+                        margin: 1cm;
                     }
                     .page-break {
                         page-break-before: always;
@@ -133,9 +138,9 @@ function PrintDepartmentsContent() {
             `}</style>
              <header className="text-center mb-10 space-y-2">
                 <h1 className="text-xl font-bold">مديرية التربية لولاية: {profileData?.wilaya || '...'}</h1>
-                <h2 className="text-lg font-semibold">المدرسة الابتدائية: {schoolName}</h2>
+                <h2 className="text-lg font-semibold">المؤسسة: {schoolName}</h2>
                 <h3 className="text-base">السنة الدراسية: {profileData?.schoolYear || '...'}</h3>
-                <h3 className="text-base">الأستاذ: {professorName || '...'}</h3>
+                <h3 className="text-base">الأستاذ(ة): {professorName || '...'}</h3>
                 <h1 className="text-2xl font-bold mt-4 underline decoration-double">قائمة الأفواج</h1>
             </header>
             
@@ -149,7 +154,7 @@ function PrintDepartmentsContent() {
                             {depts.map(dept => (
                                 <div key={dept.id} className="department-card border border-gray-400 rounded-lg overflow-hidden break-inside-avoid-column">
                                     <div className="department-header bg-gray-100 p-2 text-center font-bold text-lg border-b border-gray-400">
-                                        <span>{dept.name} ( العدد: {studentsByDepartment.get(dept.id)?.length || 0} )</span>
+                                        <span>{!institutionId ? `${institutionMap.get(dept.institutionId)} - ` : ''}{dept.name} ( العدد: {studentsByDepartment.get(dept.id)?.length || 0} )</span>
                                     </div>
                                     <div className="student-list p-2">
                                         {(studentsByDepartment.get(dept.id)?.length ?? 0) > 0 ? (

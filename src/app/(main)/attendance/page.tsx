@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useDoc, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
-import type { Student, Attendance, Institution, Department } from "@/lib/types";
+import type { Student, Attendance, Institution, Department, ProfessorProfile } from "@/lib/types";
 import { collection, doc, query, where, setDoc, getDocs } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -315,6 +315,9 @@ function AttendanceReports() {
     const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
         useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
     );
+
+    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
     
     const handleGenerateReport = async () => {
         if (!selectedInstitution || !firestore) {
@@ -406,6 +409,8 @@ function AttendanceReports() {
                 reportData,
                 institutionName,
                 month: format(currentDate, 'MMMM yyyy', { locale: ar }),
+                professorName: `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim(),
+                schoolYear: profileData?.schoolYear || '',
             };
             sessionStorage.setItem('attendanceReportPrintData', JSON.stringify(printData));
             const printWindow = window.open('/attendance/print-report', '_blank');

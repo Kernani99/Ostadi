@@ -67,7 +67,7 @@ function PrintContent() {
             <style>{`
                 @media print {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    @page { size: A4 landscape; margin: 0; }
+                    @page { size: A4 landscape; margin: 1cm; }
                     .print-header, .print-footer { position: relative; }
                     .print-table { width: 100%; border-collapse: collapse; }
                     .print-table th, .print-table td { border: 1px solid #000; padding: 4px; text-align: center; vertical-align: middle; font-size: 9pt; word-break: break-word; }
@@ -78,12 +78,12 @@ function PrintContent() {
             `}</style>
             
              <header className="print-header text-center mb-4 space-y-1">
-                <h1 className="text-lg font-bold">ابتدائية: ${Array.from(primaryInstitutions).join(' - ')}</h1>
-                <h2 className="text-base font-semibold">مديرية التربية لولاية: ${profileData?.wilaya || '...'}</h2>
+                <h1 className="text-lg font-bold">مديرية التربية لولاية: ${profileData?.wilaya || '...'}</h1>
                 <div className="flex justify-between text-sm px-4">
-                    <span>الأستاذ: ${professorName || '...'} - الموسم الدراسي: ${profileData?.schoolYear || '...'}</span>
-                    <span>المدرسة: ${Array.from(primaryInstitutions).join(' - ')}</span>
+                    <span>الأستاذ(ة): ${professorName || '...'}</span>
+                    <span>الموسم الدراسي: ${profileData?.schoolYear || '...'}</span>
                 </div>
+                 <h2 className="text-base font-semibold">المؤسسة: ${Array.from(primaryInstitutions).join(' - ')}</h2>
             </header>
 
             <main>
@@ -106,7 +106,7 @@ function PrintContent() {
                             <tr key={log.id}>
                                 <td>{institutionMap.get(log.institutionId) || 'غير معروف'}</td>
                                 <td>{log.date}</td>
-                                <td>{log.startTime} - {log.endTime}</td>
+                                <td>${log.startTime || ''} - ${log.endTime || ''}</td>
                                 <td>{log.level}</td>
                                 <td>{log.field}</td>
                                 <td className="text-right">{log.learnings}</td>

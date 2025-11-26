@@ -27,10 +27,10 @@ function PrintPageContent() {
         let q: Query<DocumentData> = collection(firestore, 'students');
         
         const conditions = [];
-        if (level) {
+        if (level && level !== 'all') {
             conditions.push(where('level', '==', level));
         }
-        if (institutionId) {
+        if (institutionId && institutionId !== 'all') {
             conditions.push(where('institutionId', '==', institutionId));
         }
 
@@ -104,12 +104,14 @@ function PrintPageContent() {
     }
 
     const professorName = `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim();
-    const listTitle = level && institutionId 
-        ? `قائمة تلاميذ ${level} - ${institutionMap.get(institutionId)}`
-        : level
+    const specificInstitutionName = (institutionId && institutionId !== 'all') ? institutionMap.get(institutionId) : null;
+
+    const listTitle = (level && level !== 'all') && specificInstitutionName 
+        ? `قائمة تلاميذ ${level} - ${specificInstitutionName}`
+        : (level && level !== 'all')
         ? `قائمة تلاميذ ${level}`
-        : institutionId
-        ? `قائمة تلاميذ مؤسسة ${institutionMap.get(institutionId)}`
+        : specificInstitutionName
+        ? `قائمة تلاميذ مؤسسة ${specificInstitutionName}`
         : 'القائمة الإسمية للتلاميذ';
 
     return (
@@ -134,15 +136,14 @@ function PrintPageContent() {
                     }
                      @page {
                         size: A4 portrait;
-                        margin: 0;
+                        margin: 1cm;
                     }
                 }
             `}</style>
              <header className="text-center mb-10 space-y-2">
                 <h1 className="text-xl font-bold">مديرية التربية لولاية: {profileData?.wilaya || '...'}</h1>
-                <h2 className="text-lg font-semibold">المدرسة الابتدائية: {profileData?.schoolName || '...'}</h2>
                 <h3 className="text-base">السنة الدراسية: {profileData?.schoolYear || '...'}</h3>
-                <h3 className="text-base">الأستاذ: {professorName || '...'}</h3>
+                <h3 className="text-base">الأستاذ(ة): {professorName || '...'}</h3>
                 <h1 className="text-2xl font-bold mt-4 underline decoration-double">{listTitle}</h1>
             </header>
             

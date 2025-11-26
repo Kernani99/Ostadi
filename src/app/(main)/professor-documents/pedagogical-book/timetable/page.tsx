@@ -34,7 +34,7 @@ export default function TimetablePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+  const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore, user]);
   const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
   
   const timetableQuery = useMemoFirebase(() => 
@@ -51,7 +51,7 @@ export default function TimetablePage() {
             if (!newTimetable[entry.day]) {
                 newTimetable[entry.day] = {};
             }
-            newTimetable[entry.day][entry.timeSlot] = entry.content;
+            newTimetable[entry.day][timeSlot] = entry.content;
         });
         setLocalTimetable(newTimetable);
     }
@@ -154,6 +154,7 @@ export default function TimetablePage() {
            }
            .print-table th, .print-table td {
                 border-color: #aaa !important;
+                height: 64px !important;
            }
         }
       `}</style>
@@ -182,16 +183,16 @@ export default function TimetablePage() {
         <header className="mb-8">
             <div className="flex justify-between items-start">
                 <div className="text-sm space-y-1 text-right">
-                    <p className="font-semibold flex items-center gap-2"><User className="text-green-700" size={16}/> الأستاذ(ة): {profileData?.firstName} {profileData?.lastName}</p>
-                    <p className="flex items-center gap-2"><CalendarDays className="text-green-700" size={16}/> السنة الدراسية: {profileData?.schoolYear}</p>
+                    <p className="font-semibold flex items-center gap-2"><User className="text-green-700" size={16}/> الأستاذ(ة): {profileData?.firstName || ''} {profileData?.lastName || ''}</p>
+                    <p className="flex items-center gap-2"><CalendarDays className="text-green-700" size={16}/> السنة الدراسية: {profileData?.schoolYear || ''}</p>
                 </div>
                 <div className="flex flex-col items-center">
                     <Image src="https://firebasestorage.googleapis.com/v0/b/studio-3773063615-aada3.appspot.com/o/resources%2Falgeria-flag.png?alt=media&token=38337a28-2e11-43b3-9022-38ceb3252573" alt="شعار" width={40} height={40} className="object-contain" />
                     <h1 className="text-xl font-bold mt-2 text-green-800">جدول التوقيت</h1>
                 </div>
                 <div className="text-sm space-y-1 text-right">
-                    <p className="font-semibold flex items-center gap-2"><Building className="text-green-700" size={16}/> المؤسسة: {profileData?.schoolName}</p>
-                    <p>{profileData?.address}</p>
+                    <p className="font-semibold flex items-center gap-2"><Building className="text-green-700" size={16}/> المؤسسة: {profileData?.schoolName || ''}</p>
+                    <p>{profileData?.address || ''}</p>
                 </div>
             </div>
         </header>

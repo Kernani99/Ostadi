@@ -2,7 +2,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { Loader2, Users, CalendarX } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 type LevelReport = {
     level: string;
@@ -17,6 +17,8 @@ type PrintData = {
     reportData: LevelReport[];
     institutionName: string;
     month: string;
+    professorName: string;
+    schoolYear: string;
 }
 
 function PrintContent() {
@@ -51,7 +53,7 @@ function PrintContent() {
         return <div className="flex h-screen items-center justify-center"><p>لا توجد بيانات لعرضها. يرجى إنشاء تقرير أولاً.</p></div>;
     }
 
-    const { reportData, institutionName, month } = printData;
+    const { reportData, institutionName, month, professorName, schoolYear } = printData;
 
     return (
         <div className="p-4 bg-white text-black font-body">
@@ -70,7 +72,8 @@ function PrintContent() {
             `}</style>
             
             <header className="print-header text-center mb-4 space-y-1">
-                <h1 className="text-base font-bold">المدرسة الابتدائية: {institutionName}</h1>
+                <h1 className="text-base font-bold">المؤسسة: {institutionName}</h1>
+                 <h2 className="text-sm">الأستاذ(ة): {professorName || '...'} | السنة الدراسية: {schoolYear || '...'}</h2>
                 <h1 className="text-lg font-bold mt-1 underline decoration-double">
                     تقرير الحضور والغياب لشهر {month}
                 </h1>
@@ -82,39 +85,18 @@ function PrintContent() {
                         <table className="w-full">
                              <thead>
                                 <tr>
-                                    <th colSpan={4} className="text-center text-base bg-gray-200 p-2">{report.level}</th>
-                                </tr>
-                                <tr>
-                                    <th>الإحصائيات</th>
-                                    <th>النسب المئوية</th>
-                                    <th colSpan={2}>التلاميذ الأكثر غياباً</th>
+                                    <th colSpan={2} className="text-center text-base bg-gray-200 p-2">{report.level}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td className="w-1/4">
+                                    <td className="w-1/2">
                                         <p><strong>إجمالي التلاميذ:</strong> {report.totalStudents}</p>
                                         <p><strong>إجمالي الغيابات:</strong> {report.totalAbsences}</p>
                                     </td>
-                                    <td className="w-1/4">
-                                        <p><strong>نسبة الحضور:</strong> {report.attendancePercentage.toFixed(1)}%</p>
-                                        <p><strong>نسبة الغياب:</strong> {report.absencePercentage.toFixed(1)}%</p>
-                                    </td>
-                                    <td colSpan={2} className="w-1/2 align-top">
-                                         {report.topAbsences.length > 0 ? (
-                                             <table className="w-full text-xs">
-                                                 <tbody>
-                                                     {report.topAbsences.slice(0, 4).map(s => (
-                                                        <tr key={s.studentName}>
-                                                            <td className="p-1 border-b">{s.studentName}</td>
-                                                            <td className="p-1 border-b text-center w-16 font-bold text-red-600">{s.absenceCount} غياب</td>
-                                                        </tr>
-                                                     ))}
-                                                 </tbody>
-                                             </table>
-                                         ) : (
-                                            <p className="text-center text-gray-500 p-4">لا توجد غيابات.</p>
-                                         )}
+                                    <td className="w-1/2">
+                                        <p><strong>نسبة الحضور:</strong> <span className="font-bold">{report.attendancePercentage.toFixed(1)}%</span></p>
+                                        <p><strong>نسبة الغياب:</strong> <span className="font-bold text-red-600">{report.absencePercentage.toFixed(1)}%</span></p>
                                     </td>
                                 </tr>
                             </tbody>
