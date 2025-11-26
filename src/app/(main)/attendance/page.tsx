@@ -12,7 +12,7 @@ import { collection, doc, query, where, setDoc, getDocs } from "firebase/firesto
 import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown, Activity, ShieldOff, Loader2 } from "lucide-react";
-import { useState, useMemo, useReducer } from "react";
+import { useState, useMemo, useReducer, Fragment } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, PieChart, Pie, Cell, Legend, Tooltip } from "recharts"
@@ -272,10 +272,10 @@ function AttendanceRegistration() {
                                         <TableRow>
                                             <TableHead className="sticky left-0 bg-card z-10 border-e"></TableHead>
                                             {weeksOfMonth.map(week => (
-                                                <>
+                                                <Fragment key={week}>
                                                     <TableHead key={`${week}-1`} className="text-center text-xs p-1 border-t">ح1</TableHead>
                                                     <TableHead key={`${week}-2`} className="text-center text-xs p-1 border-t">ح2</TableHead>
-                                                </>
+                                                </Fragment>
                                             ))}
                                         </TableRow>
                                     )}
