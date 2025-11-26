@@ -216,6 +216,11 @@ export default function SportsEquipmentPage() {
     setSelectedItems(new Set());
   };
 
+  const handlePrint = () => {
+    const printWindow = window.open('/professor-documents/pedagogical-book/sports-equipment/print', '_blank');
+    printWindow?.focus();
+  };
+
   return (
     <div className="container mx-auto p-4 space-y-6">
       <EquipmentForm open={isFormOpen} onOpenChange={setFormOpen} equipment={selectedEquipment} />
@@ -239,7 +244,7 @@ export default function SportsEquipmentPage() {
           <h1 className="text-3xl font-bold text-primary">سجل العتاد الرياضي</h1>
           <p className="text-muted-foreground">إدارة وتنظيم قائمة العتاد الرياضي المتوفر</p>
         </div>
-        <Button variant="outline"><Printer className="me-2" /> طباعة السجل</Button>
+        <Button variant="outline" onClick={handlePrint}><Printer className="me-2" /> طباعة السجل</Button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -348,3 +353,4 @@ export default function SportsEquipmentPage() {
   );
 }
 
+    
