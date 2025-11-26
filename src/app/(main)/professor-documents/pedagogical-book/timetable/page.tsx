@@ -45,22 +45,47 @@ const timeSlots = [
 
 
 export default function TimetablePage() {
+  const handlePrint = () => {
+    window.print();
+  };
+  
   return (
     <div className="container mx-auto p-4 space-y-6 bg-gray-50/50">
-      <div className="flex flex-col items-center gap-2">
+       <style>{`
+        @media print {
+          body {
+            background-color: white !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          @page {
+            size: A4 landscape;
+            margin: 1cm;
+          }
+          .printable-area {
+            padding: 0;
+            margin: 0;
+            border: none;
+            box-shadow: none;
+          }
+        }
+      `}</style>
+      <div className="flex flex-col items-center gap-2 no-print">
         <h1 className="font-bold text-3xl text-center text-green-700">
           جدول التوقيت - التعليم الإبتدائي (الدوام الواحد)
         </h1>
          <div className="flex items-center gap-4 mt-4">
-            <Button className="bg-green-600 hover:bg-green-700 text-white rounded-full shadow-md">
+            <Button className="bg-green-600 hover:bg-green-700 text-white rounded-full shadow-md" disabled>
                 <Edit className="me-2"/> تعديل الجدول
             </Button>
-            <Button variant="destructive" className="bg-red-600 hover:bg-red-700 rounded-full shadow-md">
+            <Button onClick={handlePrint} variant="destructive" className="bg-red-600 hover:bg-red-700 rounded-full shadow-md">
                 <Printer className="me-2"/> طباعة الجدول
             </Button>
         </div>
       </div>
 
+    <div className="printable-area">
         <Card className="w-full max-w-7xl mx-auto border-2 border-green-600 rounded-2xl shadow-lg p-6">
             <CardHeader className="text-center">
                 <div className="grid grid-cols-3 items-center">
@@ -79,7 +104,7 @@ export default function TimetablePage() {
             </CardHeader>
         </Card>
 
-      <Card className="w-full max-w-7xl mx-auto shadow-xl">
+      <Card className="w-full max-w-7xl mx-auto shadow-xl mt-6">
         <CardHeader className="bg-white rounded-t-lg">
           <CardTitle className="flex items-center gap-3 text-red-600 font-bold">
             <Calendar className="h-7 w-7" />
@@ -119,6 +144,7 @@ export default function TimetablePage() {
             <p>المدير(ة): ...............................</p>
             <p>المفتش: ...............................</p>
         </div>
+    </div>
     </div>
   );
 }
