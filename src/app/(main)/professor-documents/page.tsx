@@ -1,6 +1,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookMarked } from "lucide-react";
+import { BookMarked, FolderKanban } from "lucide-react";
 import Link from "next/link";
 
 
@@ -30,7 +30,21 @@ export default function ProfessorDocumentsPage() {
             </CardHeader>
           </Card>
         </Link>
-        {/* Add other document cards here in the future */}
+        <Link href="/professor-documents/pedagogical-book">
+          <Card className="hover:shadow-lg hover:border-primary transition-all cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-4">
+                <div className="bg-primary/10 p-3 rounded-full">
+                  <FolderKanban className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>الدفتر البيداغوجي</CardTitle>
+                  <CardDescription>سجلات ومتابعات بيداغوجية متنوعة.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
       </div>
 
     </div>

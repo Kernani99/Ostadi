@@ -132,4 +132,12 @@ export type GeneralStats = {
     departmentAbsences: DepartmentAbsence[];
 };
 
+export type SportsEquipment = {
+    id: string;
+    name: string;
+    totalQuantity: number;
+    goodCondition: number;
+    badCondition: number;
+    userId: string;
+};
     

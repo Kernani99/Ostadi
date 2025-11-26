@@ -259,6 +259,40 @@
             "observation": { "type": "string", "description": "General observations." }
         },
         "required": ["userId", "institutionId", "level", "date", "startTime", "endTime"]
+    },
+    "SportsEquipment": {
+      "title": "SportsEquipment",
+      "type": "object",
+      "description": "Represents a piece of sports equipment in the inventory.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the equipment (e.g., 'الأقماع')."
+        },
+        "totalQuantity": {
+          "type": "number",
+          "description": "The total quantity of this equipment."
+        },
+        "goodCondition": {
+          "type": "number",
+          "description": "The quantity of this equipment in good condition."
+        },
+        "badCondition": {
+          "type": "number",
+          "description": "The quantity of this equipment in bad condition."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns this equipment record."
+        }
+      },
+      "required": [
+        "name",
+        "totalQuantity",
+        "goodCondition",
+        "badCondition",
+        "userId"
+      ]
     }
   },
   "auth": {
@@ -315,6 +349,12 @@
             "$ref": "#/backend/entities/DailyLog"
         },
         "description": "Stores the professor's daily log entries. Only the owner can read/write."
+    },
+    "/sports_equipment/{equipmentId}": {
+      "schema": {
+        "$ref": "#/backend/entities/SportsEquipment"
+      },
+      "description": "Stores sports equipment inventory data. Only the owner can read/write."
     }
   }
 }
