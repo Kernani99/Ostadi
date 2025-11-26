@@ -223,7 +223,7 @@ export default function TimetablePage() {
                     <TableRow key={day} className="even:bg-gray-50">
                         <TableCell className="border border-gray-300 p-2 font-bold text-center align-middle">{day}</TableCell>
                         {timeSlots.map(slot => (
-                        <TableCell key={slot} className="border border-gray-300 p-1 text-center align-middle h-20">
+                        <TableCell key={slot} className="border border-gray-300 p-1 text-center align-middle h-16">
                            {isEditing ? (
                              <Textarea
                                 value={localTimetable[day]?.[slot] || ''}
