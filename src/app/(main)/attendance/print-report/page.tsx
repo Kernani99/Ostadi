@@ -64,7 +64,6 @@ function PrintContent() {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; }
                     @page { size: A4 portrait; margin: 15px; }
                     .no-print { display: none; }
-                    .print-header, .print-footer { position: relative; }
                     .print-card { 
                         border: 1px solid #ccc; 
                         border-radius: 0.5rem; 
