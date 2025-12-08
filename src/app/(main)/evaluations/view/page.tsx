@@ -197,7 +197,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
     useEffect(() => {
         if (!attendanceDataForSemester || !students) return;
 
-        const absenceCriteria = criteria.find(c => c.name === 'الغيابات و التأخرات' || c.name === 'المواظبة (غياب/تأخر)');
+        const absenceCriteria = criteria.find(c => c.name === 'الغيابات و التأخرات');
         const outfitCriteria = criteria.find(c => c.name === 'البدلة الرياضية');
 
         if (!absenceCriteria && !outfitCriteria) return;
@@ -254,9 +254,9 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
 
         const currentTotal = calculateTotal(studentId);
         const currentScore = scores[studentId]?.[criteriaId] ?? 0;
-        const newTotal = currentTotal - currentScore + (score ?? 0);
+        const newTotal = (currentTotal || 0) - currentScore + (score ?? 0);
 
-        if (Math.floor(currentTotal) !== Math.floor(newTotal)) {
+        if (Math.floor(currentTotal || 0) !== Math.floor(newTotal)) {
              handleObservationChange(studentId, '');
         }
 
@@ -512,3 +512,5 @@ export default function Page() {
         </Suspense>
     );
 }
+
+    
