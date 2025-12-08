@@ -62,7 +62,8 @@ function PrintContent() {
                     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; }
                     @page { size: A4 portrait; margin: 10px; }
                     .no-print { display: none; }
-                    .print-table { page-break-inside: avoid; border-spacing: 0; border-collapse: collapse; width: 100%; }
+                    .print-section { page-break-inside: avoid; margin-bottom: 2rem; }
+                    .print-table { border-spacing: 0; border-collapse: collapse; width: 100%; }
                     .print-table th, .print-table td { padding: 6px; border: 1px solid #ccc; text-align: right; font-size: 10pt; }
                     .print-table th { background-color: #f2f2f2; font-weight: bold; }
                     .text-center { text-align: center; }
@@ -81,8 +82,8 @@ function PrintContent() {
 
             <main className="space-y-4">
                 {reportData.map(report => (
-                    <div key={report.level} className="print-table">
-                        <table className="w-full">
+                    <div key={report.level} className="print-section">
+                        <table className="print-table">
                              <thead>
                                 <tr>
                                     <th colSpan={2} className="text-center text-base bg-gray-200 p-2">{report.level}</th>
@@ -101,6 +102,29 @@ function PrintContent() {
                                 </tr>
                             </tbody>
                         </table>
+                        {report.topAbsences.length > 0 && (
+                            <div className="mt-2">
+                                <table className="print-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="text-center text-sm" colSpan={2}>التلاميذ الأكثر غياباً</th>
+                                        </tr>
+                                        <tr>
+                                            <th className="w-3/4">اسم التلميذ</th>
+                                            <th className="text-center">عدد الغيابات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {report.topAbsences.map((absence) => (
+                                            <tr key={absence.studentName}>
+                                                <td>{absence.studentName}</td>
+                                                <td className="text-center font-bold">{absence.absenceCount}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 ))}
             </main>
