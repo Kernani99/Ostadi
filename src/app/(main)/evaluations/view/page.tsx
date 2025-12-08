@@ -278,7 +278,7 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
 
     const calculateTotal = (studentId: string) => {
         const studentScores = scores[studentId] || {};
-        return Object.values(studentScores).reduce((acc, score) => acc + (score || 0), 0);
+        return Object.values(studentScores).reduce((acc: number, score: number | null) => acc + (score || 0), 0);
     };
 
     const handleSaveEvaluations = async () => {
@@ -512,5 +512,3 @@ export default function Page() {
         </Suspense>
     );
 }
-
-    
