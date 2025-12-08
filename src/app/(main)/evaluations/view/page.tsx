@@ -26,12 +26,11 @@ const FIRST_YEAR_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
 ];
 
 const OTHER_YEARS_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
-    { name: 'السلوك والانضباط', level: 'other', maxScore: 2 },
-    { name: 'المواظبة (غياب/تأخر)', level: 'other', maxScore: 1 },
-    { name: 'البدلة الرياضية', level: 'other', maxScore: 1 },
-    { name: 'المشاركة الإيجابية', level: 'other', maxScore: 2 },
-    { name: 'إنجاز التمارين الفردية', level: 'other', maxScore: 2 },
-    { name: 'التنسيق في التمارين الجماعية', level: 'other', maxScore: 2 },
+    { name: 'سلوك المتعلم', level: 'other', maxScore: 2 },
+    { name: 'الغيابات و التأخرات', level: 'other', maxScore: 2 },
+    { name: 'البدلة الرياضية', level: 'other', maxScore: 2 },
+    { name: 'المشاركة الفعالة في الحصة', level: 'other', maxScore: 2 },
+    { name: 'التحكم في مختلف وضعيات الجسم', level: 'other', maxScore: 2 },
 ];
 
 const observationsByScore: { [key: number]: { female: string[], male: string[] }} = {
