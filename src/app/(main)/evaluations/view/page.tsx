@@ -254,10 +254,13 @@ function EvaluationTable({ institutionId, level, semester, criteria }: { institu
 
         const currentTotal = calculateTotal(studentId);
         const currentScore = scores[studentId]?.[criteriaId] ?? 0;
-        const newTotal = (currentTotal || 0) - currentScore + (score ?? 0);
+        const newTotal = (currentTotal || 0) - (currentScore || 0) + (score || 0);
 
-        if (Math.floor(currentTotal || 0) !== Math.floor(newTotal)) {
-             handleObservationChange(studentId, '');
+        const currentTotalInt = Math.floor(currentTotal || 0);
+        const newTotalInt = Math.floor(newTotal || 0);
+
+        if (currentTotalInt !== newTotalInt) {
+            handleObservationChange(studentId, '');
         }
 
         setScores(prev => ({
