@@ -2,7 +2,7 @@
 'use client'
 import { StatCard } from "@/components/dashboard/stat-card";
 import { useCollection, useFirestore } from "@/firebase";
-import { Building, Building2, Users, User, Venus, Mars, BarChart, LineChart } from "lucide-react";
+import { Building, Building2, Users, PersonStanding, BarChart, LineChart } from "lucide-react";
 import { collection } from 'firebase/firestore'
 import { useMemoFirebase } from "@/firebase/provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,8 +58,8 @@ export default function DashboardPage() {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <StatCard title="إجمالي التلاميذ" value={totalStudents} icon={Users} description={`+${((totalStudents/1000)*100).toFixed(1)}% هذا الشهر`} />
-            <StatCard title="عدد الذكور" value={totalMales} icon={Mars} description={`+${((totalMales/totalStudents)*100).toFixed(1)}% هذا الشهر`} color="bg-blue-500" />
-            <StatCard title="عدد الإناث" value={totalFemales} icon={Venus} description={`+${((totalFemales/totalStudents)*100).toFixed(1)}% هذا الشهر`} color="bg-pink-500" />
+            <StatCard title="عدد الذكور" value={totalMales} icon={PersonStanding} description={`+${((totalMales/totalStudents)*100).toFixed(1)}% هذا الشهر`} color="bg-blue-500" />
+            <StatCard title="عدد الإناث" value={totalFemales} icon={PersonStanding} description={`+${((totalFemales/totalStudents)*100).toFixed(1)}% هذا الشهر`} color="bg-pink-500" />
             <StatCard title="عدد الأقسام" value={totalDepartments} icon={Building2} description={`+${(totalDepartments).toFixed(1)}% هذا الشهر`} color="bg-purple-500" />
         </div>
       

@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore } from "@/firebase";
-import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, User, Printer } from "lucide-react";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer } from "lucide-react";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
@@ -572,8 +572,8 @@ export default function StudentsPage() {
 
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <StatCard title="إجمالي التلاميذ" value={stats.total} icon={Users} />
-            <StatCard title="عدد الذكور" value={stats.males} icon={User} />
-            <StatCard title="عدد الإناث" value={stats.females} icon={User} />
+            <StatCard title="عدد الذكور" value={stats.males} icon={PersonStanding} />
+            <StatCard title="عدد الإناث" value={stats.females} icon={PersonStanding} />
             <StatCard title="التلاميذ الممارسون" value={stats.active} icon={Activity} />
             <StatCard title="التلاميذ المعفيون" value={stats.exempt} icon={ShieldOff} />
         </div>
