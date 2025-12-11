@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, Suspense } from 'react';
@@ -52,7 +53,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
            where('semester', '==', semester)
        )
     }, [firestore, studentIds, semester]);
-    const { data: existingEvals, isLoading: loadingEvals } = useCollection<Evaluation>(existingEvals);
+    const { data: existingEvals, isLoading: loadingEvals } = useCollection<Evaluation>(evaluationsQuery);
     
     useEffect(() => {
         if (existingEvals) {
@@ -305,3 +306,5 @@ export default function Page() {
         </Suspense>
     );
 }
+
+    
