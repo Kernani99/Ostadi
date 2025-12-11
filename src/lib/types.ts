@@ -87,20 +87,20 @@ export type Attendance = {
 export type EvaluationCriteria = {
     id: string;
     name: string;
-    level: string; // e.g. 'أولى ابتدائي'
+    indicators: string[];
     maxScore: number;
-    semester: string; // '1', '2', or '3'
+    semester: string;
 };
 
 export type Evaluation = {
-    id: string; // composite key might be studentId_criteriaId_semester
+    id: string; // composite key might be studentId_criteriaId_indicatorId_semester
     studentId: string;
     criteriaId: string;
+    indicatorId: number;
     semester: string;
     level: string;
     institutionId: string;
     score: number | null;
-    observation?: string;
 };
 
 

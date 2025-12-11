@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -9,10 +8,11 @@ import { useCollection, useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Institution, Student, Evaluation, EvaluationCriteria } from '@/lib/types';
 import { collection, query, where, writeBatch, doc } from 'firebase/firestore';
-import { ChevronLeft, Save, Loader2, Printer } from 'lucide-react';
+import { ChevronLeft, Save, Loader2, Printer, Info } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 export default function EvaluationsPage() {
@@ -27,6 +27,14 @@ export default function EvaluationsPage() {
 
   const handleStartEvaluation = () => {
     if (semester && institutionId && level) {
+      if (level === 'أولى ابتدائي') {
+        toast({
+          title: "لا يمكن التقييم",
+          description: "تلاميذ السنة الأولى ابتدائي معفيون من هذا التقييم.",
+          variant: "destructive"
+        });
+        return;
+      }
       const params = new URLSearchParams();
       params.set('institutionId', institutionId);
       params.set('level', level);
@@ -51,7 +59,15 @@ export default function EvaluationsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto">
-          <Card className="shadow-lg">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertTitle>ملاحظة هامة</AlertTitle>
+            <AlertDescription>
+              حسب التحديثات الأخيرة، تلاميذ السنة الأولى ابتدائي معفيون من التقييم المستمر.
+            </AlertDescription>
+          </Alert>
+
+          <Card className="shadow-lg mt-6">
           <CardHeader>
               <CardTitle>إعدادات التقييم</CardTitle>
               <CardDescription>الرجاء اختيار الفصل، المؤسسة، والمستوى لفتح جدول التقييم في صفحة جديدة.</CardDescription>
@@ -95,7 +111,6 @@ export default function EvaluationsPage() {
                       <SelectValue placeholder="اختر المستوى..." />
                   </SelectTrigger>
                   <SelectContent>
-                      <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
                       <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
                       <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
                       <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
@@ -119,5 +134,3 @@ export default function EvaluationsPage() {
     </div>
   );
 }
-
-    
