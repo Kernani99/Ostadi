@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from "@/components/ui/button";
@@ -75,15 +76,25 @@ export default function SessionEvaluationPage() {
     }, [currentDate]);
 
     const sessions = useMemo(() => {
-        return monthDays.filter(day => getDay(day) >= 0 && getDay(day) <= 4) // Sunday to Thursday
-          .flatMap(day => {
-              const dayName = daysOfWeek[getDay(day)];
-              return [
-                  { date: format(day, 'yyyy-MM-dd'), session: 1, label: `${dayName} ${format(day, 'dd')}` },
-                  { date: format(day, 'yyyy-MM-dd'), session: 2, label: `${dayName} ${format(day, 'dd')}` },
-              ];
-          });
-    }, [monthDays]);
+        const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(selectedLevel);
+        
+        return monthDays
+            .filter(day => getDay(day) >= 0 && getDay(day) <= 4) // Sunday to Thursday
+            .flatMap(day => {
+                const dayName = daysOfWeek[getDay(day)];
+                const sessionLabel = `${dayName} ${format(day, 'dd')}`;
+                
+                if (hasTwoSessions) {
+                    return [
+                        { date: format(day, 'yyyy-MM-dd'), session: 1, label: sessionLabel },
+                        { date: format(day, 'yyyy-MM-dd'), session: 2, label: sessionLabel },
+                    ];
+                } else {
+                    return [{ date: format(day, 'yyyy-MM-dd'), session: 1, label: sessionLabel }];
+                }
+            });
+    }, [monthDays, selectedLevel]);
+
 
     const handleScoreChange = (studentId: string, date: string, session: number, score: string) => {
         const scoreValue = score === '' ? null : Math.max(0, Math.min(10, Number(score)));
@@ -132,6 +143,8 @@ export default function SessionEvaluationPage() {
         }
     };
     
+    const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(selectedLevel);
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col items-center gap-2">
@@ -203,8 +216,8 @@ export default function SessionEvaluationPage() {
                                     <TableRow>
                                         <TableHead className="sticky left-0 bg-card z-10 min-w-[150px] border-e">اسم التلميذ</TableHead>
                                         {sessions.map(({ date, session, label }, index) => (
-                                            <TableHead key={`${date}-${session}`} className="text-center p-1 text-xs">
-                                                {label} (ح{session})
+                                            <TableHead key={`${date}-${session}`} className="text-center p-1 text-xs whitespace-nowrap">
+                                                {label} {hasTwoSessions ? `(ح${session})` : ''}
                                             </TableHead>
                                         ))}
                                         <TableHead className="text-center font-bold">عدد الحصص</TableHead>
