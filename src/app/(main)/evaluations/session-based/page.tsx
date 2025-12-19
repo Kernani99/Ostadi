@@ -11,7 +11,7 @@ import type { Student, Institution, SessionEvaluation } from "@/lib/types";
 import { collection, doc, query, where, setDoc } from "firebase/firestore";
 import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Save, Loader2, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Save, Loader2, Search, Printer } from "lucide-react";
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,9 @@ export default function SessionEvaluationPage() {
                 newEvals[ev.studentId] = ev.scores;
             });
             setEvaluations(newEvals);
+        } else {
+            // Clear evaluations when query changes and there's no data
+            setEvaluations({});
         }
     }, [fetchedEvaluations]);
 
@@ -136,6 +139,23 @@ export default function SessionEvaluationPage() {
         }
     };
     
+    const handlePrint = () => {
+        if (!selectedInstitution || !selectedLevel) {
+            toast({
+                title: "الرجاء اختيار المؤسسة والمستوى أولاً",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const params = new URLSearchParams();
+        params.set('institutionId', selectedInstitution);
+        params.set('level', selectedLevel);
+        params.set('month', monthStr);
+        const printUrl = `/evaluations/session-based/print?${params.toString()}`;
+        window.open(printUrl, '_blank');
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col items-center gap-2">
@@ -185,10 +205,15 @@ export default function SessionEvaluationPage() {
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
                             </div>
-                            <Button onClick={handleSave} disabled={isSaving}>
-                                {isSaving ? <Loader2 className="me-2 animate-spin"/> : <Save className="me-2" />}
-                                حفظ التقييمات
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button onClick={handlePrint} variant="outline">
+                                    <Printer className="me-2 h-4 w-4"/> طباعة
+                                </Button>
+                                <Button onClick={handleSave} disabled={isSaving}>
+                                    {isSaving ? <Loader2 className="me-2 animate-spin"/> : <Save className="me-2" />}
+                                    حفظ التقييمات
+                                </Button>
+                            </div>
                         </div>
                         <div className="relative w-full max-w-sm">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
