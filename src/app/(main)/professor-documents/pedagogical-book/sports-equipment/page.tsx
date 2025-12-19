@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, FC } from 'react';
+import { useState, useMemo, FC, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -68,7 +68,7 @@ const EquipmentForm: FC<EquipmentFormProps> = ({ open, onOpenChange, equipment }
     }
   });
 
-  useState(() => {
+  useEffect(() => {
     if (open) {
       form.reset(equipment ? {
         name: equipment.name,
@@ -352,5 +352,7 @@ export default function SportsEquipmentPage() {
     </div>
   );
 }
+
+    
 
     
