@@ -165,7 +165,7 @@ function PrintPageContent() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {groupStudents.map((student, studentIndex) => (
+                                    {groupStudents.map((student: Student, studentIndex) => (
                                         <tr key={student.id}>
                                             <td className="border border-gray-400 p-2 text-center">{studentIndex + 1}</td>
                                             <td className="border border-gray-400 p-2">{student.lastName} {student.firstName}</td>
