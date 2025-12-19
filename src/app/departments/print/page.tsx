@@ -159,7 +159,7 @@ function PrintDepartmentsContent() {
                                     <div className="student-list p-2">
                                         {(studentsByDepartment.get(dept.id)?.length ?? 0) > 0 ? (
                                             <ol className="list-decimal list-inside text-sm space-y-1">
-                                                {studentsByDepartment.get(dept.id)?.map((student, studentIndex) => (
+                                                {studentsByDepartment.get(dept.id)?.map((student: Student, studentIndex: number) => (
                                                     <li key={student.id} className="student-item">
                                                         {studentIndex + 1}- {student.lastName} {student.firstName}
                                                     </li>
