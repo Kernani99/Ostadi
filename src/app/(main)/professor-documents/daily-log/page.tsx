@@ -105,7 +105,6 @@ export default function DailyLogPage() {
           description: "تمت إضافة قيد جديد إلى الكراس اليومي.",
         });
         form.reset();
-        form.setValue('date', undefined);
     } catch (error) {
         // The error is already handled globally by the non-blocking-updates logic
         // but you could add specific UI feedback here if needed.
