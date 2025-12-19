@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, FC, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
@@ -352,7 +352,3 @@ export default function SportsEquipmentPage() {
     </div>
   );
 }
-
-    
-
-    
