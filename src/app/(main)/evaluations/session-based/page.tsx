@@ -9,14 +9,12 @@ import { useCollection, useFirestore } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Institution, SessionEvaluation } from "@/lib/types";
 import { collection, doc, query, where, setDoc } from "firebase/firestore";
-import { addMonths, subMonths, format, getWeeksInMonth, startOfMonth, eachDayOfInterval, getDay, isSameMonth } from 'date-fns';
+import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Save, Loader2, Search } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-
-const daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
 
 export default function SessionEvaluationPage() {
     const firestore = useFirestore();
@@ -69,45 +67,40 @@ export default function SessionEvaluationPage() {
     }, [fetchedEvaluations]);
 
 
-    const monthDays = useMemo(() => {
-        const start = startOfMonth(currentDate);
-        const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-        return eachDayOfInterval({ start, end }).filter(day => isSameMonth(day, currentDate));
+    const weeksOfMonth = useMemo(() => {
+        const weeks = getWeeksInMonth(currentDate, { weekStartsOn: 6 }); // Saturday start
+        return Array.from({ length: weeks }, (_, i) => i + 1);
     }, [currentDate]);
+    
+    const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(selectedLevel);
 
     const sessions = useMemo(() => {
-        const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(selectedLevel);
-        
-        return monthDays
-            .filter(day => getDay(day) >= 0 && getDay(day) <= 4) // Sunday to Thursday
-            .flatMap(day => {
-                const dayName = daysOfWeek[getDay(day)];
-                const sessionLabel = `${dayName} ${format(day, 'dd')}`;
-                
-                if (hasTwoSessions) {
-                    return [
-                        { date: format(day, 'yyyy-MM-dd'), session: 1, label: sessionLabel },
-                        { date: format(day, 'yyyy-MM-dd'), session: 2, label: sessionLabel },
-                    ];
-                } else {
-                    return [{ date: format(day, 'yyyy-MM-dd'), session: 1, label: sessionLabel }];
-                }
-            });
-    }, [monthDays, selectedLevel]);
+        return weeksOfMonth.flatMap(week => {
+            if (hasTwoSessions) {
+                return [
+                    { week: week, session: 1, label: `الأسبوع ${week} (ح1)` },
+                    { week: week, session: 2, label: `الأسبوع ${week} (ح2)` },
+                ];
+            } else {
+                return [{ week: week, session: 1, label: `الأسبوع ${week}` }];
+            }
+        });
+    }, [weeksOfMonth, hasTwoSessions]);
 
 
-    const handleScoreChange = (studentId: string, date: string, session: number, score: string) => {
+    const handleScoreChange = (studentId: string, week: number, session: number, score: string) => {
         const scoreValue = score === '' ? null : Math.max(0, Math.min(10, Number(score)));
+        const key = `${week}_${session}`;
         setEvaluations(prev => {
             const studentEvals = prev[studentId] || {};
-            const newStudentEvals = { ...studentEvals, [`${date}_${session}`]: scoreValue };
+            const newStudentEvals = { ...studentEvals, [key]: scoreValue };
             return { ...prev, [studentId]: newStudentEvals };
         });
     };
     
     const calculateMonthlyScore = (studentId: string) => {
         const studentScores = evaluations[studentId] || {};
-        const scoresArray = Object.values(studentScores).filter(s => s !== null) as number[];
+        const scoresArray = Object.values(studentScores).filter(s => s !== null && s !== undefined) as number[];
         if (scoresArray.length === 0) return { avg: 0, count: 0 };
         const sum = scoresArray.reduce((acc, s) => acc + s, 0);
         return {
@@ -143,8 +136,6 @@ export default function SessionEvaluationPage() {
         }
     };
     
-    const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(selectedLevel);
-
     return (
         <div className="space-y-6">
             <div className="flex flex-col items-center gap-2">
@@ -215,13 +206,26 @@ export default function SessionEvaluationPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="sticky left-0 bg-card z-10 min-w-[150px] border-e">اسم التلميذ</TableHead>
-                                        {sessions.map(({ date, session, label }, index) => (
-                                            <TableHead key={`${date}-${session}`} className="text-center p-1 text-xs whitespace-nowrap">
-                                                {label} {hasTwoSessions ? `(ح${session})` : ''}
-                                            </TableHead>
+                                         {weeksOfMonth.map((week) => (
+                                            <TableHead key={week} className="text-center" colSpan={hasTwoSessions ? 2 : 1}>الأسبوع {week}</TableHead>
                                         ))}
                                         <TableHead className="text-center font-bold">عدد الحصص</TableHead>
                                         <TableHead className="text-center font-bold text-primary">النقطة الشهرية</TableHead>
+                                    </TableRow>
+                                     <TableRow>
+                                        <TableHead className="sticky left-0 bg-card z-10 border-e"></TableHead>
+                                        {weeksOfMonth.flatMap(week =>
+                                            hasTwoSessions ? (
+                                                <Fragment key={week}>
+                                                    <TableHead className="text-center text-xs p-1 border-t">ح1</TableHead>
+                                                    <TableHead className="text-center text-xs p-1 border-t">ح2</TableHead>
+                                                </Fragment>
+                                            ) : (
+                                                <TableHead key={`${week}-1`} className="text-center text-xs p-1 border-t">الحصة</TableHead>
+                                            )
+                                        )}
+                                        <TableHead></TableHead>
+                                        <TableHead></TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -233,18 +237,36 @@ export default function SessionEvaluationPage() {
                                             return (
                                                 <TableRow key={student.id}>
                                                     <TableCell className="sticky left-0 bg-card z-10 font-medium border-e">{student.lastName} {student.firstName}</TableCell>
-                                                    {sessions.map(({ date, session }) => (
-                                                        <TableCell key={`${date}-${session}`} className="p-1">
-                                                            <Input 
-                                                                type="number"
-                                                                min="0"
-                                                                max="10"
-                                                                step="0.5"
-                                                                value={evaluations[student.id]?.[`${date}_${session}`] ?? ''}
-                                                                onChange={(e) => handleScoreChange(student.id, date, session, e.target.value)}
-                                                                className="w-16 h-8 text-center mx-auto"
-                                                            />
-                                                        </TableCell>
+                                                    {weeksOfMonth.map(week => (
+                                                        hasTwoSessions ? (
+                                                            <Fragment key={week}>
+                                                                <TableCell className="p-1">
+                                                                    <Input 
+                                                                        type="number" min="0" max="10" step="0.5"
+                                                                        value={evaluations[student.id]?.[`${week}_1`] ?? ''}
+                                                                        onChange={(e) => handleScoreChange(student.id, week, 1, e.target.value)}
+                                                                        className="w-16 h-8 text-center mx-auto"
+                                                                    />
+                                                                </TableCell>
+                                                                 <TableCell className="p-1">
+                                                                    <Input 
+                                                                        type="number" min="0" max="10" step="0.5"
+                                                                        value={evaluations[student.id]?.[`${week}_2`] ?? ''}
+                                                                        onChange={(e) => handleScoreChange(student.id, week, 2, e.target.value)}
+                                                                        className="w-16 h-8 text-center mx-auto"
+                                                                    />
+                                                                </TableCell>
+                                                            </Fragment>
+                                                        ) : (
+                                                            <TableCell key={`${week}-1`} className="p-1">
+                                                                <Input 
+                                                                    type="number" min="0" max="10" step="0.5"
+                                                                    value={evaluations[student.id]?.[`${week}_1`] ?? ''}
+                                                                    onChange={(e) => handleScoreChange(student.id, week, 1, e.target.value)}
+                                                                    className="w-16 h-8 text-center mx-auto"
+                                                                />
+                                                            </TableCell>
+                                                        )
                                                     ))}
                                                     <TableCell className="text-center font-bold">{monthlyScore.count}</TableCell>
                                                     <TableCell className="text-center font-bold text-primary text-lg">{monthlyScore.avg.toFixed(2)}</TableCell>
