@@ -88,6 +88,16 @@ service cloud.firestore {
     match /evaluations/{evaluationId} {
         allow read, write: if isSignedIn();
     }
+    
+    /**
+     * @description Allows authenticated users to manage their own session evaluations.
+     * @path /session_evaluations/{evaluationId}
+     * @allow (read, write) Allows an authenticated user to read and write their own session evaluations.
+     * @principle Enforces ownership for session-based evaluations.
+     */
+    match /session_evaluations/{evaluationId} {
+      allow read, write: if isSignedIn();
+    }
 
 
     /**

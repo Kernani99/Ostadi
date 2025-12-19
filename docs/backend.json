@@ -335,6 +335,23 @@
         "timeSlot",
         "content"
       ]
+    },
+     "SessionEvaluation": {
+      "title": "SessionEvaluation",
+      "type": "object",
+      "description": "Represents a student's evaluation for each session in a month.",
+      "properties": {
+        "studentId": { "type": "string" },
+        "month": { "type": "string", "description": "Month in YYYY-MM format." },
+        "institutionId": { "type": "string" },
+        "level": { "type": "string" },
+        "scores": {
+          "type": "object",
+          "description": "Scores for each session, keyed by 'YYYY-MM-DD_session'.",
+          "additionalProperties": { "type": ["number", "null"] }
+        }
+      },
+      "required": ["studentId", "month", "institutionId", "level", "scores"]
     }
   },
   "auth": {
@@ -403,6 +420,12 @@
         "$ref": "#/backend/entities/TimetableEntry"
       },
       "description": "Stores timetable entries for each user. Only the owner can read/write."
+    },
+    "/session_evaluations/{evaluationId}": {
+      "schema": {
+        "$ref": "#/backend/entities/SessionEvaluation"
+      },
+      "description": "Stores session-based evaluations for students. Only the owner can read/write."
     }
   }
 }

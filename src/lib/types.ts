@@ -103,6 +103,15 @@ export type Evaluation = {
     score: number | null;
 };
 
+export type SessionEvaluation = {
+    id: string; // studentId_yyyy-MM
+    studentId: string;
+    month: string; // "yyyy-MM"
+    institutionId: string;
+    level: string;
+    scores: { [date_session: string]: number | null }; // e.g., "2024-09-01_1": 8.5
+};
+
 
 export type AttendanceReport = {
     // Define the structure for your reports here
