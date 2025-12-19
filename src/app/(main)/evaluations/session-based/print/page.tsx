@@ -51,7 +51,12 @@ function PrintContent() {
     const sortedStudents = useMemo(() => students?.sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)) || [], [students]);
 
     const printDate = useMemo(() => month ? new Date(`${month}-01T12:00:00`) : new Date(), [month]);
-    const weeksOfMonth = useMemo(() => getWeeksInMonth(printDate, { weekStartsOn: 6 }), [printDate]);
+    
+    const weeksOfMonth = useMemo(() => {
+        const weekCount = getWeeksInMonth(printDate, { weekStartsOn: 6 });
+        return Array.from({ length: weekCount }, (_, i) => i + 1);
+    }, [printDate]);
+
     const hasTwoSessions = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي'].includes(level || '');
 
     const calculateMonthlyScore = (studentId: string) => {
