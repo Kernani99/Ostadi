@@ -40,6 +40,17 @@ const secondYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
 const secondYearSemester1Criteria = secondYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
 const secondYearSemester3Criteria = secondYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
 
+// --- 3rd Year Criteria ---
+const thirdYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
+    { id: 'crit_y3_s2_1', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 01', description: 'اختيار وتيرة الجري المناسبة للموقف', indicators: ['الجري بوتيرة بطيئة', 'الجري بوتيرة متوسطة', 'الجري بوتيرة سريعة'], maxScore: 1.5 },
+    { id: 'crit_y3_s2_2', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 02', description: 'التحكم في وضعية وتنسيق الجسم خلال الجري', indicators: ['الجري على خط مستقيم', 'الجري في منعرج', 'الجري المتعرج بحمل أداة'], maxScore: 1.5 },
+    { id: 'crit_y3_s2_3', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 03', description: 'اختيار وتيرة مناسبة للرمي', indicators: ['الرمي للأمام والخلف', 'الرمي بيد واحدة و باليدين', 'الرمي للجانب'], maxScore: 1.5 },
+    { id: 'crit_y3_s2_4', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 04', description: 'المحافظة على تسلسل عملية الرمي', indicators: ['الرمي إلى أبعد', 'الرمي إلى مكان معين', 'الرمي فوق علو معين'], maxScore: 1.5 },
+    { id: 'crit_y3_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'], maxScore: 4 },
+];
+const thirdYearSemester1Criteria = thirdYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
+const thirdYearSemester3Criteria = thirdYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+
 
 const ALL_CRITERIA: AllCriteria = {
   'أولى ابتدائي': {
@@ -51,6 +62,11 @@ const ALL_CRITERIA: AllCriteria = {
     '1': secondYearSemester1Criteria.map(c => ({...c, semester: '1'})),
     '2': secondYearSemester2Criteria.map(c => ({...c, semester: '2'})),
     '3': secondYearSemester3Criteria.map(c => ({...c, semester: '3'})),
+  },
+   'ثالثة ابتدائي': {
+    '1': thirdYearSemester1Criteria.map(c => ({...c, semester: '1'})),
+    '2': thirdYearSemester2Criteria.map(c => ({...c, semester: '2'})),
+    '3': thirdYearSemester3Criteria.map(c => ({...c, semester: '3'})),
   },
   'default': {
     '1': defaultCriteria.map(c => ({...c, semester: '1'})),
