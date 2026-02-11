@@ -1,20 +1,16 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useCollection, useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import type { Institution, Student, Evaluation, EvaluationCriteria } from '@/lib/types';
-import { collection, query, where, writeBatch, doc } from 'firebase/firestore';
-import { ChevronLeft, Save, Loader2, Printer, Info } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
+import type { Institution } from '@/lib/types';
+import { collection } from 'firebase/firestore';
+import { ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
 
 export default function EvaluationsPage() {
   const firestore = useFirestore();
@@ -29,28 +25,21 @@ export default function EvaluationsPage() {
 
   const handleStartEvaluation = () => {
     if (semester && institutionId && level) {
-      if (level === 'أولى ابتدائي') {
-        toast({
-          title: "لا يمكن التقييم",
-          description: "تلاميذ السنة الأولى ابتدائي معفيون من هذا التقييم.",
-          variant: "destructive"
-        });
-        return;
-      }
       const params = new URLSearchParams();
       params.set('institutionId', institutionId);
       params.set('level', level);
       params.set('semester', semester);
       const viewUrl = `/evaluations/view?${params.toString()}`;
       window.open(viewUrl, '_blank');
+    } else {
+        toast({
+            title: "بيانات ناقصة",
+            description: "الرجاء اختيار الفصل، المؤسسة، والمستوى أولاً.",
+            variant: "destructive"
+        })
     }
   };
 
-  // When selections change, hide the table to force re-selection.
-  useEffect(() => {
-    // No more showTable state
-  }, [semester, institutionId, level]);
-  
   return (
     <div className="container mx-auto p-4 space-y-8">
       <div className="flex flex-col items-center gap-2">
@@ -61,14 +50,6 @@ export default function EvaluationsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertTitle>ملاحظة هامة</AlertTitle>
-            <AlertDescription>
-              حسب التحديثات الأخيرة، تلاميذ السنة الأولى ابتدائي معفيون من التقييم المستمر.
-            </AlertDescription>
-          </Alert>
-
           <Card className="shadow-lg mt-6">
           <CardHeader>
               <CardTitle>إعدادات التقييم</CardTitle>
@@ -113,6 +94,7 @@ export default function EvaluationsPage() {
                       <SelectValue placeholder="اختر المستوى..." />
                   </SelectTrigger>
                   <SelectContent>
+                      <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
                       <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
                       <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
                       <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>

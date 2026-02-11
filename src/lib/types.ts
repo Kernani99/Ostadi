@@ -87,6 +87,8 @@ export type Attendance = {
 export type EvaluationCriteria = {
     id: string;
     name: string;
+    description: string;
+    competency: string;
     indicators: string[];
     maxScore: number;
     semester: string;

@@ -7,29 +7,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { useCollection, useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
-import type { Institution, Student, Evaluation, EvaluationCriteria } from '@/lib/types';
+import type { Student, Evaluation, EvaluationCriteria } from '@/lib/types';
+import { getCriteriaFor } from '@/lib/evaluation-criteria';
 import { collection, query, where, writeBatch, doc } from 'firebase/firestore';
 import { Save, Loader2, Printer, FileDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { useToast, toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
-
-const EVALUATION_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
-    { name: 'المعيار 01', indicators: ['المؤشر 1', 'المؤشر 2', 'المؤشر 3'], maxScore: 2 },
-    { name: 'المعيار 02', indicators: ['المؤشر 1', 'المؤشر 2', 'المؤشر 3', 'المؤشر 4'], maxScore: 2 },
-    { name: 'المعيار 03', indicators: ['المؤشر 1', 'المؤشر 2', 'المؤشر 3', 'المؤشر 4'], maxScore: 2 },
-    { name: 'المعيار 04', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'إنجاز المهام'], maxScore: 4 },
-];
 
 
 function EvaluationTable({ institutionId, level, semester }: { institutionId: string; level: string; semester: string; }) {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     
-    const evaluationCriteria = useMemo(() => {
-        return EVALUATION_CRITERIA.map((c, i) => ({ ...c, id: `crit_${i}`, semester: semester || '1' }));
-    }, [semester]);
+    const evaluationCriteria = useMemo(() => getCriteriaFor(level, semester), [level, semester]);
 
     const studentsQuery = useMemoFirebase(() => {
         return query(
@@ -76,9 +69,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
         const criteria = evaluationCriteria.find(c => c.id === criteriaId);
         if (!criteria) return;
         
-        // Simple validation: max score for an indicator is the total score divided by indicator count (can be improved)
-        const maxIndicatorScore = criteria.maxScore / criteria.indicators.length;
-        if (score !== null && (isNaN(score) || score < 0 )) { // Only check for min, allow exceeding for flexibility
+        if (score !== null && (isNaN(score) || score < 0 )) {
             return;
         }
 
@@ -181,6 +172,14 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
     if (loadingStudents || loadingEvals) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin h-8 w-8" /> <p className="ms-2">جاري تحميل بيانات التقييم...</p></div>
     }
+
+    const groupedByCompetency = evaluationCriteria.reduce<Record<string, EvaluationCriteria[]>>((acc, crit) => {
+        if (!acc[crit.competency]) {
+            acc[crit.competency] = [];
+        }
+        acc[crit.competency].push(crit);
+        return acc;
+    }, {});
     
     const allIndicators = evaluationCriteria.flatMap(c => c.indicators);
 
@@ -209,15 +208,19 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                            <TableHeader>
                                 <TableRow>
                                     <TableHead rowSpan={3} className="sticky left-0 bg-card z-10 border-e min-w-[200px] align-middle">اللقب والاسم</TableHead>
-                                    <TableHead colSpan={11} className="text-center">التحكم في مختلف وضعيات الجسم</TableHead>
-                                    <TableHead colSpan={4} className="text-center">مشاركة التلميذ في الفوج التربوي</TableHead>
+                                     {Object.entries(groupedByCompetency).map(([competency, criteria]) => {
+                                        const colSpan = criteria.reduce((acc, crit) => acc + crit.indicators.length, 0);
+                                        return <TableHead key={competency} colSpan={colSpan} className="text-center">{competency}</TableHead>
+                                    })}
                                     <TableHead rowSpan={3} className="text-center align-middle">العلامة من 10</TableHead>
                                 </TableRow>
                                 <TableRow>
-                                    <TableHead colSpan={3} className="text-center">المعيار 01 (2 نقطة)</TableHead>
-                                    <TableHead colSpan={4} className="text-center">المعيار 02 (2 نقطة)</TableHead>
-                                    <TableHead colSpan={4} className="text-center">المعيار 03 (2 نقطة)</TableHead>
-                                    <TableHead colSpan={4} className="text-center">المعيار 04 (4 نقطة)</TableHead>
+                                    {Object.values(groupedByCompetency).flat().map(crit => (
+                                        <TableHead key={crit.id} colSpan={crit.indicators.length} className="text-center p-1">
+                                            <div>{crit.name} ({crit.maxScore})</div>
+                                            {crit.description && <div className="text-xs font-normal text-muted-foreground">{crit.description}</div>}
+                                        </TableHead>
+                                    ))}
                                 </TableRow>
                                 <TableRow>
                                     {evaluationCriteria.flatMap(c => c.indicators.map((indicator, i) => (
@@ -279,14 +282,6 @@ function EvaluationViewPage() {
     const institutionId = searchParams.get('institutionId');
     const level = searchParams.get('level');
     const semester = searchParams.get('semester');
-
-    if (level === 'أولى ابتدائي') {
-         return (
-            <div className="flex h-screen items-center justify-center">
-                <p>تلاميذ السنة الأولى ابتدائي معفيون من هذا التقييم.</p>
-            </div>
-        );
-    }
     
     if (!institutionId || !level || !semester) {
         return (
@@ -306,5 +301,3 @@ export default function Page() {
         </Suspense>
     );
 }
-
-    

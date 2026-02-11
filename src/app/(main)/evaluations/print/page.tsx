@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Suspense, useEffect, useMemo } from 'react';
@@ -5,16 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import { useCollection, useDoc, useFirestore } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Student, Institution, ProfessorProfile, Evaluation, EvaluationCriteria } from '@/lib/types';
+import { getCriteriaFor } from '@/lib/evaluation-criteria';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
-
-const EVALUATION_CRITERIA: Omit<EvaluationCriteria, 'id' | 'semester'>[] = [
-    { name: 'المعيار 01', indicators: ['المؤشر 1', 'المؤشر 2', 'المؤشر 3'], maxScore: 2 },
-    { name: 'المعيار 02', indicators: ['المؤشر 1', 'المؤشر 2', 'المؤشر 3', 'المؤشر 4'], maxScore: 2 },
-    { name: 'المعيار 03', indicators: ['المؤشر 1', 'المؤشر 2', 'المؤشر 3', 'المؤشر 4'], maxScore: 2 },
-    { name: 'المعيار 04', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'إنجاز المهام'], maxScore: 4 },
-];
-
 
 function PrintContent() {
     const firestore = useFirestore();
@@ -38,8 +32,9 @@ function PrintContent() {
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
     
     const evaluationCriteria = useMemo(() => {
-        return EVALUATION_CRITERIA.map((c, i) => ({ ...c, id: `crit_${i}`, semester: semester || '1' }));
-    }, [semester]);
+        if (!level || !semester) return [];
+        return getCriteriaFor(level, semester);
+    }, [level, semester]);
 
 
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
@@ -53,7 +48,7 @@ function PrintContent() {
     const scoresMap = useMemo(() => {
         const map = new Map<string, { [criteriaIndicatorId: string]: number }>();
         evaluations?.forEach(ev => {
-            if (ev.criteriaId && ev.indicatorId && ev.score !== null) {
+            if (ev.criteriaId && ev.indicatorId !== undefined && ev.score !== null) {
                  if (!map.has(ev.studentId)) {
                     map.set(ev.studentId, {});
                 }
@@ -64,27 +59,25 @@ function PrintContent() {
     }, [evaluations]);
     
     const sortedStudents = useMemo(() => students?.sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)) || [], [students]);
-
-    const calculateCriteriaTotal = (studentId: string, criteriaId: string) => {
-        const studentScores = scoresMap.get(studentId) || {};
-        const criteria = evaluationCriteria.find(c => c.id === criteriaId);
-        if (!criteria) return 0;
-        
-        let total = 0;
-        criteria.indicators.forEach((indicator, index) => {
-             const key = `${criteriaId}_${index}`;
-             total += studentScores[key] || 0;
-        });
-        return total;
-    };
     
     const calculateGrandTotal = (studentId: string) => {
+        const studentScores = scoresMap.get(studentId) || {};
         let grandTotal = 0;
-        evaluationCriteria.forEach(criteria => {
-            grandTotal += calculateCriteriaTotal(studentId, criteria.id);
+        Object.values(studentScores).forEach(score => {
+            grandTotal += score || 0;
         });
         return grandTotal;
     }
+
+    const groupedByCompetency = useMemo(() => {
+        return evaluationCriteria.reduce<Record<string, EvaluationCriteria[]>>((acc, crit) => {
+            if (!acc[crit.competency]) {
+                acc[crit.competency] = [];
+            }
+            acc[crit.competency].push(crit);
+            return acc;
+        }, {});
+    }, [evaluationCriteria]);
     
     // --- Effects ---
     const isLoading = loadingProfile || loadingInstitution || loadingStudents || loadingEvals;
@@ -118,9 +111,9 @@ function PrintContent() {
                     .print-table { page-break-inside: auto; width: 100%; border-collapse: collapse; }
                     .print-table thead { display: table-header-group; }
                     .print-table tbody tr { page-break-inside: avoid; }
-                    .print-table th, .print-table td { border: 1px solid black; padding: 2px; text-align: center; font-size: 9pt; vertical-align: middle; }
+                    .print-table th, .print-table td { border: 1px solid black; padding: 1px; text-align: center; font-size: 8pt; vertical-align: middle; }
                     .print-table th { font-weight: bold; background-color: #f2f2f2 !important; }
-                    .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); }
+                    .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); max-width: 20px; white-space: normal;}
                 }
             `}</style>
              <header className="print-header mb-4 space-y-1">
@@ -130,24 +123,28 @@ function PrintContent() {
                     <div className="text-left">الأستاذ: {professorName}</div>
                      <div>القسم: {level}</div>
                 </div>
-                <h1 className="text-center font-bold text-base my-2">التقويم المستمر في التعليم الابتدائي لمادة التربية البدنية والرياضية</h1>
-                 <div className="text-sm">الكفاءة الختامية: ....................................................................</div>
+                <h1 className="text-center font-bold text-base my-2">التقويم المستمر في التعليم الابتدائي لمادة التربية البدنية والرياضية - الفصل ${semester}</h1>
+                 <div className="text-sm">الكفاءة الختامية: ينفذ حركات قاعدية مبنية على تكامل وظائف جسمه</div>
             </header>
 
             <main>
                 <table className="print-table">
                     <thead>
                          <tr>
-                            <th rowSpan={3} className="w-[150px]">اللقب والاسم</th>
-                            <th colSpan={11}>التحكم في مختلف وضعيات الجسم</th>
-                            <th colSpan={4}>مشاركة التلميذ في الفوج التربوي</th>
-                            <th rowSpan={3} className="vertical-text w-[30px]">العلامة من 10</th>
+                            <th rowSpan={3} className="w-[120px]">اللقب والاسم</th>
+                            {Object.entries(groupedByCompetency).map(([competency, criteria]) => {
+                                const colSpan = criteria.reduce((acc, crit) => acc + crit.indicators.length, 0);
+                                return <th key={competency} colSpan={colSpan}>{competency}</th>
+                            })}
+                            <th rowSpan={3} className="vertical-text w-[25px]">العلامة من 10</th>
                         </tr>
                         <tr>
-                            <th colSpan={3}>المعيار 01 (2) نقطة</th>
-                            <th colSpan={4}>المعيار 02 (2) نقطة</th>
-                            <th colSpan={4}>المعيار 03 (2) نقطة</th>
-                            <th colSpan={4}>المعيار 04 (4) نقطة</th>
+                            {Object.values(groupedByCompetency).flat().map(crit => (
+                                <th key={crit.id} colSpan={crit.indicators.length} className="p-1">
+                                    <div>{crit.name} ({crit.maxScore})</div>
+                                    {crit.description && <div className="text-xs font-normal">{crit.description}</div>}
+                                </th>
+                            ))}
                         </tr>
                         <tr>
                              {evaluationCriteria.flatMap(c => c.indicators.map(ind => <th key={`${c.id}-${ind}`} className="vertical-text text-xs p-1">{ind}</th>))}
