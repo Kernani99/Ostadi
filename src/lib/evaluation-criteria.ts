@@ -17,6 +17,7 @@ const defaultCriteria: Omit<EvaluationCriteria, 'semester'>[] = [
   { id: 'crit_default_4', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 04', description: '', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'إنجاز المهام'], maxScore: 4 },
 ];
 
+// --- 1st Year Criteria ---
 const firstYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
     { id: 'crit_y1_s2_1', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 01', description: 'اختيار الحركات القاعدية المناسبة للموقف', indicators: ['المشي بوتيرة بطيئة أو متوسطة أو سريعة', 'الجري الفردي بوتيرة بطيئة أو متوسطة أو سريعة', 'الجري الثنائي بوتيرة بطيئة أو متوسطة أو سريعة'], maxScore: 1.5 },
     { id: 'crit_y1_s2_2', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 02', description: 'تنسيق وظائف جسمه حسب نوع الحركة المطلوبة', indicators: ['اعتدال الجسم خلال المشي والجري', 'التنسيق بين الأطراف العلوية والسفلية أثناء الجري والمشي', 'تواتر الخطوات و تنسيق عمل الأطراف خلال الجري والمشي'], maxScore: 1.5 },
@@ -24,15 +25,32 @@ const firstYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
     { id: 'crit_y1_s2_4', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 04', description: 'المحافظة على التوازن خلال التنفيذ', indicators: ['الاعتدال عند التحول من المشي العادي للمشي الجانبي', 'الاعتدال عند التحول من المشي للجري', 'الاعتدال عند التحول من الجري للمشي'], maxScore: 1.5 },
     { id: 'crit_y1_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'], maxScore: 4 },
 ];
-
 const firstYearSemester1Criteria = firstYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
 const firstYearSemester3Criteria = firstYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+
+
+// --- 2nd Year Criteria ---
+const secondYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
+    { id: 'crit_y2_s2_1', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 01', description: 'اختيار الحركات المناسبة للوضعية. بشكل سليم.', indicators: ['المشي السريع من وضعية الوقوف', 'الجري من وضعية الجلوس', 'الجري السريع من وضعية الجثو'], maxScore: 1.5 },
+    { id: 'crit_y2_s2_2', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 02', description: 'تنفيذ الحركات المناسبة للوضعية', indicators: ['الاعتدال في المشي السريع من وضعية الوقوف', 'عمل الأطراف أثناء الجري من وضعية الجلوس', 'تكامل عمل الأطراف العلوية والسفلية أثناء الجري السريع'], maxScore: 1.5 },
+    { id: 'crit_y2_s2_3', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 03', description: 'تعديل الوضعيات حسب تجدد الوضعية.', indicators: ['الاعتدال في الوقوف بعد التوقف من المشي السريع من الوقوف', 'التوازن في الوقوف للهرولة بعد الجلوس', 'الاستقامة في الجري السريع بعد الجثو'], maxScore: 1.5 },
+    { id: 'crit_y2_s2_4', competency: 'التحكم في مختلف وضعيات الجسم', name: 'المعيار 04', description: 'المحافظة على تسلسل الحركات خلال التنفيذ.', indicators: ['الجري بخطوات متناسقة', 'الهرولة بخطوات مرتفعة', 'المحافظة على السرعة خلال تنفيذ الجري السريع'], maxScore: 1.5 },
+    { id: 'crit_y2_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['المبادرة', 'التفاعل', 'انجاز المهام', 'الالتزام بالتعليمات'], maxScore: 4 },
+];
+const secondYearSemester1Criteria = secondYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
+const secondYearSemester3Criteria = secondYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+
 
 const ALL_CRITERIA: AllCriteria = {
   'أولى ابتدائي': {
     '1': firstYearSemester1Criteria.map(c => ({...c, semester: '1'})),
     '2': firstYearSemester2Criteria.map(c => ({...c, semester: '2'})),
     '3': firstYearSemester3Criteria.map(c => ({...c, semester: '3'})),
+  },
+  'ثانية ابتدائي': {
+    '1': secondYearSemester1Criteria.map(c => ({...c, semester: '1'})),
+    '2': secondYearSemester2Criteria.map(c => ({...c, semester: '2'})),
+    '3': secondYearSemester3Criteria.map(c => ({...c, semester: '3'})),
   },
   'default': {
     '1': defaultCriteria.map(c => ({...c, semester: '1'})),
