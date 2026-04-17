@@ -110,37 +110,59 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
         let scoreToDistribute = targetTotal;
         const step = 0.25;
         
-        let availableIndicators = evaluationCriteria.flatMap(crit => 
-            crit.indicators.map((_, indIndex) => ({
+        let availableIndicators = evaluationCriteria.flatMap(crit => {
+            // Handle division by zero if a criterion has no indicators
+            const maxPerIndicator = crit.indicators.length > 0 ? crit.maxScore / crit.indicators.length : 0;
+            return crit.indicators.map((_, indIndex) => ({
                 key: `${crit.id}_${indIndex}`,
                 critId: crit.id,
-                critMaxScore: crit.maxScore
+                critMaxScore: crit.maxScore,
+                indicatorMaxScore: maxPerIndicator,
             }))
-        );
+        });
     
-        // 2. Distribute score in 0.25 increments
         let attempts = 0;
-        const maxAttempts = (targetTotal / step) * 20; // Safety break
-
+        const maxAttempts = (targetTotal / step) * 50; // Increased attempts for more complex distributions
     
         while (scoreToDistribute > 0.001 && availableIndicators.length > 0 && attempts < maxAttempts) {
             const randomIndex = Math.floor(Math.random() * availableIndicators.length);
             const indicator = availableIndicators[randomIndex];
     
+            const currentIndicatorScore = newStudentScores[indicator.key]!;
+            const potentialIndicatorScore = currentIndicatorScore + step;
             const potentialCritTotal = criteriaTotals[indicator.critId] + step;
             
-            if (potentialCritTotal <= indicator.critMaxScore + 0.001) {
-                newStudentScores[indicator.key]! += step;
+            // Check if adding the step exceeds either the indicator's max score or the criterion's max score
+            if (potentialIndicatorScore <= indicator.indicatorMaxScore + 0.001 && potentialCritTotal <= indicator.critMaxScore + 0.001) {
+                newStudentScores[indicator.key]! = potentialIndicatorScore;
                 criteriaTotals[indicator.critId] += step;
                 scoreToDistribute -= step;
             }
             
-            if (criteriaTotals[indicator.critId] >= indicator.critMaxScore - 0.001) {
-                availableIndicators = availableIndicators.filter(ind => ind.critId !== indicator.critId);
+            const updatedIndicatorScore = newStudentScores[indicator.key]!;
+            
+            // If an indicator is now "full" (or very close to it), remove it from the pool for next attempts
+            if (updatedIndicatorScore >= indicator.indicatorMaxScore - 0.001) {
+                availableIndicators = availableIndicators.filter(ind => ind.key !== indicator.key);
             }
+            
+            // If a criterion's total is now "full", remove all its indicators from the pool
+            if (criteriaTotals[indicator.critId] >= indicator.critMaxScore - 0.001) {
+                 availableIndicators = availableIndicators.filter(ind => ind.critId !== indicator.critId);
+            }
+    
             attempts++;
         }
         
+        // After the loop, some scores might not be perfect multiples of 0.25 due to floating point math
+        // Let's clean them up
+        for(const key in newStudentScores) {
+            if(newStudentScores[key] !== null){
+                newStudentScores[key] = parseFloat(newStudentScores[key]!.toFixed(2));
+            }
+        }
+    
+    
         if (scoreToDistribute > 0.01) {
             toast({
                 title: 'خطأ في التوزيع',
