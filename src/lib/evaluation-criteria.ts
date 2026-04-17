@@ -38,7 +38,64 @@ const secondYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
     { id: 'crit_y2_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['المبادرة', 'التفاعل', 'انجاز المهام', 'الالتزام بالتعليمات'], maxScore: 4 },
 ];
 const secondYearSemester1Criteria = secondYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
-const secondYearSemester3Criteria = secondYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+const secondYearSemester3Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
+    {
+        id: 'crit_y2_s3_1',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 01',
+        description: 'ضبط أسلوب التنفيذ حسب نوع الأداة',
+        indicators: [
+            'رمي الدحرجة للجلة وتخزينها في مكان مناسب',
+            'استلام وتسليم الشواهد وترتيب الأقماع',
+            'الرمي القريب والبعيد والأمامي والجانبي للكور'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y2_s3_2',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 02',
+        description: 'ضبط معالم الفضاء المناسب للتنفيذ',
+        indicators: [
+            'رمي الدحرجة للجلة في فناء',
+            'استلام وتسليم الشواهد في رواق',
+            'الرمي القريب للكور في ملعب والرمي الجانبي في رواق'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y2_s3_3',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 03',
+        description: 'تكييف الأسلوب حسب تجدد فضاء الممارسة',
+        indicators: [
+            'رمي الدحرجة للجلة في فناء والرمي الأمامي للجلة في ساحة',
+            'استلام وتسليم الشواهد في رواق وترتيبها في فناء',
+            'الرمي القريب للكور في ملعب والرمي البعيد للكور في ساحة'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y2_s3_4',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 04',
+        description: 'التنفيذ المناسب في الوقت المناسب',
+        indicators: [
+            'رمي الدحرجة للجلة عند سماع الإيعاز',
+            'استلام الشاهد عند وصول قرينه وتسليم الشاهد للقرين عند الوصول',
+            'الرمي القريب للكور عند اقتراب الزميل والرمي البعيد للكور عند ابتعاد الزميل'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y2_s3_5',
+        competency: 'مشاركة التلميذ في الفوج التربوي',
+        name: 'المعيار 05',
+        description: '',
+        indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'],
+        maxScore: 4
+    },
+];
 
 // --- 3rd Year Criteria ---
 const thirdYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
@@ -291,3 +348,5 @@ const ALL_CRITERIA: AllCriteria = {
 export const getCriteriaFor = (level: string, semester: string): EvaluationCriteria[] => {
     return ALL_CRITERIA[level]?.[semester] ?? ALL_CRITERIA.default[semester] ?? [];
 }
+
+    
