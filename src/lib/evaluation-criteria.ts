@@ -49,7 +49,64 @@ const thirdYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
     { id: 'crit_y3_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'], maxScore: 4 },
 ];
 const thirdYearSemester1Criteria = thirdYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
-const thirdYearSemester3Criteria = thirdYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+const thirdYearSemester3Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
+    {
+        id: 'crit_y3_s3_1',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 01',
+        description: 'اختيار التصرفات المناسبة للموقف وللفضاء.',
+        indicators: [
+            'زيادة في السرعة واللحاق بالزميل',
+            'تغيير الاتجاه عند مواجهة حاجز وفي فضاء ضيق',
+            'الإفلات للتخلص من المنافس عند المطاردة',
+            'الانتقال بين المعالم حسب طبيعة فضاء الممارسة'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y3_s3_2',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 02',
+        description: 'ادراك فضاء الممارسة.',
+        indicators: [
+            'الجري في رواق بسرعة للوصول أولا إلى خط النهاية',
+            'الرمي لعلو معين في ملعب محدد',
+            'الانتقال بين المعالم في حدود فضاء الممارسة'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y3_s3_3',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 03',
+        description: 'حسن التمركز في فضاء الممارسة.',
+        indicators: [
+            'رمي الكرة لمكان معين حسب وضعية الزميل المستلم',
+            'تغيير الاتجاه حسب وضعية المنافس في الفناء',
+            'الجري المتعرج بسرعة في رواق للافلات من المنافس عند المطاردة بحمل أداة'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y3_s3_4',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 04',
+        description: 'استثمار الوضعيات والحركات القاعدية في بناء خطط تتماشى وفضاء الممارسة.',
+        indicators: [
+            'الوثب إلى الأعلى لاجتياز موانع باستعمال كرسي',
+            'الرمي في حدود فضاء معين ولمكان معين وعلى بعد معين'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y3_s3_5',
+        competency: 'مشاركة التلميذ في الفوج التربوي',
+        name: 'المعيار 05',
+        description: '',
+        indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'],
+        maxScore: 4
+    },
+];
 
 // --- 4th Year Criteria ---
 const fourthYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
