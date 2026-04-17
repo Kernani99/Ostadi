@@ -71,7 +71,69 @@ const fifthYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
     { id: 'crit_y5_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'], maxScore: 4 },
 ];
 const fifthYearSemester1Criteria = fifthYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
-const fifthYearSemester3Criteria = fifthYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+const fifthYearSemester3Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
+    {
+        id: 'crit_y5_s3_1',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 01',
+        description: 'اختيار الوضعيات والحركات المناسبة للموقف',
+        indicators: [
+            'التمريرة القصيرة من وضعية الوقوف الأمامي',
+            'ثني الركبتين للارتقاء عند قذف الكرة نحو الهدف',
+            'الاعتدال في الوقوف ورفع الرأس عند مراوغة المنافس'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y5_s3_2',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 02',
+        description: 'التحكم في ضبط معالم التنفيذ والمحافظة على التوازن',
+        indicators: [
+            'التحكم في الكرة عند تمريرها والمراوغة بها',
+            'التوازن عند قذف الكرة',
+            'الدفع المناسب لنوع الوثب'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y5_s3_3',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 03',
+        description: 'ضبط فضاء الممارسة',
+        indicators: [
+            'التعرف على الملعب وأطواله',
+            'الالتزام بحدود بملعب كرة اليد المصغرة',
+            'التقيد بملعب كرة السلة المصغرة'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y5_s3_4',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 04',
+        description: 'المساهمة الفعالة ضمن الفوج',
+        indicators: [
+            'التوزيع المنظم على الملعب',
+            'احترام قواعد اللعب الجماعي',
+            'توظيف التقنيات الأساسية للألعاب الجماعية ضمن الفوج'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y5_s3_5',
+        competency: 'مشاركة التلميذ في الفوج التربوي',
+        name: 'المعيار 05',
+        description: '',
+        indicators: [
+            'التفاعل',
+            'المبادرة',
+            'الالتزام بالتعليمات',
+            'انجاز المهام'
+        ],
+        maxScore: 4
+    }
+];
 
 
 const ALL_CRITERIA: AllCriteria = {
