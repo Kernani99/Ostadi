@@ -60,7 +60,69 @@ const fourthYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
     { id: 'crit_y4_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'], maxScore: 4 },
 ];
 const fourthYearSemester1Criteria = fourthYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
-const fourthYearSemester3Criteria = fourthYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+const fourthYearSemester3Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
+    {
+        id: 'crit_y4_s3_1',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 01',
+        description: 'ضبط التصرفات حسب فضاء الممارسة',
+        indicators: [
+            'التنقل حسب حدود الرواق',
+            'الوثب للأمام وللأعلى حسب طول الفناء',
+            'الرمي حسب مجال الملعب المتاح',
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y4_s3_2',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 02',
+        description: 'اختيار الحركات القاعدية المناسبة للموقف',
+        indicators: [
+            'وثبات متتالية برجل واحدة وبالرجلين معا',
+            'التنقل في مسار معين حسب حدود فضاء الممارسة',
+            'الرمي البعيد حسب مسافة الهدف',
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y4_s3_3',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 03',
+        description: 'تعديل التصرفات حسب تغير الموقف',
+        indicators: [
+            'التنقل حسب انتشار الزملاء والمنافس',
+            'الرمي حسب انتشار الزملاء والمنافس',
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y4_s3_4',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 04',
+        description: 'التنفيذ السليم للحركات المختارة',
+        indicators: [
+            'الوثب حسب مسافة ومسار الوثبة',
+            'التنقل السليم في فضاء آمن',
+            'الرمي بطريقة صحيحة في مجال الرمي',
+            'هيأة الجسم خلال الوثب'
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y4_s3_5',
+        competency: 'مشاركة التلميذ في الفوج التربوي',
+        name: 'المعيار 05',
+        description: '',
+        indicators: [
+            'التفاعل',
+            'المبادرة',
+            'الالتزام بالتعليمات',
+            'انجاز المهام'
+        ],
+        maxScore: 4
+    }
+];
 
 // --- 5th Year Criteria ---
 const fifthYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
