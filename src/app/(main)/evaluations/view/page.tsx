@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, Suspense } from 'react';
@@ -80,6 +79,85 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                 [`${criteriaId}_${indicatorIndex}`]: score,
             }
         }));
+    };
+    
+    const handleTotalScoreChange = (studentId: string, value: string) => {
+        let targetTotal = Number(value);
+        if (isNaN(targetTotal) || targetTotal < 0 || targetTotal > 10) {
+            toast({
+                title: 'قيمة غير صالحة',
+                description: 'الرجاء إدخال رقم بين 0 و 10.',
+                variant: 'destructive',
+            });
+            return;
+        }
+    
+        // Round to nearest 0.25
+        targetTotal = Math.round(targetTotal * 4) / 4;
+    
+        const newStudentScores: { [criteriaIndicatorId: string]: number | null } = {};
+        const criteriaTotals: { [criteriaId: string]: number } = {};
+    
+        // 1. Initialize scores and totals
+        evaluationCriteria.forEach(crit => {
+            criteriaTotals[crit.id] = 0;
+            crit.indicators.forEach((_, indIndex) => {
+                const scoreKey = `${crit.id}_${indIndex}`;
+                newStudentScores[scoreKey] = 0;
+            });
+        });
+    
+        let scoreToDistribute = targetTotal;
+        const step = 0.25;
+        
+        let availableIndicators = evaluationCriteria.flatMap(crit => 
+            crit.indicators.map((_, indIndex) => ({
+                key: `${crit.id}_${indIndex}`,
+                critId: crit.id,
+                critMaxScore: crit.maxScore
+            }))
+        );
+    
+        // 2. Distribute score in 0.25 increments
+        let attempts = 0;
+        const maxAttempts = (targetTotal / step) * 20; // Safety break
+
+    
+        while (scoreToDistribute > 0.001 && availableIndicators.length > 0 && attempts < maxAttempts) {
+            const randomIndex = Math.floor(Math.random() * availableIndicators.length);
+            const indicator = availableIndicators[randomIndex];
+    
+            const potentialCritTotal = criteriaTotals[indicator.critId] + step;
+            
+            if (potentialCritTotal <= indicator.critMaxScore + 0.001) {
+                newStudentScores[indicator.key]! += step;
+                criteriaTotals[indicator.critId] += step;
+                scoreToDistribute -= step;
+            }
+            
+            if (criteriaTotals[indicator.critId] >= indicator.critMaxScore - 0.001) {
+                availableIndicators = availableIndicators.filter(ind => ind.critId !== indicator.critId);
+            }
+            attempts++;
+        }
+        
+        if (scoreToDistribute > 0.01) {
+            toast({
+                title: 'خطأ في التوزيع',
+                description: `لم يتم توزيع ${scoreToDistribute.toFixed(2)} نقطة. قد تكون النقطة الإجمالية أكبر من المجموع الممكن.`,
+                variant: 'destructive',
+            });
+        }
+    
+        setScores(prev => ({
+            ...prev,
+            [studentId]: newStudentScores
+        }));
+    
+        toast({
+            title: 'تم التوزيع',
+            description: `تم توزيع النقطة ${targetTotal} على المؤشرات بنجاح.`,
+        });
     };
     
     const calculateGrandTotal = (studentId: string) => {
@@ -189,7 +267,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>كشف تقييم {level} - الفصل {semester}</CardTitle>
-                        <CardDescription>أدخل الدرجات لكل مؤشر. سيتم حساب المجموع تلقائياً.</CardDescription>
+                        <CardDescription>أدخل الدرجات لكل مؤشر، أو أدخل العلامة النهائية مباشرة في عمود "العلامة من 10".</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button onClick={handleExport} variant="outline" size="icon">
@@ -212,7 +290,10 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                                         const colSpan = criteria.reduce((acc, crit) => acc + crit.indicators.length, 0);
                                         return <TableHead key={competency} colSpan={colSpan} className="text-center">{competency}</TableHead>
                                     })}
-                                    <TableHead rowSpan={3} className="text-center align-middle">العلامة من 10</TableHead>
+                                    <TableHead rowSpan={3} className="text-center align-middle">
+                                        <div>العلامة من 10</div>
+                                        <div className="text-xs font-normal text-muted-foreground">(إدخال مباشر)</div>
+                                    </TableHead>
                                 </TableRow>
                                 <TableRow>
                                     {Object.values(groupedByCompetency).flat().map(crit => (
@@ -230,13 +311,13 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                             </TableHeader>
                             <TableBody>
                                 {students && students.length > 0 ? (
-                                    students.map((student, index) => {
+                                    students.map((student) => {
                                         const totalScore = calculateGrandTotal(student.id);
                                         return (
                                         <TableRow key={student.id}>
                                             <TableCell className="sticky left-0 bg-card z-10 border-e font-medium">{student.lastName} {student.firstName}</TableCell>
                                             {evaluationCriteria.flatMap(crit => (
-                                                crit.indicators.map((indicator, indIndex) => (
+                                                crit.indicators.map((_, indIndex) => (
                                                     <TableCell key={`${crit.id}-${indIndex}`} className="text-center p-1 min-w-[80px]">
                                                         <Input
                                                             type="number"
@@ -249,8 +330,20 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                                                     </TableCell>
                                                 ))
                                             ))}
-                                            <TableCell className="text-center font-bold text-lg text-primary">
-                                                {totalScore}
+                                            <TableCell className="text-center font-bold text-lg text-primary align-top pt-2">
+                                                 <div className="flex flex-col items-center gap-2">
+                                                    <span className="h-6">{totalScore.toFixed(2)}</span>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        max="10"
+                                                        step="0.25"
+                                                        className="w-20 text-center mx-auto h-8 text-sm"
+                                                        placeholder="مباشر"
+                                                        onBlur={(e) => handleTotalScoreChange(student.id, e.target.value)}
+                                                        key={`${student.id}-total`}
+                                                    />
+                                                 </div>
                                             </TableCell>
                                         </TableRow>
                                         )
