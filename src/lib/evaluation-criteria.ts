@@ -26,7 +26,64 @@ const firstYearSemester2Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
     { id: 'crit_y1_s2_5', competency: 'مشاركة التلميذ في الفوج التربوي', name: 'المعيار 05', description: '', indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'], maxScore: 4 },
 ];
 const firstYearSemester1Criteria = firstYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's1')}));
-const firstYearSemester3Criteria = firstYearSemester2Criteria.map(c => ({...c, id: c.id.replace('s2', 's3')}));
+const firstYearSemester3Criteria: Omit<EvaluationCriteria, 'semester'>[] = [
+    {
+        id: 'crit_y1_s3_1',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 01',
+        description: 'ضبط مسار الحركات تماشيا مع الفضاء المتاح',
+        indicators: [
+            'التعرف على ضوابط فضاءات الممارسة المتاحة',
+            'استخدام فضاء الممارسة المناسب لمختلف التشكيلات والتنقلات',
+            'التقيد بمعالم فضاء الممارسة المتاح',
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y1_s3_2',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 02',
+        description: 'ترتيب الحركات حسب أولويتها بالنسبة للعملية',
+        indicators: [
+            'الاندماج في مختلف التشكيلات المنتظمة',
+            'الاندماج في مختلف التشكيلات و التنقلات المنتظمة وفق معالم وقواعد فضاءات الممارسة المتاحة',
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y1_s3_3',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 03',
+        description: 'التنفيذ المناسب للفضاء المتاح',
+        indicators: [
+            'التشكل والتنقل المناسب للرواق',
+            'التشكل والتنقل المناسب للملعب',
+            'التشكل والتنقل المناسب للفناء وللساحة',
+            'التشكل والتنقل وفق الأعداد والصفوف والوسائل والأقران',
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y1_s3_4',
+        competency: 'التحكم في مبادئ اللعب الجماعي',
+        name: 'المعيار 04',
+        description: 'القيام بحركات لتمكين الزملاء من استثمار الفضاء',
+        indicators: [
+            'الالتزام بضوابط ومعالم وقواعد فضاءات الممارسة عند استخدامها',
+            'التفاعل مع التشكيلات والتنقلات المنتظمة دون إحداث ضرر بفضاء الممارسة',
+            'مشاركة زملائه مختلف فضاءات الممارسة ويحافظ عليها',
+        ],
+        maxScore: 1.5
+    },
+    {
+        id: 'crit_y1_s3_5',
+        competency: 'مشاركة التلميذ في الفوج التربوي',
+        name: 'المعيار 05',
+        description: '',
+        indicators: ['التفاعل', 'المبادرة', 'الالتزام بالتعليمات', 'انجاز المهام'],
+        maxScore: 4
+    },
+];
 
 
 // --- 2nd Year Criteria ---
