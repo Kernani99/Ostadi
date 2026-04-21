@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, Suspense, FC } from 'react';
@@ -300,7 +301,7 @@ function EvaluationDemoPage() {
                         </div>
                         <Button onClick={handlePrint} variant="outline"><Printer className="me-2"/> طباعة</Button>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto print:overflow-visible">
+                    <CardContent className="print:overflow-visible">
                         {/* Print Header */}
                         <div className="hidden print:block mb-4 space-y-1">
                              <h1 className="text-center font-bold text-base my-2">التقويم المستمر في التعليم الابتدائي لمادة التربية البدنية والرياضية - الفصل ${semester}</h1>
@@ -384,3 +385,5 @@ export default function Page() {
         </Suspense>
     );
 }
+
+    
