@@ -41,6 +41,9 @@ function AuthHandler({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+interface FirebaseClientProviderProps {
+  children: React.ReactNode;
+}
 
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
   const firebaseServices = useMemo(() => {
