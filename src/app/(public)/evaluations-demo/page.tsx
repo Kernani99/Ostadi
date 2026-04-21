@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, Suspense, FC } from 'react';
+import { useState, useMemo, useEffect, Suspense, FC, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getCriteriaFor } from '@/lib/evaluation-criteria';
 import type { EvaluationCriteria } from '@/lib/types';
-import { Save, Loader2, Printer, FileDown, PlusCircle, Trash2, Pencil, Users, User, X, ExternalLink } from 'lucide-react';
+import { Save, Loader2, Printer, FileDown, PlusCircle, Trash2, Pencil, Users, User, X, ExternalLink, FileUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -100,6 +100,7 @@ function EvaluationDemoPage() {
     const [level, setLevel] = useState<string>('');
     const [semester, setSemester] = useState<string>('');
     const [students, setStudents] = useState<LocalStudent[]>([{id: '1', lastName: 'تلميذ', firstName: 'تجريبي'}]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     // Student Dialog State
     const [isStudentDialogOpen, setStudentDialogOpen] = useState(false);
@@ -155,10 +156,108 @@ function EvaluationDemoPage() {
             toast({ title: "خطأ", description: "لم نتمكن من فتح نافذة التقييم.", variant: "destructive" });
         }
     };
+    
+    const handleImportClick = () => {
+      fileInputRef.current?.click();
+    };
+
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (!level) {
+            toast({
+                title: "خطأ",
+                description: "الرجاء تحديد المستوى الدراسي أولاً قبل استيراد الملف.",
+                variant: "destructive",
+            });
+            if(fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = e.target?.result;
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                const levelToSheetMap: { [key: string]: string[] } = {
+                    'أولى ابتدائي': ['ت البدنية والرياضية 1', 'Worksheet'],
+                    'ثانية ابتدائي': ['ت البدنية والرياضية 2'],
+                    'ثالثة ابتدائي': ['ت البدنية والرياضية 3'],
+                    'رابعة ابتدائي': ['ت البدنية والرياضية 4'],
+                    'خامسة ابتدائي': ['ت البدنية والرياضية 5'],
+                };
+                
+                const possibleSheetNames = levelToSheetMap[level] || [];
+                const sheetName = workbook.SheetNames.find(name => possibleSheetNames.some(pn => name.includes(pn)));
+
+                if (!sheetName) {
+                    toast({
+                        title: "لم يتم العثور على الصفحة",
+                        description: `لم نتمكن من العثور على صفحة "${level}" في الملف.`,
+                        variant: "destructive",
+                    });
+                    return;
+                }
+
+                const worksheet = workbook.Sheets[sheetName];
+                const importedData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+                const importedStudents: LocalStudent[] = importedData
+                    .map((row, index) => {
+                        const lastName = row['اللقب'];
+                        const firstName = row['الإسم'];
+
+                        if (lastName && firstName) {
+                            return {
+                                id: `${new Date().toISOString()}_${index}`, // More robust ID
+                                lastName: String(lastName),
+                                firstName: String(firstName),
+                            };
+                        }
+                        return null;
+                    })
+                    .filter((student): student is LocalStudent => student !== null);
+
+                if (importedStudents.length > 0) {
+                    setStudents(importedStudents);
+                    toast({
+                        title: "تم الاستيراد بنجاح",
+                        description: `تم استيراد ${importedStudents.length} تلميذ/تلاميذ من مستوى "${level}".`,
+                    });
+                } else {
+                    toast({
+                        title: "لا توجد بيانات",
+                        description: "لم يتم العثور على تلاميذ بأسماء وألقاب صالحة في الصفحة المحددة.",
+                        variant: "destructive",
+                    });
+                }
+
+            } catch (error) {
+                console.error("File import error:", error);
+                toast({
+                    title: "خطأ في معالجة الملف",
+                    description: "حدث خطأ أثناء قراءة الملف. يرجى التأكد من أنه ملف Excel صالح.",
+                    variant: "destructive",
+                });
+            } finally {
+                if(fileInputRef.current) fileInputRef.current.value = ''; // Reset file input
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
 
 
     return (
         <div className="space-y-6">
+             <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileImport}
+                className="hidden"
+                accept=".xlsx, .xls"
+            />
              <StudentDialog open={isStudentDialogOpen} onOpenChange={setStudentDialogOpen} student={studentToEdit} onSave={handleSaveStudent} />
              <AlertDialog open={!!studentToDelete} onOpenChange={() => setStudentToDelete(null)}>
                 <AlertDialogContent>
@@ -176,16 +275,16 @@ function EvaluationDemoPage() {
                 <Card className="no-print">
                     <CardHeader><CardTitle>1. إعداد التقييم</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                        <Select onValueChange={setSemester} value={semester}>
-                            <SelectTrigger><SelectValue placeholder="اختر الفصل الدراسي..." /></SelectTrigger>
-                            <SelectContent><SelectItem value="1">الفصل الأول</SelectItem><SelectItem value="2">الفصل الثاني</SelectItem><SelectItem value="3">الفصل الثالث</SelectItem></SelectContent>
-                        </Select>
                         <Select onValueChange={setLevel} value={level}>
                             <SelectTrigger><SelectValue placeholder="اختر المستوى الدراسي..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
                                 <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
                             </SelectContent>
+                        </Select>
+                        <Select onValueChange={setSemester} value={semester}>
+                            <SelectTrigger><SelectValue placeholder="اختر الفصل الدراسي..." /></SelectTrigger>
+                            <SelectContent><SelectItem value="1">الفصل الأول</SelectItem><SelectItem value="2">الفصل الثاني</SelectItem><SelectItem value="3">الفصل الثالث</SelectItem></SelectContent>
                         </Select>
                     </CardContent>
                 </Card>
@@ -194,7 +293,10 @@ function EvaluationDemoPage() {
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <CardTitle>2. إدارة التلاميذ ({students.length})</CardTitle>
-                            <Button size="sm" onClick={() => handleOpenStudentDialog()}><PlusCircle className="me-2" />إضافة</Button>
+                             <div className="flex gap-2">
+                                <Button size="sm" onClick={handleImportClick} variant="outline"><FileUp className="me-2" />استيراد</Button>
+                                <Button size="sm" onClick={() => handleOpenStudentDialog()}><PlusCircle className="me-2" />إضافة</Button>
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent className="max-h-48 overflow-y-auto">
@@ -231,3 +333,5 @@ export default function Page() {
         </Suspense>
     );
 }
+
+    
