@@ -6,11 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { getCriteriaFor } from '@/lib/evaluation-criteria';
 import type { EvaluationCriteria } from '@/lib/types';
-import { Loader2, Printer } from 'lucide-react';
+import { Loader2, FileDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
 // Simplified student type for local state
 type LocalStudent = {
@@ -137,7 +138,33 @@ function EvaluationTable() {
         return Object.values(studentScores).reduce((acc: number, score: number | null) => acc + (score || 0), 0);
     };
 
-    const handlePrint = () => { window.print(); };
+    const handleExport = () => {
+        if (!students || students.length === 0) {
+            toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+            return;
+        }
+
+        const fileName = `تقييم-${level}-الفصل-${semester}.xlsx`;
+
+        const dataToExport = students.map(student => {
+            const row: {[key: string]: any} = {
+                'اللقب والاسم': `${student.lastName} ${student.firstName}`,
+            };
+            const studentScores = scores[student.id] || {};
+            evaluationCriteria.forEach(crit => {
+                crit.indicators.forEach((indicator, index) => {
+                    row[`${crit.name} - ${indicator}`] = studentScores[`${crit.id}_${index}`] ?? '';
+                })
+            });
+            row['العلامة من 10'] = calculateGrandTotal(student.id);
+            return row;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `تقييم الفصل ${semester}`);
+        XLSX.writeFile(workbook, fileName);
+    };
 
     if (isLoading) {
         return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
@@ -174,7 +201,7 @@ function EvaluationTable() {
                         <CardTitle>جدول تقييم المحاكاة</CardTitle>
                         <CardDescription>{level} - الفصل {semester}</CardDescription>
                     </div>
-                    <Button onClick={handlePrint} variant="outline"><Printer className="me-2"/> طباعة</Button>
+                    <Button onClick={handleExport} variant="outline"><FileDown className="me-2 text-green-600"/> تحميل (Excel)</Button>
                 </CardHeader>
                 <CardContent>
                      {/* Print Header */}
