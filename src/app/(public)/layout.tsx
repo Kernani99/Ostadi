@@ -1,10 +1,26 @@
+'use client';
 import { Toaster } from "@/components/ui/toaster";
+import { usePathname } from "next/navigation";
 
 export default function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isDemoView = pathname.startsWith('/evaluations-demo/view');
+
+  if (isDemoView) {
+    // For the demo view, render children directly on a plain background.
+    // The view page itself handles its own padding and structure.
+    return (
+      <>
+        {children}
+        <Toaster />
+      </>
+    );
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen">
         <header className="bg-white shadow-sm no-print">
