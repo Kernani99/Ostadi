@@ -16,9 +16,11 @@ import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { z } from 'zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 // Simplified student type for local state
@@ -94,6 +96,86 @@ const StudentDialog: FC<{
     );
 };
 
+const bulkStudentAddSchema = z.object({
+  students: z.array(z.object({
+    fullName: z.string().min(3, "الاسم يجب أن يكون 3 أحرف على الأقل"),
+  })).min(1, "يجب إضافة تلميذ واحد على الأقل"),
+});
+type BulkStudentAddFormValues = z.infer<typeof bulkStudentAddSchema>;
+
+const BulkStudentDialog: FC<{
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSave: (students: { fullName: string }[]) => void;
+}> = ({ open, onOpenChange, onSave }) => {
+    const { toast } = useToast();
+    const form = useForm<BulkStudentAddFormValues>({
+        resolver: zodResolver(bulkStudentAddSchema),
+        defaultValues: { students: [{ fullName: '' }] },
+    });
+
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "students"
+    });
+
+    useEffect(() => {
+        if(open) {
+            form.reset({ students: [{ fullName: '' }] });
+        }
+    }, [open, form]);
+
+    const onSubmit = (data: BulkStudentAddFormValues) => {
+        onSave(data.students);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>إضافة تلاميذ جدد</DialogTitle>
+                    <DialogDescription>أدخل الأسماء الكاملة للتلاميذ. سيتم تحليل اللقب والإسم تلقائياً.</DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <ScrollArea className="h-60 w-full rounded-md border p-4">
+                            <div className="space-y-4">
+                               {fields.map((field, index) => (
+                                   <div key={field.id} className="flex gap-2 items-end">
+                                       <FormField
+                                            control={form.control}
+                                            name={`students.${index}.fullName`}
+                                            render={({ field }) => (
+                                                <FormItem className="flex-grow">
+                                                    <FormLabel className={cn(index !== 0 && "sr-only")}>الاسم الكامل (اللقب ثم الإسم)</FormLabel>
+                                                    <FormControl><Input placeholder="مثال: بن علي محمد" {...field} /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <Button type="button" variant="ghost" size="icon" className="text-red-500 shrink-0" onClick={() => remove(index)}>
+                                           <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                   </div>
+                               ))}
+                            </div>
+                        </ScrollArea>
+                         <Button type="button" variant="outline" size="sm" onClick={() => append({ fullName: '' })}>
+                           <PlusCircle className="me-2 h-4 w-4" /> إضافة تلميذ آخر
+                        </Button>
+
+                        <DialogFooter>
+                            <Button type="submit">حفظ التلاميذ</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+
 
 function EvaluationDemoPage() {
     const { toast } = useToast();
@@ -104,6 +186,7 @@ function EvaluationDemoPage() {
     
     // Student Dialog State
     const [isStudentDialogOpen, setStudentDialogOpen] = useState(false);
+    const [isBulkAddOpen, setBulkAddOpen] = useState(false);
     const [studentToEdit, setStudentToEdit] = useState<LocalStudent | null>(null);
     const [studentToDelete, setStudentToDelete] = useState<LocalStudent | null>(null);
 
@@ -121,6 +204,30 @@ function EvaluationDemoPage() {
         setStudentToEdit(student);
         setStudentDialogOpen(true);
     }
+
+    const handleSaveBulkStudents = (newStudents: { fullName: string }[]) => {
+        const studentsToAdd: LocalStudent[] = newStudents
+            .map((s, index) => {
+                const nameParts = s.fullName.trim().split(/\s+/);
+                const lastName = nameParts[0] || '';
+                const firstName = nameParts.slice(1).join(' ') || '';
+                if (!firstName || !lastName) return null;
+                return {
+                    id: `${new Date().toISOString()}_${index}`,
+                    lastName,
+                    firstName,
+                };
+            })
+            .filter((s): s is LocalStudent => s !== null);
+
+        if (studentsToAdd.length > 0) {
+            setStudents(prev => [...prev, ...studentsToAdd]);
+            toast({
+                title: 'تمت الإضافة',
+                description: `تمت إضافة ${studentsToAdd.length} تلميذ/تلاميذ بنجاح.`,
+            });
+        }
+    };
     
     const confirmDeleteStudent = () => {
         if (studentToDelete) {
@@ -259,6 +366,7 @@ function EvaluationDemoPage() {
                 accept=".xlsx, .xls"
             />
              <StudentDialog open={isStudentDialogOpen} onOpenChange={setStudentDialogOpen} student={studentToEdit} onSave={handleSaveStudent} />
+             <BulkStudentDialog open={isBulkAddOpen} onOpenChange={setBulkAddOpen} onSave={handleSaveBulkStudents} />
              <AlertDialog open={!!studentToDelete} onOpenChange={() => setStudentToDelete(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader><AlertDialogTitle>تأكيد الحذف</AlertDialogTitle><AlertDialogDescription>هل أنت متأكد من حذف التلميذ {studentToDelete?.lastName} {studentToDelete?.firstName}؟</AlertDialogDescription></AlertDialogHeader>
@@ -295,7 +403,7 @@ function EvaluationDemoPage() {
                             <CardTitle>2. إدارة التلاميذ ({students.length})</CardTitle>
                              <div className="flex gap-2">
                                 <Button size="sm" onClick={handleImportClick} variant="outline"><FileUp className="me-2" />استيراد</Button>
-                                <Button size="sm" onClick={() => handleOpenStudentDialog()}><PlusCircle className="me-2" />إضافة</Button>
+                                <Button size="sm" onClick={() => setBulkAddOpen(true)}><PlusCircle className="me-2" />إضافة</Button>
                             </div>
                         </div>
                     </CardHeader>
