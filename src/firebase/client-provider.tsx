@@ -6,39 +6,38 @@ import { initializeFirebase } from '@/firebase';
 import { useUser } from './provider';
 import { usePathname, useRouter } from 'next/navigation';
 
-interface FirebaseClientProviderProps {
-  children: ReactNode;
-}
-
 function AuthHandler({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // If auth state is done loading and there's no user,
-    // and we are not already on the login page, redirect.
-    if (!isUserLoading && !user && pathname !== '/login') {
+    // Define public paths that don't require authentication
+    const publicPaths = ['/login', '/evaluations-demo'];
+
+    // If auth state is done loading, there's no user, and we are not on a public page, redirect to login.
+    if (!isUserLoading && !user && !publicPaths.some(p => pathname.startsWith(p))) {
       router.push('/login');
     }
   }, [user, isUserLoading, router, pathname]);
 
-  // While loading, we can show a loader or nothing.
-  // Or, if we are on the login page, we can show the children immediately.
-  if (isUserLoading && pathname !== '/login') {
+  const isPublicPage = ['/login', '/evaluations-demo'].some(p => pathname.startsWith(p));
+
+  // While loading auth state, show a loader for protected pages
+  if (isUserLoading && !isPublicPage) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
-        {/* You can replace this with a more sophisticated loading spinner component */}
         <p>جاري تحميل المستخدم...</p>
       </div>
     );
   }
   
-  if (!user && pathname !== '/login') {
-      // Still loading or about to redirect, don't render children
+  // If no user and it's a protected page, don't render children (as it will redirect)
+  if (!user && !isPublicPage) {
       return null;
   }
 
+  // Render children for public pages or for authenticated users on protected pages
   return <>{children}</>;
 }
 
