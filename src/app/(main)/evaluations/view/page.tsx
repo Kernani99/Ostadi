@@ -122,7 +122,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
         });
     
         let attempts = 0;
-        const maxAttempts = (targetTotal / step) * 50; // Increased attempts for more complex distributions
+        const maxAttempts = (targetTotal / step) * 100; // Adjusted attempts
     
         while (scoreToDistribute > 0.001 && availableIndicators.length > 0 && attempts < maxAttempts) {
             const randomIndex = Math.floor(Math.random() * availableIndicators.length);
@@ -303,7 +303,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto print:overflow-visible">
                         <Table className="border min-w-full">
                            <TableHeader>
                                 <TableRow>
