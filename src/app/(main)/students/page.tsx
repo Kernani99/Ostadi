@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore } from "@/firebase";
-import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer } from "lucide-react";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer, PlusCircle } from "lucide-react";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
@@ -36,8 +36,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -59,6 +60,19 @@ const studentSchema = z.object({
 
 type StudentFormValues = z.infer<typeof studentSchema>;
 
+const bulkStudentSchema = z.object({
+  institutionId: z.string().min(1, { message: "المؤسسة مطلوبة" }),
+  level: z.string().min(1, { message: "المستوى مطلوب" }),
+  status: z.enum(['active', 'exempt'], { required_error: "الحالة مطلوبة" }),
+  students: z.array(z.object({
+    fullName: z.string().min(3, { message: "الاسم الكامل يجب أن يكون 3 أحرف على الأقل" }),
+    gender: z.enum(['male', 'female'], { required_error: "الجنس مطلوب" }),
+    dateOfBirth: z.string().optional(),
+  })).min(1, "يجب إضافة تلميذ واحد على الأقل."),
+});
+type BulkStudentFormValues = z.infer<typeof bulkStudentSchema>;
+
+
 interface StudentFormProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -73,201 +87,204 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
     const { data: departments } = useCollection<Department>(departmentsQuery);
 
-    const form = useForm<StudentFormValues>({
+    // Form for single student (edit)
+    const singleForm = useForm<StudentFormValues>({
         resolver: zodResolver(studentSchema),
-        defaultValues: student ? {
-            ...student,
-            dateOfBirth: student.dateOfBirth || '',
-            departmentId: student.departmentId || '',
-        } : {
-            firstName: '',
-            lastName: '',
-            dateOfBirth: '',
-            level: '',
-            institutionId: '',
-            departmentId: '',
+        defaultValues: {
+            firstName: '', lastName: '', dateOfBirth: '', level: '', institutionId: '', departmentId: '',
         }
+    });
+    
+    // Form for bulk students (add)
+    const bulkForm = useForm<BulkStudentFormValues>({
+        resolver: zodResolver(bulkStudentSchema),
+        defaultValues: {
+            institutionId: '',
+            level: '',
+            status: 'active',
+            students: [{ fullName: '', gender: 'male', dateOfBirth: ''}]
+        }
+    });
+
+    const { fields, append, remove } = useFieldArray({
+        control: bulkForm.control,
+        name: "students"
     });
 
     useEffect(() => {
         if (open) {
-            if (student) {
-                form.reset({
+            if (student) { // EDIT mode
+                singleForm.reset({
                     ...student,
                     dateOfBirth: student.dateOfBirth || '',
                     departmentId: student.departmentId || '',
                 });
-            } else {
-                form.reset({
-                    firstName: '',
-                    lastName: '',
-                    dateOfBirth: '',
-                    level: '',
+            } else { // ADD mode
+                bulkForm.reset({
                     institutionId: '',
-                    gender: undefined,
-                    status: undefined,
-                    departmentId: '',
+                    level: '',
+                    status: 'active',
+                    students: [{ fullName: '', gender: 'male', dateOfBirth: ''}]
                 });
             }
         }
-    }, [student, form, open]);
-    
+    }, [student, open, singleForm, bulkForm]);
 
-    const onSubmit = (data: StudentFormValues) => {
+    const onSingleSubmit = (data: StudentFormValues) => {
+        if (!student) return;
         const finalData = {
             ...data,
             departmentId: data.departmentId === '___none___' ? null : data.departmentId
         };
-        if (student) {
-            const studentDocRef = doc(firestore, 'students', student.id);
-            setDocumentNonBlocking(studentDocRef, finalData, { merge: true });
-            toast({
-                title: "تم التحديث بنجاح",
-                description: `تم تحديث بيانات التلميذ ${data.firstName} ${data.lastName}.`,
-            });
-        } else {
-            addDocumentNonBlocking(collection(firestore, 'students'), finalData);
-            toast({
-                title: "تم الحفظ بنجاح",
-                description: `تمت إضافة التلميذ ${data.firstName} ${data.lastName}.`,
-            });
-        }
+        const studentDocRef = doc(firestore, 'students', student.id);
+        setDocumentNonBlocking(studentDocRef, finalData, { merge: true });
+        toast({
+            title: "تم التحديث بنجاح",
+            description: `تم تحديث بيانات التلميذ ${data.firstName} ${data.lastName}.`,
+        });
         onOpenChange(false);
     };
 
+    const onBulkSubmit = async (data: BulkStudentFormValues) => {
+        const batch = writeBatch(firestore);
+        data.students.forEach(studentData => {
+            const nameParts = studentData.fullName.trim().split(/\s+/);
+            const lastName = nameParts[0] || '';
+            const firstName = nameParts.slice(1).join(' ') || '';
+
+            if(firstName && lastName) {
+                const newStudentRef = doc(collection(firestore, 'students'));
+                const newStudentPayload = {
+                    lastName,
+                    firstName,
+                    gender: studentData.gender,
+                    dateOfBirth: studentData.dateOfBirth || '',
+                    institutionId: data.institutionId,
+                    level: data.level,
+                    status: data.status,
+                    departmentId: null // Bulk add doesn't assign department
+                };
+                batch.set(newStudentRef, newStudentPayload);
+            }
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "تم الحفظ بنجاح",
+                description: `تمت إضافة ${data.students.length} تلميذ/تلاميذ بنجاح.`,
+            });
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Error bulk adding students:", error);
+            toast({ title: "خطأ", description: "حدث خطأ أثناء إضافة التلاميذ.", variant: "destructive" });
+        }
+    };
+    
+    if (!open) return null;
+
+    // EDIT MODE
+    if (student) {
+        return (
+            <Dialog open={open} onOpenChange={onOpenChange}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>تعديل بيانات التلميذ</DialogTitle>
+                        <DialogDescription>
+                           قم بتحديث التفاصيل أدناه.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form {...singleForm}>
+                        <form onSubmit={singleForm.handleSubmit(onSingleSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                            <FormField control={singleForm.control} name="lastName" render={({ field }) => (<FormItem><FormLabel>اللقب</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="firstName" render={({ field }) => (<FormItem><FormLabel>الإسم</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="dateOfBirth" render={({ field }) => (<FormItem><FormLabel>تاريخ الميلاد</FormLabel><FormControl><Input {...field} type="date" /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="gender" render={({ field }) => (<FormItem><FormLabel>الجنس</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الجنس" /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">ذكر</SelectItem><SelectItem value="female">أنثى</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="level" render={({ field }) => (<FormItem><FormLabel>المستوى</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="departmentId" render={({ field }) => (<FormItem><FormLabel>القسم (اختياري)</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ''}><FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl><SelectContent><SelectItem value="___none___">بلا قسم</SelectItem>{departments?.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <DialogFooter className="col-span-1 md:col-span-2">
+                                <Button type="submit">حفظ التعديلات</Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
+        );
+    }
+    
+    // ADD MODE
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg">
+             <DialogContent className="sm:max-w-4xl">
                 <DialogHeader>
-                    <DialogTitle>{student ? 'تعديل بيانات التلميذ' : 'إضافة تلميذ جديد'}</DialogTitle>
+                    <DialogTitle>إضافة تلاميذ جدد</DialogTitle>
                     <DialogDescription>
-                       {student ? 'قم بتحديث التفاصيل أدناه.' : 'أدخل تفاصيل التلميذ الجديد هنا. انقر على "حفظ" عند الانتهاء.'}
+                        أضف تلميذاً أو أكثر. سيتم تطبيق البيانات المشتركة (المؤسسة، المستوى) على جميع التلاميذ في هذه القائمة.
                     </DialogDescription>
                 </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-                        <FormField
-                            control={form.control}
-                            name="lastName"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>اللقب</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="firstName"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>الإسم</FormLabel>
-                                    <FormControl><Input {...field} /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="dateOfBirth"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>تاريخ الميلاد</FormLabel>
-                                    <FormControl><Input {...field} type="date" /></FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="gender"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>الجنس</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر الجنس" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="male">ذكر</SelectItem>
-                                            <SelectItem value="female">أنثى</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="level"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>المستوى</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                                            <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                                            <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                                            <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                                            <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="institutionId"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>المؤسسة</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="status"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>الحالة</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="active">يمارس</SelectItem>
-                                            <SelectItem value="exempt">معفي</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="departmentId"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>القسم (اختياري)</FormLabel>
-                                     <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="___none___">بلا قسم</SelectItem>
-                                            {departments?.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <DialogFooter className="col-span-1 md:col-span-2">
-                            <Button type="submit">{student ? 'حفظ التعديلات' : 'حفظ التلميذ'}</Button>
+                <Form {...bulkForm}>
+                    <form onSubmit={bulkForm.handleSubmit(onBulkSubmit)} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
+                           <FormField control={bulkForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة (مشترك)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                           <FormField control={bulkForm.control} name="level" render={({ field }) => (<FormItem><FormLabel>المستوى (مشترك)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                           <FormField control={bulkForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة (مشترك)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                        </div>
+
+                        <ScrollArea className="h-60 w-full rounded-md border p-4">
+                            <div className="space-y-4">
+                               {fields.map((field, index) => (
+                                   <div key={field.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 items-start border-b pb-4">
+                                       <FormField
+                                            control={bulkForm.control}
+                                            name={`students.${index}.fullName`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>الاسم الكامل</FormLabel>
+                                                    <FormControl><Input placeholder="اللقب ثم الإسم" {...field} /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={bulkForm.control}
+                                            name={`students.${index}.gender`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>الجنس</FormLabel>
+                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                                        <SelectContent><SelectItem value="male">ذكر</SelectItem><SelectItem value="female">أنثى</SelectItem></SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={bulkForm.control}
+                                            name={`students.${index}.dateOfBirth`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>تاريخ الميلاد</FormLabel>
+                                                    <FormControl><Input type="date" {...field} /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <Button type="button" variant="ghost" size="icon" className="text-red-500 mt-8" onClick={() => remove(index)}>
+                                           <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                   </div>
+                               ))}
+                            </div>
+                        </ScrollArea>
+                         <Button type="button" variant="outline" onClick={() => append({ fullName: '', gender: 'male', dateOfBirth: '' })}>
+                           <PlusCircle className="me-2 h-4 w-4" /> إضافة تلميذ آخر
+                        </Button>
+
+                        <DialogFooter>
+                            <Button type="submit" disabled={bulkForm.formState.isSubmitting}>حفظ التلاميذ</Button>
                         </DialogFooter>
                     </form>
                 </Form>
