@@ -1,6 +1,5 @@
 
 
-
 export type Student = {
   id: string;
   studentId: string;
@@ -97,7 +96,7 @@ export type EvaluationCriteria = {
     indicators: string[];
     maxScore: number;
     semester: string;
-    userId: string;
+    userId?: string;
 };
 
 export type Evaluation = {
