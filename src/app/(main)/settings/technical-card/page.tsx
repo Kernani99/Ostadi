@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +73,36 @@ const formSections = {
     },
 };
 
+// Component for the print layout
+const PrintView = ({ profileData }: { profileData: TechnicalCardFormValues | null }) => {
+    if (!profileData) return null;
+
+    return (
+        <div id="print-section" className="hidden print:block font-body print:p-8">
+            {Object.entries(formSections).map(([sectionTitle, fields]) => (
+                <div key={sectionTitle} className="bg-white p-8 rounded-xl mb-8 page-break-inside-avoid">
+                    <h2 className="text-center text-xl font-bold text-primary mb-8">{sectionTitle}</h2>
+                    <div className="space-y-6">
+                        {Object.entries(fields).map(([fieldName, fieldLabel]) => {
+                            const value = profileData[fieldName as keyof TechnicalCardFormValues];
+                            const displayValue = fieldName.toLowerCase().includes('date') && value ? new Date(value).toLocaleDateString('fr-CA') : value;
+                            return (
+                                <div key={fieldName}>
+                                    <p className="text-sm text-gray-500 mb-1 text-right font-semibold">{fieldLabel}</p>
+                                    <div className="w-full bg-gray-50 border border-gray-200 rounded-md p-2.5 text-right min-h-[40px] text-gray-900">
+                                        {displayValue || <>&nbsp;</>}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
 export default function TechnicalCardPage() {
     const { toast } = useToast();
     const firestore = useFirestore();
@@ -97,7 +127,6 @@ export default function TechnicalCardPage() {
             toast({ title: "خطأ", description: "لا يمكن حفظ البيانات. المستخدم غير معروف.", variant: "destructive" });
             return;
         }
-        // Sanitize data: replace undefined with empty strings
         const sanitizedData = Object.fromEntries(
             Object.entries(data).map(([key, value]) => [key, value === undefined ? '' : value])
         );
@@ -127,75 +156,82 @@ export default function TechnicalCardPage() {
         <div className="container mx-auto p-4">
              <style>{`
                 @media print {
-                    body * {
-                        visibility: hidden;
+                    @page {
+                        size: A4;
+                        margin: 0;
                     }
-                    #print-section, #print-section * {
-                        visibility: visible;
-                    }
-                    #print-section {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        right: 0;
+                    body {
+                        background-color: #f1f5f9 !important; /* slate-100 */
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
                     }
                     .no-print {
-                        display: none;
+                        display: none !important;
+                    }
+                    .page-break-inside-avoid {
+                        page-break-inside: avoid;
+                    }
+                    #print-section {
+                        display: block !important;
                     }
                 }
             `}</style>
 
-            <div className="flex flex-col items-center gap-2 mb-6 no-print">
-                <h1 className="font-bold text-3xl text-center text-primary relative">
-                البطاقة الفنية للأستاذ
-                <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
-                </h1>
+            <div className="no-print">
+                <div className="flex flex-col items-center gap-2 mb-6">
+                    <h1 className="font-bold text-3xl text-center text-primary relative">
+                    البطاقة الفنية للأستاذ
+                    <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
+                    </h1>
+                </div>
+                
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                        {Object.entries(formSections).map(([sectionTitle, fields]) => (
+                            <Card key={sectionTitle} className="shadow-md">
+                                <CardHeader>
+                                    <CardTitle className="text-primary">{sectionTitle}</CardTitle>
+                                </CardHeader>
+                                <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {Object.entries(fields).map(([fieldName, fieldLabel]) => (
+                                        <FormField
+                                            key={fieldName}
+                                            control={form.control}
+                                            name={fieldName as keyof TechnicalCardFormValues}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>{fieldLabel}</FormLabel>
+                                                    <FormControl>
+                                                        <Input 
+                                                            placeholder={fieldLabel} {...field} 
+                                                            type={fieldName.toLowerCase().includes('date') ? 'date' : fieldName === 'email' ? 'email' : 'text'}
+                                                            value={field.value ?? ''}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    ))}
+                                </CardContent>
+                            </Card>
+                        ))}
+
+                        <div className="flex justify-end gap-4">
+                            <Button type="button" variant="outline" onClick={handlePrint}>
+                                <Printer className="me-2" />
+                                طباعة
+                            </Button>
+                            <Button type="submit" className="bg-accent text-accent-foreground hover:bg-accent/90">
+                                {form.formState.isSubmitting ? <Loader2 className="animate-spin me-2" /> : null}
+                                حفظ المعلومات
+                            </Button>
+                        </div>
+                    </form>
+                </Form>
             </div>
             
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8" id="print-section">
-                     {Object.entries(formSections).map(([sectionTitle, fields]) => (
-                        <Card key={sectionTitle} className="shadow-md">
-                            <CardHeader>
-                                <CardTitle className="text-primary">{sectionTitle}</CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {Object.entries(fields).map(([fieldName, fieldLabel]) => (
-                                    <FormField
-                                        key={fieldName}
-                                        control={form.control}
-                                        name={fieldName as keyof TechnicalCardFormValues}
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>{fieldLabel}</FormLabel>
-                                                <FormControl>
-                                                    <Input 
-                                                        placeholder={fieldLabel} {...field} 
-                                                        type={fieldName.toLowerCase().includes('date') ? 'date' : fieldName === 'email' ? 'email' : 'text'}
-                                                        value={field.value ?? ''}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                ))}
-                            </CardContent>
-                        </Card>
-                    ))}
-
-                    <div className="flex justify-end gap-4 no-print">
-                        <Button type="button" variant="outline" onClick={handlePrint}>
-                            <Printer className="me-2" />
-                            طباعة
-                        </Button>
-                        <Button type="submit" className="bg-accent text-accent-foreground hover:bg-accent/90">
-                            {form.formState.isSubmitting ? <Loader2 className="animate-spin me-2" /> : null}
-                            حفظ المعلومات
-                        </Button>
-                    </div>
-                </form>
-            </Form>
+            <PrintView profileData={profileData} />
         </div>
     );
 }
