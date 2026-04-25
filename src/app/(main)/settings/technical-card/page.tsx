@@ -92,7 +92,7 @@ const PrintView = ({ profileData }: { profileData: TechnicalCardFormValues | nul
             <table className="w-full border-collapse border border-gray-400">
                 <tbody>
                     {allFields.map((item, index) => {
-                        if (item.isHeader) {
+                        if ('title' in item) {
                             return (
                                 <tr key={`header-${index}`}>
                                     <td colSpan={2} className="bg-gray-200 p-2 font-bold text-center text-base">{item.title}</td>
