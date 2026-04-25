@@ -1,8 +1,8 @@
-
 'use client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,18 +25,20 @@ function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChang
   const [name, setName] = useState('');
   const [municipality, setMunicipality] = useState('');
   const [type, setType] = useState('');
+  const {toast} = useToast();
 
   const handleSubmit = async () => {
     if (!user) {
-        alert('يجب تسجيل الدخول لإضافة مؤسسة.');
+        toast({title: 'خطأ', description: 'يجب تسجيل الدخول لإضافة مؤسسة.', variant: 'destructive'});
         return;
     }
     if (!name || !municipality || !type) {
-      alert('الرجاء إدخال اسم المؤسسة، البلدية، ونوع المؤسسة.');
+      toast({title: 'بيانات ناقصة', description: 'الرجاء إدخال اسم المؤسسة، البلدية، ونوع المؤسسة.', variant: 'destructive'});
       return;
     }
     const institutionsRef = collection(firestore, 'institutions');
-    addDocumentNonBlocking(institutionsRef, { name, municipality, type, userId: user.uid });
+    await addDocumentNonBlocking(institutionsRef, { name, municipality, type, userId: user.uid });
+    toast({title: 'تم الحفظ', description: `تمت إضافة مؤسسة ${name} بنجاح.`, variant: 'success'});
     setName('');
     setMunicipality('');
     setType('');
@@ -96,12 +98,19 @@ export default function SettingsPage() {
   const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: institutions, isLoading } = useCollection<Institution>(institutionsQuery);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [institutionToDelete, setInstitutionToDelete] = useState<Institution | null>(null);
 
-  const handleDelete = (id: string) => {
-    if (confirm('هل أنت متأكد من أنك تريد حذف هذه المؤسسة؟')) {
-        const institutionDocRef = doc(firestore, 'institutions', id);
-        deleteDocumentNonBlocking(institutionDocRef);
-    }
+  const handleDelete = (inst: Institution) => {
+    setInstitutionToDelete(inst);
+  };
+  
+  const confirmDelete = () => {
+      if (!institutionToDelete) return;
+      const institutionDocRef = doc(firestore, 'institutions', institutionToDelete.id);
+      deleteDocumentNonBlocking(institutionDocRef).then(() => {
+        toast({title: 'تم الحذف', description: `تم حذف مؤسسة ${institutionToDelete.name} بنجاح.`, variant: 'success'});
+      });
+      setInstitutionToDelete(null);
   }
 
   const handleExport = () => {
@@ -181,7 +190,7 @@ export default function SettingsPage() {
                     <TableCell>{inst.municipality}</TableCell>
                     <TableCell>{inst.type || 'غير محدد'}</TableCell>
                     <TableCell className="text-center">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(inst.id)} className="text-red-600 hover:text-red-700">
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(inst)} className="text-red-600 hover:text-red-700">
                         <Trash2 className="h-5 w-5" />
                       </Button>
                     </TableCell>
@@ -192,8 +201,22 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      
+      <AlertDialog open={!!institutionToDelete} onOpenChange={(open) => !open && setInstitutionToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>هل أنت متأكد من الحذف؟</AlertDialogTitle>
+                <AlertDialogDescription>
+                    سيؤدي هذا إلى حذف مؤسسة "{institutionToDelete?.name}" بشكل دائم. لا يمكن التراجع عن هذا الإجراء.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setInstitutionToDelete(null)}>إلغاء</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">تأكيد الحذف</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
-
-    
