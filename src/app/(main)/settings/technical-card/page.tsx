@@ -77,27 +77,40 @@ const formSections = {
 const PrintView = ({ profileData }: { profileData: TechnicalCardFormValues | null }) => {
     if (!profileData) return null;
 
+    const allFields = Object.entries(formSections).flatMap(([sectionTitle, fields]) => [
+        { isHeader: true, title: sectionTitle },
+        ...Object.entries(fields).map(([fieldName, fieldLabel]) => ({
+            isHeader: false,
+            label: fieldLabel,
+            value: profileData[fieldName as keyof TechnicalCardFormValues]
+        }))
+    ]);
+
     return (
-        <div id="print-section" className="hidden print:block font-body print:p-8">
-            {Object.entries(formSections).map(([sectionTitle, fields]) => (
-                <div key={sectionTitle} className="bg-white p-8 rounded-xl mb-8 page-break-inside-avoid">
-                    <h2 className="text-center text-xl font-bold text-primary mb-8">{sectionTitle}</h2>
-                    <div className="space-y-6">
-                        {Object.entries(fields).map(([fieldName, fieldLabel]) => {
-                            const value = profileData[fieldName as keyof TechnicalCardFormValues];
-                            const displayValue = fieldName.toLowerCase().includes('date') && value ? new Date(value).toLocaleDateString('fr-CA') : value;
+        <div id="print-section" className="hidden print:block font-body bg-white text-black">
+            <h1 className="text-center text-lg font-bold mb-4">البطاقة الفنية للأستاذ</h1>
+            <table className="w-full border-collapse border border-gray-400">
+                <tbody>
+                    {allFields.map((item, index) => {
+                        if (item.isHeader) {
                             return (
-                                <div key={fieldName}>
-                                    <p className="text-sm text-gray-500 mb-1 text-right font-semibold">{fieldLabel}</p>
-                                    <div className="w-full bg-gray-50 border border-gray-200 rounded-md p-2.5 text-right min-h-[40px] text-gray-900">
-                                        {displayValue || <>&nbsp;</>}
-                                    </div>
-                                </div>
+                                <tr key={`header-${index}`}>
+                                    <td colSpan={2} className="bg-gray-200 p-2 font-bold text-center text-base">{item.title}</td>
+                                </tr>
                             );
-                        })}
-                    </div>
-                </div>
-            ))}
+                        }
+                        const displayValue = (item.label?.toLowerCase().includes('date') && item.value) 
+                            ? new Date(item.value).toLocaleDateString('fr-CA') 
+                            : item.value;
+                        return (
+                            <tr key={`field-${index}`}>
+                                <td className="border border-gray-300 p-2 font-semibold w-1/3">{item.label}</td>
+                                <td className="border border-gray-300 p-2">{displayValue || ''}</td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
         </div>
     );
 };
@@ -157,22 +170,25 @@ export default function TechnicalCardPage() {
              <style>{`
                 @media print {
                     @page {
-                        size: A4;
-                        margin: 0;
+                        size: A4 portrait;
+                        margin: 1cm;
                     }
                     body {
-                        background-color: #f1f5f9 !important; /* slate-100 */
+                        background-color: #fff !important;
                         -webkit-print-color-adjust: exact;
                         print-color-adjust: exact;
                     }
                     .no-print {
                         display: none !important;
                     }
-                    .page-break-inside-avoid {
-                        page-break-inside: avoid;
-                    }
                     #print-section {
                         display: block !important;
+                    }
+                    table {
+                        font-size: 10pt; /* Smaller font for printing */
+                    }
+                    tr {
+                        page-break-inside: avoid;
                     }
                 }
             `}</style>
