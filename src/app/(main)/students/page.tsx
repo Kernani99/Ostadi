@@ -1,11 +1,12 @@
+
 'use client';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser } from "@/firebase";
 import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer, PlusCircle } from "lucide-react";
-import { collection, doc, writeBatch } from "firebase/firestore";
+import { collection, doc, query, where, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
 import type { Student, Department, Institution } from "@/lib/types";
@@ -81,10 +82,11 @@ interface StudentFormProps {
 
 const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
-    const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
+    const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
     const { data: institutions } = useCollection<Institution>(institutionsQuery);
-    const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
+    const departmentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)) : null, [firestore, user]);
     const { data: departments } = useCollection<Department>(departmentsQuery);
 
     // Form for single student (edit)
@@ -131,10 +133,11 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     }, [student, open, singleForm, bulkForm]);
 
     const onSingleSubmit = (data: StudentFormValues) => {
-        if (!student) return;
+        if (!student || !user) return;
         const finalData = {
             ...data,
-            departmentId: data.departmentId === '___none___' ? null : data.departmentId
+            departmentId: data.departmentId === '___none___' ? null : data.departmentId,
+            userId: user.uid,
         };
         const studentDocRef = doc(firestore, 'students', student.id);
         setDocumentNonBlocking(studentDocRef, finalData, { merge: true });
@@ -146,6 +149,11 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     };
 
     const onBulkSubmit = async (data: BulkStudentFormValues) => {
+        if (!user) {
+            toast({ title: "غير مصرح به", description: "يجب تسجيل الدخول لإضافة التلاميذ.", variant: "destructive" });
+            return;
+        }
+
         const batch = writeBatch(firestore);
         data.students.forEach(studentData => {
             const nameParts = studentData.fullName.trim().split(/\s+/);
@@ -162,7 +170,8 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                     institutionId: data.institutionId,
                     level: data.level,
                     status: data.status,
-                    departmentId: null // Bulk add doesn't assign department
+                    departmentId: null, // Bulk add doesn't assign department
+                    userId: user.uid,
                 };
                 batch.set(newStudentRef, newStudentPayload);
             }
@@ -375,10 +384,11 @@ function PrintDialog({ open, onOpenChange, institutions }: { open: boolean, onOp
 
 export default function StudentsPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
-  const studentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore]);
+  const studentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'students'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
-  const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
+  const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: institutions } = useCollection<Institution>(institutionsQuery);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -525,7 +535,10 @@ export default function StudentsPage() {
 
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) {
+        toast({ title: "غير مصرح به", description: "يجب تسجيل الدخول لاستيراد التلاميذ.", variant: "destructive" });
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -550,6 +563,7 @@ export default function StudentsPage() {
                     level: row['المستوى'] || '',
                     institutionId: institutionsMapByName.get(String(row['المؤسسة'] || '').toLowerCase()) || '',
                     status: (row['الحالة'] === 'يمارس' ? 'active' : (row['الحالة'] === 'معفي' ? 'exempt' : 'active')),
+                    userId: user.uid,
                 };
 
                 if (studentData.firstName && studentData.lastName && studentData.institutionId) {

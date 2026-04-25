@@ -31,6 +31,7 @@ const getWeeksOfMonth = (date: Date) => {
 
 function AttendanceRegistration() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
 
     // State for filters and date
@@ -41,17 +42,18 @@ function AttendanceRegistration() {
 
     // Fetching data from Firestore
     const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-        useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+        useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
     );
     
     const studentsQuery = useMemoFirebase(() => 
-        firestore && selectedInstitution && selectedLevel ? 
+        firestore && selectedInstitution && selectedLevel && user ? 
         query(
             collection(firestore, 'students'), 
             where('institutionId', '==', selectedInstitution),
-            where('level', '==', selectedLevel)
+            where('level', '==', selectedLevel),
+            where('userId', '==', user.uid)
         ) : null
-    , [firestore, selectedInstitution, selectedLevel]);
+    , [firestore, selectedInstitution, selectedLevel, user]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
     const filteredStudents = useMemo(() => {
@@ -65,8 +67,8 @@ function AttendanceRegistration() {
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const attendanceQuery = useMemoFirebase(() =>
-        firestore && studentIds.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', '==', monthStr)) : null
-    , [firestore, studentIds, monthStr]);
+        firestore && user && studentIds.length > 0 ? query(collection(firestore, 'attendances'), where('studentId', 'in', studentIds), where('month', '==', monthStr), where('userId', '==', user.uid)) : null
+    , [firestore, user, studentIds, monthStr]);
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
     
     // Memoize processed attendance data for performance
@@ -94,7 +96,7 @@ function AttendanceRegistration() {
     };
 
     const handleAttendanceChange = async (student: Student, week: number, session: 1 | 2, status: string) => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
         const studentId = student.id;
         
         const attendanceId = `${studentId}_${monthStr}`;
@@ -112,6 +114,7 @@ function AttendanceRegistration() {
                 records: newRecords,
                 institutionId: student.institutionId,
                 level: student.level,
+                userId: user.uid,
             }, { merge: true });
 
              toast({
@@ -130,7 +133,7 @@ function AttendanceRegistration() {
     };
     
     const handleMarkAll = async (week: number, session: 1 | 2, status: string) => {
-        if (!firestore || !students || students.length === 0) {
+        if (!firestore || !students || students.length === 0 || !user) {
             toast({ title: "لا يوجد تلاميذ لتسجيل حضورهم", variant: "destructive" });
             return;
         }
@@ -155,6 +158,7 @@ function AttendanceRegistration() {
                 records: newRecords,
                 institutionId: student.institutionId,
                 level: student.level,
+                userId: user.uid,
             }, { merge: true });
         });
 
@@ -476,14 +480,14 @@ function AttendanceReports() {
     const [isLoading, setIsLoading] = useState(false);
 
     const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-        useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+        useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
     );
 
     const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
     
     const handleGenerateReport = async () => {
-        if (!selectedInstitution || !firestore) {
+        if (!selectedInstitution || !firestore || !user) {
              toast({ title: "الرجاء اختيار المؤسسة أولاً", variant: "destructive" });
             return;
         }
@@ -491,14 +495,15 @@ function AttendanceReports() {
         setIsLoading(true);
         const monthStr = format(currentDate, 'yyyy-MM');
         
-        const studentsQuery = query(collection(firestore, 'students'), where('institutionId', '==', selectedInstitution));
+        const studentsQuery = query(collection(firestore, 'students'), where('institutionId', '==', selectedInstitution), where('userId', '==', user.uid));
         const studentsSnapshot = await getDocs(studentsQuery);
         const allStudentsInInst = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
 
         const attendanceQuery = query(
             collection(firestore, 'attendances'), 
             where('institutionId', '==', selectedInstitution),
-            where('month', '==', monthStr)
+            where('month', '==', monthStr),
+            where('userId', '==', user.uid)
         );
         const attendanceSnapshot = await getDocs(attendanceQuery);
         const allAttendancesInMonth = attendanceSnapshot.docs.map(doc => doc.data() as Attendance);
@@ -721,4 +726,23 @@ export default function AttendancePage() {
         <div className="container mx-auto p-4 space-y-6">
             <div className="flex flex-col items-center gap-2">
                 <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحض
+                المناداة (الحضور والغياب)
+                <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
+                </h1>
+            </div>
+            
+            <Tabs defaultValue="registration" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="registration"><Clock className="me-2 h-4 w-4"/>التسجيل اليومي</TabsTrigger>
+                    <TabsTrigger value="reports"><BarChart3 className="me-2 h-4 w-4"/>التقارير</TabsTrigger>
+                </TabsList>
+                <TabsContent value="registration">
+                   <AttendanceRegistration />
+                </TabsContent>
+                <TabsContent value="reports">
+                   <AttendanceReports />
+                </TabsContent>
+            </Tabs>
+        </div>
+    )
+}

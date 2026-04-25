@@ -7,7 +7,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser } from "@/firebase";
 import { collection, doc, query, where, writeBatch, getDocs, updateDoc } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Department, Institution } from "@/lib/types";
@@ -36,7 +36,8 @@ type DepartmentFormValues = z.infer<typeof departmentSchema>;
 // Component to add a new department
 function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
     const firestore = useFirestore();
-    const { data: institutions } = useCollection<Institution>(useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]));
+    const { user } = useUser();
+    const { data: institutions } = useCollection<Institution>(useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)): null, [firestore, user]));
     const { toast } = useToast();
     const [selectedLevel, setSelectedLevel] = useState('');
     const [selectedInstitution, setSelectedInstitution] = useState('');
@@ -47,17 +48,18 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     });
     
     const unassignedStudentsQuery = useMemoFirebase(() => {
-        if (!firestore || !selectedLevel || !selectedInstitution) return null;
+        if (!firestore || !selectedLevel || !selectedInstitution || !user) return null;
         return query(
           collection(firestore, 'students'),
           where('institutionId', '==', selectedInstitution),
-          where('level', '==', selectedLevel)
+          where('level', '==', selectedLevel),
+          where('userId', '==', user.uid)
         );
-      }, [firestore, selectedLevel, selectedInstitution]);
+      }, [firestore, selectedLevel, selectedInstitution, user]);
 
     const { data: studentsFromLevel, isLoading: isLoadingStudents } = useCollection<Student>(unassignedStudentsQuery);
 
-     const allDepartmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore]);
+     const allDepartmentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)): null, [firestore, user]);
      const { data: allDepartments } = useCollection<Department>(allDepartmentsQuery);
 
     const unassignedStudents = useMemo(() => {
@@ -76,12 +78,12 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
     }, [open, form]);
 
     const onSubmit = async (data: DepartmentFormValues) => {
-        if (!firestore) return;
+        if (!firestore || !user) return;
         const batch = writeBatch(firestore);
         
         // 1. Create the new department
         const newDeptRef = doc(collection(firestore, 'departments'));
-        batch.set(newDeptRef, { name: data.name, institutionId: data.institutionId, level: data.level });
+        batch.set(newDeptRef, { name: data.name, institutionId: data.institutionId, level: data.level, userId: user.uid });
 
         // 2. Update the selected students to assign them to the new department
         if (data.studentIds && data.studentIds.length > 0) {
@@ -406,11 +408,12 @@ export default function DepartmentsPage() {
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [institutionFilter, setInstitutionFilter] = useState('all');
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
 
-  const { data: institutions, isLoading: isLoadingInstitutions } = useCollection<Institution>(useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]));
-  const { data: departments, isLoading: isLoadingDepartments } = useCollection<Department>(useMemoFirebase(() => collection(firestore, 'departments'), [firestore]));
-  const { data: allStudents } = useCollection<Student>(useMemoFirebase(() => collection(firestore, 'students'), [firestore]));
+  const { data: institutions, isLoading: isLoadingInstitutions } = useCollection<Institution>(useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]));
+  const { data: departments, isLoading: isLoadingDepartments } = useCollection<Department>(useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)) : null, [firestore, user]));
+  const { data: allStudents } = useCollection<Student>(useMemoFirebase(() => user ? query(collection(firestore, 'students'), where('userId', '==', user.uid)) : null, [firestore, user]));
   
   const institutionMap = useMemo(() => {
     return new Map(institutions?.map(i => [i.id, i.name]));
@@ -683,5 +686,3 @@ export default function DepartmentsPage() {
     </div>
   );
 }
-
-    
