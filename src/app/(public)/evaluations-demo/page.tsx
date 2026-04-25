@@ -225,6 +225,7 @@ function EvaluationDemoPage() {
             toast({
                 title: 'تمت الإضافة',
                 description: `تمت إضافة ${studentsToAdd.length} تلميذ/تلاميذ بنجاح.`,
+                variant: 'success'
             });
         }
     };
@@ -332,6 +333,7 @@ function EvaluationDemoPage() {
                     toast({
                         title: "تم الاستيراد بنجاح",
                         description: `تم استيراد ${importedStudents.length} تلميذ/تلاميذ من مستوى "${level}".`,
+                        variant: 'success'
                     });
                 } else {
                     toast({
@@ -441,5 +443,3 @@ export default function Page() {
         </Suspense>
     );
 }
-
-    

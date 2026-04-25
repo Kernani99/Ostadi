@@ -95,7 +95,7 @@ function AddDepartmentForm({ open, onOpenChange }: { open: boolean, onOpenChange
         
         await batch.commit();
 
-        toast({ title: "تم الحفظ بنجاح", description: `تمت إضافة القسم ${data.name} وتعيين ${data.studentIds?.length || 0} تلميذ/ة.` });
+        toast({ title: "تم الحفظ بنجاح", description: `تمت إضافة القسم ${data.name} وتعيين ${data.studentIds?.length || 0} تلميذ/ة.`, variant: 'success' });
         onOpenChange(false);
     };
 
@@ -295,7 +295,7 @@ function EditDepartmentForm({ department, open, onOpenChange, allStudents }: { d
 
         try {
             await batch.commit();
-            toast({ title: "تم التحديث بنجاح", description: `تم تحديث بيانات القسم ${data.name}.` });
+            toast({ title: "تم التحديث بنجاح", description: `تم تحديث بيانات القسم ${data.name}.`, variant: 'success' });
             onOpenChange(false);
         } catch (error) {
             console.error("Error updating department:", error);
@@ -501,7 +501,7 @@ export default function DepartmentsPage() {
 
     try {
         await batch.commit();
-        toast({ title: "تم الحذف", description: `تم حذف القسم ${departmentToDelete.name} بنجاح.` });
+        toast({ title: "تم الحذف", description: `تم حذف القسم ${departmentToDelete.name} بنجاح.`, variant: 'success' });
     } catch (error) {
         console.error("Error deleting department:", error);
         toast({ title: "خطأ", description: "حدث خطأ أثناء حذف القسم.", variant: "destructive" });

@@ -144,6 +144,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
         toast({
             title: "تم التحديث بنجاح",
             description: `تم تحديث بيانات التلميذ ${data.firstName} ${data.lastName}.`,
+            variant: 'success'
         });
         onOpenChange(false);
     };
@@ -182,6 +183,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
             toast({
                 title: "تم الحفظ بنجاح",
                 description: `تمت إضافة ${data.students.length} تلميذ/تلاميذ بنجاح.`,
+                variant: 'success'
             });
             onOpenChange(false);
         } catch (error) {
@@ -452,7 +454,7 @@ export default function StudentsPage() {
       if (studentToDelete) {
           const studentDocRef = doc(firestore, 'students', studentToDelete.id);
           deleteDocumentNonBlocking(studentDocRef);
-          toast({ title: "تم الحذف", description: `تم حذف التلميذ ${studentToDelete.firstName} ${studentToDelete.lastName}.` });
+          toast({ title: "تم الحذف", description: `تم حذف التلميذ ${studentToDelete.firstName} ${studentToDelete.lastName}.`, variant: 'success' });
       }
       setDeleteAlertOpen(false);
       setStudentToDelete(null);
@@ -486,7 +488,7 @@ export default function StudentsPage() {
             batch.delete(studentDocRef);
         });
         batch.commit().then(() => {
-             toast({ title: "تم الحذف", description: `تم حذف ${selectedStudents.size} تلميذ/تلاميذ بنجاح.` });
+             toast({ title: "تم الحذف", description: `تم حذف ${selectedStudents.size} تلميذ/تلاميذ بنجاح.`, variant: 'success' });
              setSelectedStudents(new Set());
         }).catch(err => {
             console.error(err);
@@ -575,7 +577,7 @@ export default function StudentsPage() {
 
             if (count > 0) {
                 batch.commit().then(() => {
-                    toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ.` });
+                    toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ.`, variant: 'success' });
                 }).catch(err => {
                     console.error(err);
                     toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ. تأكد من صحة أسماء المؤسسات.", variant: "destructive" });

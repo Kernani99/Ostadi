@@ -130,7 +130,7 @@ function EvaluationTable() {
         }
 
         setScores(prev => ({ ...prev, [studentId]: newStudentScores }));
-        toast({ title: 'تم التوزيع', description: `تم توزيع النقطة ${targetTotal} على المؤشرات.` });
+        toast({ title: 'تم التوزيع', description: `تم توزيع النقطة ${targetTotal} على المؤشرات.`, variant: 'success' });
     };
 
     const calculateGrandTotal = (studentId: string) => {

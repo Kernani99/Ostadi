@@ -184,6 +184,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
         toast({
             title: 'تم التوزيع',
             description: `تم توزيع النقطة ${targetTotal} على المؤشرات بنجاح.`,
+            variant: 'success'
         });
     };
     
@@ -229,6 +230,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
             toast({
                 title: 'تم الحفظ بنجاح',
                 description: 'تم حفظ تقييمات التلاميذ.',
+                variant: 'success'
             });
         } catch (error) {
             console.error("Error saving evaluations: ", error);
@@ -426,5 +428,3 @@ export default function Page() {
         </Suspense>
     );
 }
-
-    

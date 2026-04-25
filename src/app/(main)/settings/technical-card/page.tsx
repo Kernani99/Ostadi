@@ -106,6 +106,7 @@ export default function TechnicalCardPage() {
         toast({
             title: "تم الحفظ بنجاح",
             description: "تم تحديث بيانات البطاقة الفنية.",
+            variant: "success",
         });
     }
 

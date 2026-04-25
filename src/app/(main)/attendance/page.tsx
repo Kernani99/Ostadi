@@ -120,6 +120,7 @@ function AttendanceRegistration() {
              toast({
                 title: "تم الحفظ",
                 description: `تم تسجيل حضور التلميذ للحصة ${session} من الأسبوع ${week}.`,
+                variant: 'success',
                 duration: 2000,
              });
         } catch (error) {
@@ -167,6 +168,7 @@ function AttendanceRegistration() {
             toast({
                 title: "تم التسجيل الجماعي",
                 description: `تم تسجيل كل التلاميذ كـ'${statusText}' للحصة ${session} من الأسبوع ${week}.`,
+                variant: 'success'
             });
         } catch (error) {
             console.error("Failed to batch save attendance: ", error);

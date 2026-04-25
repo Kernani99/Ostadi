@@ -103,6 +103,7 @@ export default function DailyLogPage() {
         toast({
           title: "تم الحفظ بنجاح",
           description: "تمت إضافة قيد جديد إلى الكراس اليومي.",
+          variant: 'success'
         });
         form.reset();
     } catch (error) {
@@ -171,6 +172,7 @@ export default function DailyLogPage() {
           toast({
             title: "تم الاستيراد بنجاح",
             description: `تم استيراد ${importedCount} قيد/قيود من السجل القديم.`,
+            variant: 'success'
           });
         } else {
           toast({
@@ -199,6 +201,7 @@ export default function DailyLogPage() {
     toast({
         title: "تم الحذف",
         description: "تم حذف القيد من السجل بنجاح.",
+        variant: 'success'
     });
     setLogToDelete(null);
   }
@@ -480,5 +483,3 @@ export default function DailyLogPage() {
     </div>
   );
 }
-
-    

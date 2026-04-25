@@ -75,6 +75,7 @@ export default function RegisterPage() {
       toast({
         title: "تم التسجيل بنجاح! خطوة أخيرة...",
         description: "تم إرسال رابط التفعيل إلى بريدك الإلكتروني. الرجاء التحقق منه لتفعيل حسابك قبل تسجيل الدخول.",
+        variant: 'success',
         duration: 9000,
       });
 

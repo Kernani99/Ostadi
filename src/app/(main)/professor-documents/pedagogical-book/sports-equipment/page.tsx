@@ -92,10 +92,10 @@ const EquipmentForm: FC<EquipmentFormProps> = ({ open, onOpenChange, equipment }
 
     if (equipment) {
       await setDocumentNonBlocking(doc(firestore, 'sports_equipment', equipment.id), equipmentData, { merge: true });
-      toast({ title: "تم التحديث", description: `تم تحديث ${data.name}.` });
+      toast({ title: "تم التحديث", description: `تم تحديث ${data.name}.`, variant: 'success' });
     } else {
       await addDocumentNonBlocking(collection(firestore, 'sports_equipment'), equipmentData);
-      toast({ title: "تمت الإضافة", description: `تمت إضافة ${data.name} إلى السجل.` });
+      toast({ title: "تمت الإضافة", description: `تمت إضافة ${data.name} إلى السجل.`, variant: 'success' });
     }
     onOpenChange(false);
   };
@@ -188,7 +188,7 @@ export default function SportsEquipmentPage() {
   const confirmDelete = async () => {
     if(equipmentToDelete) {
         await deleteDocumentNonBlocking(doc(firestore, 'sports_equipment', equipmentToDelete.id));
-        toast({ title: 'تم الحذف', description: `تم حذف ${equipmentToDelete.name}` });
+        toast({ title: 'تم الحذف', description: `تم حذف ${equipmentToDelete.name}`, variant: 'success' });
         setEquipmentToDelete(null);
     }
   };
@@ -212,7 +212,7 @@ export default function SportsEquipmentPage() {
       batch.delete(doc(firestore, 'sports_equipment', id));
     });
     await batch.commit();
-    toast({ title: `تم حذف ${selectedItems.size} عنصر` });
+    toast({ title: `تم حذف ${selectedItems.size} عنصر`, variant: 'success' });
     setSelectedItems(new Set());
   };
 
