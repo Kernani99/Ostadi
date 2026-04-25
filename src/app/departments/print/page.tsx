@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useCollection, useDoc, useFirestore } from "@/firebase";
+import { useCollection, useDoc, useFirestore, useUser } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import { collection, doc, query, where } from "firebase/firestore";
 import type { Student, Department, ProfessorProfile, Institution } from "@/lib/types";
@@ -11,36 +11,41 @@ import { useSearchParams } from 'next/navigation';
 
 function PrintDepartmentsContent() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const searchParams = useSearchParams();
     const institutionId = searchParams.get('institutionId');
 
     const departmentsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!user) return null;
+        const q = collection(firestore, 'departments');
+        const userQuery = where('userId', '==', user.uid);
         if (institutionId) {
-            return query(collection(firestore, 'departments'), where('institutionId', '==', institutionId));
+            return query(q, userQuery, where('institutionId', '==', institutionId));
         }
-        return collection(firestore, 'departments');
-    }, [firestore, institutionId]);
+        return query(q, userQuery);
+    }, [firestore, institutionId, user]);
     const { data: departments, isLoading: isLoadingDepts } = useCollection<Department>(departmentsQuery);
 
-    const institutionQuery = useMemoFirebase(() => institutionId ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
+    const institutionQuery = useMemoFirebase(() => institutionId && user ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId, user]);
     const { data: filteredInstitution } = useDoc<Institution>(institutionQuery);
     
     // Fetch all institutions to build a map for cases where no single institution is filtered
-    const allInstitutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
+    const allInstitutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
     const { data: allInstitutions } = useCollection<Institution>(allInstitutionsQuery);
     const institutionMap = useMemo(() => new Map(allInstitutions?.map(i => [i.id, i.name])), [allInstitutions]);
 
     const allStudentsQuery = useMemoFirebase(() => {
-      if (!firestore) return null;
+      if (!user) return null;
+      const q = collection(firestore, 'students');
+      const userQuery = where('userId', '==', user.uid);
       if (institutionId) {
-        return query(collection(firestore, 'students'), where('institutionId', '==', institutionId));
+        return query(q, userQuery, where('institutionId', '==', institutionId));
       }
-      return collection(firestore, 'students');
-    }, [firestore, institutionId]);
+      return query(q, userQuery);
+    }, [firestore, institutionId, user]);
     const { data: allStudents, isLoading: isLoadingStudents } = useCollection<Student>(allStudentsQuery);
     
-    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData, isLoading: isLoadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
 
     const studentsByDepartment = useMemo(() => {
@@ -197,3 +202,5 @@ export default function PrintDepartmentsPage() {
         </Suspense>
     );
 }
+
+    

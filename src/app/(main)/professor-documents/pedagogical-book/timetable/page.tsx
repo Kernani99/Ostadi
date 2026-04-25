@@ -49,7 +49,7 @@ export default function TimetablePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore, user]);
+  const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
   const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
   
   const timetableQuery = useMemoFirebase(() => 
@@ -268,3 +268,5 @@ export default function TimetablePage() {
     </div>
   );
 }
+
+    

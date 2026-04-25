@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useCollection, useFirestore } from '@/firebase';
+import { useCollection, useFirestore, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Student, Evaluation, EvaluationCriteria } from '@/lib/types';
 import { getCriteriaFor } from '@/lib/evaluation-criteria';
@@ -18,18 +19,21 @@ import * as XLSX from 'xlsx';
 
 function EvaluationTable({ institutionId, level, semester }: { institutionId: string; level: string; semester: string; }) {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     
     const evaluationCriteria = useMemo(() => getCriteriaFor(level, semester), [level, semester]);
 
     const studentsQuery = useMemoFirebase(() => {
+        if (!user) return null;
         return query(
             collection(firestore, 'students'),
             where('institutionId', '==', institutionId),
-            where('level', '==', level)
+            where('level', '==', level),
+            where('userId', '==', user.uid)
         );
-    }, [firestore, institutionId, level]);
+    }, [firestore, institutionId, level, user]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
     const [scores, setScores] = useState<{ [studentId: string]: { [criteriaIndicatorId: string]: number | null } }>({});
@@ -38,13 +42,14 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
 
     // Fetch existing evaluations
     const evaluationsQuery = useMemoFirebase(() => {
-       if (studentIds.length === 0) return null;
+       if (studentIds.length === 0 || !user) return null;
        return query(
            collection(firestore, 'evaluations'),
            where('studentId', 'in', studentIds),
-           where('semester', '==', semester)
+           where('semester', '==', semester),
+           where('userId', '==', user.uid)
        )
-    }, [firestore, studentIds, semester]);
+    }, [firestore, studentIds, semester, user]);
     const { data: existingEvals, isLoading: loadingEvals } = useCollection<Evaluation>(evaluationsQuery);
     
     useEffect(() => {
@@ -188,6 +193,10 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
     };
 
     const handleSaveEvaluations = async () => {
+        if (!user) {
+            toast({ title: 'خطأ', description: 'يجب تسجيل الدخول للحفظ.', variant: 'destructive'});
+            return;
+        }
         setIsSaving(true);
         const batch = writeBatch(firestore);
 
@@ -209,6 +218,7 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
                         level: level,
                         institutionId: institutionId,
                         score: score ?? null,
+                        userId: user.uid,
                     }, { merge: true });
                 });
             });
@@ -416,3 +426,5 @@ export default function Page() {
         </Suspense>
     );
 }
+
+    

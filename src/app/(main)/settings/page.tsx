@@ -6,11 +6,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser } from "@/firebase";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Institution } from "@/lib/types";
-import { collection, doc } from "firebase/firestore";
+import { collection, doc, query, where } from "firebase/firestore";
 import { PlusCircle, Trash2, CreditCard, FileDown } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -21,17 +21,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const firestore = useFirestore();
+  const { user } = useUser();
   const [name, setName] = useState('');
   const [municipality, setMunicipality] = useState('');
   const [type, setType] = useState('');
 
   const handleSubmit = async () => {
+    if (!user) {
+        alert('يجب تسجيل الدخول لإضافة مؤسسة.');
+        return;
+    }
     if (!name || !municipality || !type) {
       alert('الرجاء إدخال اسم المؤسسة، البلدية، ونوع المؤسسة.');
       return;
     }
     const institutionsRef = collection(firestore, 'institutions');
-    addDocumentNonBlocking(institutionsRef, { name, municipality, type });
+    addDocumentNonBlocking(institutionsRef, { name, municipality, type, userId: user.uid });
     setName('');
     setMunicipality('');
     setType('');
@@ -86,8 +91,9 @@ function AddInstitutionForm({ open, onOpenChange }: { open: boolean, onOpenChang
 
 export default function SettingsPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
-  const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
+  const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: institutions, isLoading } = useCollection<Institution>(institutionsQuery);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
 
@@ -103,7 +109,7 @@ export default function SettingsPage() {
       toast({ title: "لا توجد بيانات للتصدير", variant: "destructive"});
       return;
     }
-    const dataToExport = institutions.map(({ id, ...rest }) => rest);
+    const dataToExport = institutions.map(({ id, userId, ...rest }) => rest);
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "المؤسسات");
@@ -189,3 +195,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    

@@ -13,12 +13,12 @@ function PrintContent() {
     const { user } = useUser();
 
     // Fetch professor profile
-    const profileDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData, isLoading: loadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
     
     // Fetch all institutions to create a map
     const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-        useMemoFirebase(() => firestore ? collection(firestore, 'institutions') : null, [firestore])
+        useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
     );
     const institutionMap = useMemo(() => {
         return new Map(institutions?.map(i => [i.id, i.name]));
@@ -129,3 +129,5 @@ export default function DailyLogPrintPage() {
         </Suspense>
     );
 }
+
+    

@@ -1,164 +1,146 @@
 
 /**
  * @file Firestore Security Rules
- * @description This ruleset allows open read access to all collections, but restricts write access to authenticated users.
+ * @description This ruleset enforces that users can only access their own data.
  *
  * Core Philosophy:
- *  - The application prioritizes open data access for institutions, departments, students, attendance, evaluation criteria, and grades.
- *  - Write access to professor profiles may require authentication, while all other write access is prohibited in this prototyping phase.
- *
- * Data Structure:
- *  - Data is organized into top-level collections: /institutions, /departments, /students, /attendances, /evaluation_criteria, /grades and /professor_profile.
- *  - Relationships between entities are established using document IDs (e.g., studentId in Attendance documents).
+ *  - Data is owned by the user who created it, identified by a 'userId' field in each document.
+ *  - Users can only read, write, update, or delete documents that contain their own UID in the 'userId' field.
+ *  - The 'professor_profile' collection is a special case where the document ID is the user's UID.
  *
  * Key Security Decisions:
- *  - Listing of documents is generally allowed for all collections, enabling open data discovery.
- *  - Schema validation is relaxed during prototyping to enable rapid iteration.  Focus is on securing access.
- *  - The professor_profile collection may in the future require authentication for writes, but for now, it allows all authenticated users.
+ *  - All collections are protected by ownership rules. There is no public data.
+ *  - Schema validation is enforced on write operations to ensure data integrity.
  *
- * Denormalization for Authorization:
- *  - No denormalization is used in this initial ruleset, as access is primarily open.  Future iterations may introduce denormalization for more granular access control.
- *
- * Structural Segregation:
- *  - There is no structural segregation in this initial ruleset. All data is stored in top-level collections.
+ * Helper Functions:
+ *  - isSignedIn(): Checks if the user is authenticated.
+ *  - isOwner(userId): Checks if the authenticated user's UID matches the document's 'userId' field.
+ *  - isCreatingOwner(): Checks if the user is creating a document and setting themselves as the owner.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isCreatingOwner() {
+      return request.auth.uid == request.resource.data.userId;
+    }
+
     /**
-     * @description Allows any authenticated user to read and write Institution documents.
+     * @description Enforces ownership for Institution documents.
      * @path /institutions/{institutionId}
-     * @allow (read, write) Allows any authenticated user to read and write institution data.
-     * @principle Allows open data access for authenticated users.
      */
     match /institutions/{institutionId} {
-      allow read, write: if isSignedIn();
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     /**
-     * @description Allows any authenticated user to read and write Department documents.
+     * @description Enforces ownership for Department documents.
      * @path /departments/{departmentId}
-     * @allow (read, write) Allows any authenticated user to read and write department data.
-     * @principle Allows open data access for authenticated users.
      */
     match /departments/{departmentId} {
-      allow read, write: if isSignedIn();
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     /**
-     * @description Allows any authenticated user to read and write Student documents.
+     * @description Enforces ownership for Student documents.
      * @path /students/{studentId}
-     * @allow (read, write) Allows any authenticated user to read and write student data.
-     * @principle Allows open data access for authenticated users.
      */
     match /students/{studentId} {
-      allow read, write: if isSignedIn();
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     /**
-     * @description Allows any authenticated user to write Attendance documents, and anyone to read them.
+     * @description Enforces ownership for Attendance documents.
      * @path /attendances/{attendanceId}
-     * @allow (read) Allows anyone to read attendance data.
-     * @allow (write) Allows authenticated users to create, update, or delete attendance data.
-     * @principle Allows open data access for attendance records.
      */
     match /attendances/{attendanceId} {
-      allow read, write: if isSignedIn();
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     /**
-     * @description Allows anyone to read EvaluationCriteria documents. Writes are denied.
+     * @description Enforces ownership for EvaluationCriteria documents.
      * @path /evaluation_criteria/{evaluationCriteriaId}
-     * @allow (get, list) Allows anyone to read evaluation criteria data.
-     * @deny (create, update, delete) Denies anyone from creating, updating, or deleting evaluation criteria data.
-     * @principle Allows open data access for evaluation criteria.
      */
     match /evaluation_criteria/{evaluationCriteriaId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     /**
-     * @description Allows any authenticated user to read and write Evaluation documents.
+     * @description Enforces ownership for Evaluation documents.
      * @path /evaluations/{evaluationId}
-     * @allow (read, write) Allows any authenticated user to read and write evaluation data.
-     * @principle Allows authenticated users to manage student evaluations.
      */
     match /evaluations/{evaluationId} {
-        allow read, write: if isSignedIn();
+       allow create: if isSignedIn() && isCreatingOwner();
+       allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
     
     /**
-     * @description Allows authenticated users to manage their own session evaluations.
+     * @description Enforces ownership for SessionEvaluation documents.
      * @path /session_evaluations/{evaluationId}
-     * @allow (read, write) Allows an authenticated user to read and write their own session evaluations.
-     * @principle Enforces ownership for session-based evaluations.
      */
     match /session_evaluations/{evaluationId} {
-      allow read, write: if isSignedIn();
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
-
     /**
-     * @description Allows anyone to read Grade documents. Writes are denied.
+     * @description Enforces ownership for Grade documents.
      * @path /grades/{gradeId}
-     * @allow (get, list) Allows anyone to read grade data.
-     * @deny (create, update, delete) Denies anyone from creating, updating, or deleting grade data.
-     * @principle Allows open data access for grades.
      */
     match /grades/{gradeId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     /**
-     * @description Allows authenticated users to manage their own professor profiles.
+     * @description Allows users to read and write ONLY their own professor profile.
      * @path /professor_profile/{userId}
-     * @allow (read) Allows any authenticated user to read professor profile data.
-     * @allow (write) Allows an authenticated user to create, update, or delete their own profile data.
-     * @principle Enforces ownership for professor profile writes.
      */
     match /professor_profile/{userId} {
-       allow read: if isSignedIn();
-       allow write: if isSignedIn() && request.auth.uid == userId;
+       allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     /**
      * @description Allows authenticated users to manage their own daily logs.
      * @path /daily_logs/{logId}
-     * @allow (create) Allows an authenticated user to create a log if their UID matches the log's userId.
-     * @allow (read, update, delete) Allows an authenticated user to read, update or delete their own log.
-     * @principle Enforces ownership for daily logs.
      */
     match /daily_logs/{logId} {
-        allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
-        allow read, update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+        allow create: if isSignedIn() && isCreatingOwner();
+        allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
 
     /**
      * @description Allows authenticated users to manage their own sports equipment inventory.
      * @path /sports_equipment/{equipmentId}
-     * @allow (create) Allows an authenticated user to create an equipment entry if their UID matches the entry's userId.
-     * @allow (read, update, delete) Allows an authenticated user to read, update or delete their own equipment entry.
-     * @principle Enforces ownership for sports equipment data.
      */
     match /sports_equipment/{equipmentId} {
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
-      allow read, update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
     
     /**
      * @description Allows authenticated users to manage their own timetable entries.
      * @path /timetable_entries/{entryId}
-     * @allow (create, update) Allows an authenticated user to create or update an entry if their UID matches the entry's userId.
-     * @allow (read, delete) Allows an authenticated user to read or delete their own entry.
-     * @principle Enforces ownership for timetable data.
      */
     match /timetable_entries/{entryId} {
-      allow create, update: if isSignedIn() && request.auth.uid == request.resource.data.userId;
-      allow read, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow create: if isSignedIn() && isCreatingOwner();
+      allow read, update, delete: if isSignedIn() && isOwner(resource.data.userId);
     }
   }
+}
 
-  // Helper function to determine if a user is signed in.
+    

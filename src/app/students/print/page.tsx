@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useCollection, useDoc, useFirestore } from "@/firebase";
+import { useCollection, useDoc, useFirestore, useUser } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import { collection, doc, query, where, Query, DocumentData } from "firebase/firestore";
 import type { Student, Institution, ProfessorProfile } from "@/lib/types";
@@ -11,22 +11,23 @@ import { useSearchParams } from 'next/navigation';
 
 function PrintPageContent() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const searchParams = useSearchParams();
 
     const level = searchParams.get('level');
     const institutionId = searchParams.get('institutionId');
 
-    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData, isLoading: isLoadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
 
-    const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore]);
+    const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
     const { data: institutions, isLoading: isLoadingInstitutions } = useCollection<Institution>(institutionsQuery);
     
     const studentsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!firestore || !user) return null;
         let q: Query<DocumentData> = collection(firestore, 'students');
         
-        const conditions = [];
+        const conditions = [where('userId', '==', user.uid)];
         if (level && level !== 'all') {
             conditions.push(where('level', '==', level));
         }
@@ -39,7 +40,7 @@ function PrintPageContent() {
         }
 
         return q;
-    }, [firestore, level, institutionId]);
+    }, [firestore, level, institutionId, user]);
 
     const { data: students, isLoading: isLoadingStudents } = useCollection<Student>(studentsQuery);
 
@@ -200,3 +201,5 @@ export default function PrintStudentsPage() {
         </Suspense>
     );
 }
+
+    

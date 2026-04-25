@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Institution, SessionEvaluation } from "@/lib/types";
 import { collection, doc, query, where, setDoc } from "firebase/firestore";
@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 
 export default function SessionEvaluationPage() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const { toast } = useToast();
 
     const [selectedInstitution, setSelectedInstitution] = useState<string>('');
@@ -28,17 +29,18 @@ export default function SessionEvaluationPage() {
     const [isSaving, setIsSaving] = useState(false);
 
     const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-        useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+        useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
     );
     
     const studentsQuery = useMemoFirebase(() => 
-        firestore && selectedInstitution && selectedLevel ? 
+        firestore && selectedInstitution && selectedLevel && user ? 
         query(
             collection(firestore, 'students'), 
             where('institutionId', '==', selectedInstitution),
-            where('level', '==', selectedLevel)
+            where('level', '==', selectedLevel),
+            where('userId', '==', user.uid)
         ) : null
-    , [firestore, selectedInstitution, selectedLevel]);
+    , [firestore, selectedInstitution, selectedLevel, user]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
     const filteredStudents = useMemo(() => {
@@ -52,8 +54,8 @@ export default function SessionEvaluationPage() {
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const evaluationsQuery = useMemoFirebase(() =>
-        firestore && studentIds.length > 0 ? query(collection(firestore, 'session_evaluations'), where('studentId', 'in', studentIds), where('month', '==', monthStr)) : null
-    , [firestore, studentIds, monthStr]);
+        firestore && studentIds.length > 0 && user ? query(collection(firestore, 'session_evaluations'), where('studentId', 'in', studentIds), where('month', '==', monthStr), where('userId', '==', user.uid)) : null
+    , [firestore, studentIds, monthStr, user]);
     const { data: fetchedEvaluations, isLoading: loadingEvaluations } = useCollection<SessionEvaluation>(evaluationsQuery);
 
     useEffect(() => {
@@ -113,7 +115,7 @@ export default function SessionEvaluationPage() {
     };
 
     const handleSave = async () => {
-        if (!firestore || !students) return;
+        if (!firestore || !students || !user) return;
         setIsSaving(true);
         try {
             for (const student of students) {
@@ -126,7 +128,8 @@ export default function SessionEvaluationPage() {
                         month: monthStr,
                         institutionId: student.institutionId,
                         level: student.level,
-                        scores: evaluations[studentId]
+                        scores: evaluations[studentId],
+                        userId: user.uid,
                     }, { merge: true });
                 }
             }
@@ -310,3 +313,5 @@ export default function SessionEvaluationPage() {
         </div>
     );
 }
+
+    

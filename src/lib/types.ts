@@ -1,5 +1,6 @@
 
 
+
 export type Student = {
   id: string;
   studentId: string;
@@ -11,6 +12,7 @@ export type Student = {
   institutionId: string;
   status: 'active' | 'exempt';
   departmentId?: string | null; // Can be null for unassigned students
+  userId: string;
 };
 
 export type Department = {
@@ -18,6 +20,7 @@ export type Department = {
   name: string;
   institutionId: string;
   level: string;
+  userId: string;
 };
 
 export type Institution = {
@@ -25,6 +28,7 @@ export type Institution = {
   name: string;
   municipality: string;
   type?: string;
+  userId: string;
 };
 
 export type ProfessorProfile = {
@@ -82,6 +86,7 @@ export type Attendance = {
   level: string;
   month: string; // "yyyy-MM" format
   records: { [week_session: string]: 'present' | 'absent' | 'justified' | 'no-outfit' };
+  userId: string;
 };
 
 export type EvaluationCriteria = {
@@ -92,6 +97,7 @@ export type EvaluationCriteria = {
     indicators: string[];
     maxScore: number;
     semester: string;
+    userId: string;
 };
 
 export type Evaluation = {
@@ -103,6 +109,7 @@ export type Evaluation = {
     level: string;
     institutionId: string;
     score: number | null;
+    userId: string;
 };
 
 export type SessionEvaluation = {
@@ -112,6 +119,16 @@ export type SessionEvaluation = {
     institutionId: string;
     level: string;
     scores: { [date_session: string]: number | null }; // e.g., "2024-09-01_1": 8.5
+    userId: string;
+};
+
+
+export type Grade = {
+    id: string;
+    studentId: string;
+    evaluationCriteriaId: string;
+    grade: number;
+    userId: string;
 };
 
 
@@ -164,3 +181,5 @@ export type TimetableEntry = {
     timeSlot: string;
     content: string;
 };
+
+    

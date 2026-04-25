@@ -17,11 +17,16 @@
         "type": {
           "type": "string",
           "description": "Type of institution (e.g., 'ابتدائية')."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this institution."
         }
       },
       "required": [
         "name",
-        "municipality"
+        "municipality",
+        "userId"
       ]
     },
     "Department": {
@@ -36,11 +41,16 @@
         "name": {
           "type": "string",
           "description": "Name of the department."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this department."
         }
       },
       "required": [
         "institutionId",
-        "name"
+        "name",
+        "userId"
       ]
     },
     "Student": {
@@ -80,6 +90,10 @@
             "exempt"
           ],
           "description": "The student's status (active/exempt)."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this student."
         }
       },
       "required": [
@@ -88,7 +102,8 @@
         "gender",
         "level",
         "institutionId",
-        "status"
+        "status",
+        "userId"
       ]
     },
     "Attendance": {
@@ -123,6 +138,10 @@
             "type": "string",
             "enum": ["present", "absent", "justified", "no-outfit"]
           }
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns this record."
         }
       },
       "required": [
@@ -130,7 +149,8 @@
         "month",
         "records",
         "institutionId",
-        "level"
+        "level",
+        "userId"
       ]
     },
     "EvaluationCriteria": {
@@ -145,12 +165,33 @@
         "weight": {
           "type": "number",
           "description": "Weight of the evaluation criteria."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this criteria."
         }
       },
       "required": [
         "name",
-        "weight"
+        "weight",
+        "userId"
       ]
+    },
+    "Evaluation": {
+      "title": "Evaluation",
+      "type": "object",
+      "description": "Represents a student's evaluation for a specific criteria indicator.",
+      "properties": {
+        "studentId": { "type": "string" },
+        "criteriaId": { "type": "string" },
+        "indicatorId": { "type": "number" },
+        "semester": { "type": "string" },
+        "level": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "score": { "type": ["number", "null"] },
+        "userId": { "type": "string", "description": "The ID of the user who owns this evaluation." }
+      },
+      "required": ["studentId", "criteriaId", "indicatorId", "semester", "level", "institutionId", "userId"]
     },
     "Grade": {
       "title": "Grade",
@@ -168,12 +209,17 @@
         "grade": {
           "type": "number",
           "description": "The grade value."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this grade."
         }
       },
       "required": [
         "studentId",
         "evaluationCriteriaId",
-        "grade"
+        "grade",
+        "userId"
       ]
     },
     "ProfessorProfile": {
@@ -349,9 +395,13 @@
           "type": "object",
           "description": "Scores for each session, keyed by 'YYYY-MM-DD_session'.",
           "additionalProperties": { "type": ["number", "null"] }
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this evaluation."
         }
       },
-      "required": ["studentId", "month", "institutionId", "level", "scores"]
+      "required": ["studentId", "month", "institutionId", "level", "scores", "userId"]
     }
   },
   "auth": {
@@ -365,37 +415,43 @@
       "schema": {
         "$ref": "#/backend/entities/Institution"
       },
-      "description": "Stores institution data. No authentication is needed."
+      "description": "Stores institution data. Only the owner can read/write."
     },
     "/departments/{departmentId}": {
       "schema": {
         "$ref": "#/backend/entities/Department"
       },
-      "description": "Stores department data.  No authentication is needed."
+      "description": "Stores department data. Only the owner can read/write."
     },
     "/students/{studentId}": {
       "schema": {
         "$ref": "#/backend/entities/Student"
       },
-      "description": "Stores student data. No authentication is needed."
+      "description": "Stores student data. Only the owner can read/write."
     },
     "/attendances/{attendanceId}": {
       "schema": {
         "$ref": "#/backend/entities/Attendance"
       },
-      "description": "Stores attendance records. The ID is a composite of studentId and month (yyyy-MM)."
+      "description": "Stores attendance records. The ID is a composite of studentId and month (yyyy-MM). Only the owner can read/write."
     },
     "/evaluation_criteria/{evaluationCriteriaId}": {
       "schema": {
         "$ref": "#/backend/entities/EvaluationCriteria"
       },
-      "description": "Stores evaluation criteria. No authentication is needed."
+      "description": "Stores evaluation criteria. Only the owner can read/write."
+    },
+    "/evaluations/{evaluationId}": {
+        "schema": {
+            "$ref": "#/backend/entities/Evaluation"
+        },
+        "description": "Stores student evaluations for criteria indicators. Only the owner can read/write."
     },
     "/grades/{gradeId}": {
       "schema": {
         "$ref": "#/backend/entities/Grade"
       },
-      "description": "Stores grades. No authentication is needed."
+      "description": "Stores grades. Only the owner can read/write."
     },
     "/professor_profile/{userId}": {
       "schema": {
@@ -427,4 +483,7 @@
       },
       "description": "Stores session-based evaluations for students. Only the owner can read/write."
     }
-  
+  }
+}
+
+    

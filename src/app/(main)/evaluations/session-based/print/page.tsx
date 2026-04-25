@@ -3,7 +3,7 @@
 
 import { Suspense, useEffect, useMemo, Fragment } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useCollection, useDoc, useFirestore } from '@/firebase';
+import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Student, Institution, ProfessorProfile, SessionEvaluation } from '@/lib/types';
 import { collection, query, where, doc } from 'firebase/firestore';
@@ -13,6 +13,7 @@ import { ar } from 'date-fns/locale';
 
 function PrintContent() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const searchParams = useSearchParams();
 
     const institutionId = searchParams.get('institutionId');
@@ -20,23 +21,23 @@ function PrintContent() {
     const month = searchParams.get('month'); // YYYY-MM
 
     // --- Data Fetching ---
-    const profileDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData, isLoading: loadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
 
-    const institutionDocRef = useMemoFirebase(() => institutionId && firestore ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId]);
+    const institutionDocRef = useMemoFirebase(() => institutionId && user ? doc(firestore, 'institutions', institutionId) : null, [firestore, institutionId, user]);
     const { data: institution, isLoading: loadingInstitution } = useDoc<Institution>(institutionDocRef);
 
     const studentsQuery = useMemoFirebase(() => {
-        if (!firestore || !institutionId || !level) return null;
-        return query(collection(firestore, 'students'), where('institutionId', '==', institutionId), where('level', '==', level));
-    }, [firestore, institutionId, level]);
+        if (!firestore || !institutionId || !level || !user) return null;
+        return query(collection(firestore, 'students'), where('institutionId', '==', institutionId), where('level', '==', level), where('userId', '==', user.uid));
+    }, [firestore, institutionId, level, user]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
     
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const evaluationsQuery = useMemoFirebase(() =>
-        firestore && studentIds.length > 0 && month ? query(collection(firestore, 'session_evaluations'), where('studentId', 'in', studentIds), where('month', '==', month)) : null
-    , [firestore, studentIds, month]);
+        firestore && studentIds.length > 0 && month && user ? query(collection(firestore, 'session_evaluations'), where('studentId', 'in', studentIds), where('month', '==', month), where('userId', '==', user.uid)) : null
+    , [firestore, studentIds, month, user]);
     const { data: fetchedEvaluations, isLoading: loadingEvaluations } = useCollection<SessionEvaluation>(evaluationsQuery);
 
     // --- Data Processing ---
@@ -182,3 +183,5 @@ export default function PrintSessionEvaluationPage() {
         </Suspense>
     );
 }
+
+    

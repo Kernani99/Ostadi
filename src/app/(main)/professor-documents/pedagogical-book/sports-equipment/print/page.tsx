@@ -13,7 +13,7 @@ function PrintContent() {
     const { user } = useUser();
 
     // Fetch professor profile for the header
-    const profileDocRef = useMemoFirebase(() => firestore ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData, isLoading: loadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
 
     // Fetch sports equipment data for the current user
@@ -121,3 +121,5 @@ export default function SportsEquipmentPrintPage() {
         </Suspense>
     );
 }
+
+    

@@ -49,7 +49,7 @@ export default function DailyLogPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-    useMemoFirebase(() => firestore ? collection(firestore, 'institutions') : null, [firestore])
+    useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
   );
   
   const institutionsMapByName = useMemo(() => {
@@ -480,3 +480,5 @@ export default function DailyLogPage() {
     </div>
   );
 }
+
+    

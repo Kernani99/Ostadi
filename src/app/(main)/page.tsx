@@ -1,9 +1,9 @@
 
 'use client'
 import { StatCard } from "@/components/dashboard/stat-card";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser } from "@/firebase";
 import { Building, Building2, Users, PersonStanding, BarChart, LineChart } from "lucide-react";
-import { collection } from 'firebase/firestore'
+import { collection, query, where } from 'firebase/firestore'
 import { useMemoFirebase } from "@/firebase/provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -26,14 +26,15 @@ const monthlyStatsData = [
 
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
 
-  const studentsQuery = useMemoFirebase(() => collection(firestore, 'students'), [firestore])
+  const studentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'students'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: students } = useCollection(studentsQuery);
 
-  const departmentsQuery = useMemoFirebase(() => collection(firestore, 'departments'), [firestore])
+  const departmentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: departments } = useCollection(departmentsQuery);
 
-  const institutionsQuery = useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+  const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: institutions } = useCollection(institutionsQuery);
 
   const totalStudents = students?.length ?? 0;
@@ -127,3 +128,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

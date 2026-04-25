@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useCollection, useDoc, useFirestore } from "@/firebase";
+import { useCollection, useDoc, useFirestore, useUser } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import { collection, doc, query, where } from "firebase/firestore";
 import type { Student, Department, ProfessorProfile, Attendance, Institution } from "@/lib/types";
@@ -21,28 +21,29 @@ const attendanceStatusMap: { [key: string]: string } = {
 
 function PrintContent() {
     const firestore = useFirestore();
+    const { user } = useUser();
     const searchParams = useSearchParams();
     
     const departmentId = searchParams.get('departmentId');
     const month = searchParams.get('month'); // "yyyy-MM"
 
-    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData, isLoading: loadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
     
-    const departmentDocRef = useMemoFirebase(() => departmentId ? doc(firestore, 'departments', departmentId) : null, [firestore, departmentId]);
+    const departmentDocRef = useMemoFirebase(() => departmentId && user ? doc(firestore, 'departments', departmentId) : null, [firestore, departmentId, user]);
     const { data: department, isLoading: loadingDepartment } = useDoc<Department>(departmentDocRef);
 
-    const institutionDocRef = useMemoFirebase(() => department ? doc(firestore, 'institutions', department.institutionId) : null, [firestore, department]);
+    const institutionDocRef = useMemoFirebase(() => department && user ? doc(firestore, 'institutions', department.institutionId) : null, [firestore, department, user]);
     const { data: institution, isLoading: loadingInstitution } = useDoc<Institution>(institutionDocRef);
 
     const studentsQuery = useMemoFirebase(() => 
-        departmentId ? query(collection(firestore, 'students'), where('departmentId', '==', departmentId)) : null
-    , [firestore, departmentId]);
+        departmentId && user ? query(collection(firestore, 'students'), where('departmentId', '==', departmentId), where('userId', '==', user.uid)) : null
+    , [firestore, departmentId, user]);
     const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
 
     const attendanceQuery = useMemoFirebase(() =>
-        departmentId && month ? query(collection(firestore, 'attendances'), where('departmentId', '==', departmentId), where('month', '==', month)) : null
-    , [firestore, departmentId, month]);
+        departmentId && month && user ? query(collection(firestore, 'attendances'), where('departmentId', '==', departmentId), where('month', '==', month), where('userId', '==', user.uid)) : null
+    , [firestore, departmentId, month, user]);
     const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
 
     const attendanceMap = useMemo(() => {
@@ -178,3 +179,5 @@ export default function PrintAttendancePage() {
         </Suspense>
     );
 }
+
+    

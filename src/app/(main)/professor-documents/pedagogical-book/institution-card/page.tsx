@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { useCollection, useDoc, useFirestore } from '@/firebase';
+import { useCollection, useDoc, useFirestore, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Institution, Student, ProfessorProfile } from '@/lib/types';
 import { collection, query, where, doc } from 'firebase/firestore';
@@ -21,21 +21,22 @@ const DataRow = ({ label, value }: { label: string; value: string | number | und
 
 export default function InstitutionCardPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const [selectedInstitutionId, setSelectedInstitutionId] = useState<string>('');
 
   const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-    useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+    useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
   );
 
   const studentsQuery = useMemoFirebase(() =>
-    selectedInstitutionId
-      ? query(collection(firestore, 'students'), where('institutionId', '==', selectedInstitutionId))
+    selectedInstitutionId && user
+      ? query(collection(firestore, 'students'), where('institutionId', '==', selectedInstitutionId), where('userId', '==', user.uid))
       : null,
-    [firestore, selectedInstitutionId]
+    [firestore, selectedInstitutionId, user]
   );
   const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
   
-  const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+  const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
   const { data: profileData, isLoading: loadingProfile } = useDoc<ProfessorProfile>(profileDocRef);
 
   const selectedInstitution = useMemo(() =>
@@ -169,3 +170,5 @@ export default function InstitutionCardPage() {
     </div>
   );
 }
+
+    

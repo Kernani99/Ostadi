@@ -5,22 +5,23 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { useCollection, useFirestore } from '@/firebase';
+import { useCollection, useFirestore, useUser } from '@/firebase';
 import { useMemoFirebase } from '@/firebase/provider';
 import type { Institution } from '@/lib/types';
-import { collection } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function EvaluationsPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [semester, setSemester] = useState<string>('');
   const [institutionId, setInstitutionId] = useState<string>('');
   const [level, setLevel] = useState<string>('');
 
   const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
-    useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
+    useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
   );
 
   const handleStartEvaluation = () => {
@@ -118,3 +119,5 @@ export default function EvaluationsPage() {
     </div>
   );
 }
+
+    
