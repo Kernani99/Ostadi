@@ -1,8 +1,9 @@
+
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendEmailVerification } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
@@ -41,7 +42,8 @@ export function getSdks(firebaseApp: FirebaseApp) {
     // Exporting auth functions directly for convenience
     createUserWithEmailAndPassword: (email: string, pass: string) => createUserWithEmailAndPassword(auth, email, pass),
     signInWithEmailAndPassword: (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass),
-    signOut: () => signOut(auth)
+    signOut: () => signOut(auth),
+    sendEmailVerification: (user: import('firebase/auth').User) => sendEmailVerification(user)
   };
 }
 

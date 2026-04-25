@@ -1,76 +1,58 @@
+
 'use client';
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Lock, ShieldCheck } from "lucide-react";
+import Image from "next/image";
 
-const loginSchema = z.object({
-  email: z.string().email({ message: "الرجاء إدخال بريد إلكتروني صحيح." }),
-  password: z.string().min(6, { message: "يجب أن تكون كلمة المرور 6 أحرف على الأقل." }),
-});
+const AlgerianFlagIcon = () => (
+    <div className="h-12 w-12 rounded-full overflow-hidden flex items-center justify-center animate-pulse flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" className="h-full w-auto">
+            <rect width="1200" height="800" fill="#fff"/>
+            <rect width="600" height="800" fill="#006233"/>
+            <g transform="translate(600,400)">
+                <path d="M 0 -150 A 150 150 0 0 0 0 150 A 120 120 0 0 1 0 -150" fill="#d21034"/>
+                <g transform="rotate(18)">
+                    <path d="M 0 -70 L 22 -22 L 70 0 L 22 22 L 0 70 L -22 22 L -70 0 L -22 -22 Z" fill="#d21034"/>
+                </g>
+            </g>
+        </svg>
+    </div>
+);
 
-type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const auth = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
-
-  const handleAuthAction = async (data: LoginFormValues, action: 'login' | 'signup') => {
+  const handleLogin = async () => {
+    if (!email || !password) {
+      toast({ title: "خطأ", description: "الرجاء إدخال البريد الإلكتروني وكلمة المرور.", variant: "destructive" });
+      return;
+    }
     setIsLoading(true);
     try {
-      let userCredential;
-      if (action === 'login') {
-        userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-        toast({
-          title: "تم تسجيل الدخول بنجاح",
-          description: `مرحباً بك مرة أخرى.`,
-        });
-      } else {
-        userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-        toast({
-          title: "تم إنشاء الحساب بنجاح",
-          description: "تم تسجيل دخولك تلقائياً.",
-        });
-      }
-      router.push('/'); // Redirect to the main page on success
+      await signInWithEmailAndPassword(auth, email, password);
+      // The redirect logic is handled by the AuthHandler in FirebaseClientProvider
     } catch (error: any) {
-      console.error(error);
-      // More specific error messages
       let description = "حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         description = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
-      } else if (error.code === 'auth/email-already-in-use') {
-        description = "هذا البريد الإلكتروني مستخدم بالفعل. حاول تسجيل الدخول.";
       }
       toast({
-        title: action === 'login' ? "فشل تسجيل الدخول" : "فشل إنشاء الحساب",
+        title: "فشل تسجيل الدخول",
         description,
         variant: "destructive",
       });
@@ -80,57 +62,78 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">تسجيل الدخول</CardTitle>
-          <CardDescription>
-            أدخل بريدك الإلكتروني وكلمة المرور للوصول إلى حسابك.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>البريد الإلكتروني</FormLabel>
-                    <FormControl>
-                      <Input placeholder="name@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>كلمة المرور</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="********" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 sm:gap-2 pt-2">
-                 <Button onClick={form.handleSubmit((data) => handleAuthAction(data, 'login'))} disabled={isLoading} className="w-full">
-                    {isLoading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-                    تسجيل الدخول
-                </Button>
-                <Button onClick={form.handleSubmit((data) => handleAuthAction(data, 'signup'))} variant="secondary" disabled={isLoading} className="w-full">
-                    {isLoading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-                    إنشاء حساب جديد
-                </Button>
+    <div className="w-full min-h-screen grid lg:grid-cols-2">
+      <div className="hidden lg:flex flex-col items-center justify-center p-8 bg-primary text-primary-foreground">
+         <div className="w-full max-w-md mx-auto flex flex-col items-center justify-center text-center">
+            <AlgerianFlagIcon />
+           <h1 className="text-4xl font-bold mt-8">
+             المنصة الإلكترونية لإدارة التربية البدنية
+           </h1>
+           <p className="text-lg mt-4 text-primary-foreground/80">
+             نظام ذكي متكامل لتنظيم وتسيير شؤون التربية البدنية والرياضية في المدارس الابتدائية.
+           </p>
+         </div>
+      </div>
+      <div className="flex items-center justify-center p-6 bg-gray-50">
+        <div className="w-full max-w-md space-y-6">
+            <div className="text-center">
+                <div className="inline-flex items-center gap-2 rounded-full bg-accent text-accent-foreground px-3 py-1 text-sm mb-4">
+                   <ShieldCheck className="h-4 w-4" />
+                   بوابة الدخول الآمنة
+                </div>
+                <h1 className="text-3xl font-bold text-gray-900">تسجيل الدخول</h1>
+                <p className="text-muted-foreground mt-2">
+                    أدخل بيانات الاعتماد الخاصة بك للوصول إلى لوحة التحكم.
+                </p>
+            </div>
+          
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">البريد الإلكتروني</Label>
+                <div className="relative">
+                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                   <Input id="email" type="email" placeholder="email@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} className="ps-10" />
+                </div>
               </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">كلمة المرور</Label>
+                   <Link href="#" className="text-sm text-primary hover:underline">
+                    نسيت كلمة المرور؟
+                  </Link>
+                </div>
+                 <div className="relative">
+                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                   <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="ps-10" />
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={handleLogin} disabled={isLoading} className="w-full bg-primary text-white h-12 text-base">
+              {isLoading ? <Loader2 className="animate-spin" /> : "دخول للنظام"}
+              <ArrowLeft className="ms-2" />
+            </Button>
+            
+            <div className="mt-6 p-4 rounded-lg bg-accent/50 border border-accent">
+                <div className="flex flex-col items-center text-center">
+                    <h3 className="font-semibold text-accent-foreground">لا تملك حساب؟</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                        نوفر لك تسييراً متكاملاً لمدرستك مجاناً بالكامل.
+                    </p>
+                    <Link href="/register" legacyBehavior>
+                        <a className="w-full">
+                           <Button variant="outline" className="w-full bg-white hover:bg-gray-50 border-gray-300">
+                            إنشاء حساب جديد
+                          </Button>
+                        </a>
+                    </Link>
+                </div>
+            </div>
+             <p className="px-8 text-center text-sm text-muted-foreground">
+              تطوير وبرمجة: قرناني عبد الحليم
+            </p>
+        </div>
+      </div>
     </div>
-  );
+  )
 }
