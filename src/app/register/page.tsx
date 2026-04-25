@@ -59,8 +59,8 @@ export default function RegisterPage() {
 
       // Split full name into first and last name
       const nameParts = fullName.trim().split(/\s+/);
-      const firstName = nameParts.slice(0, -1).join(' ');
-      const lastName = nameParts.length > 1 ? nameParts.pop() : '';
+      const lastName = nameParts.pop() || '';
+      const firstName = nameParts.join(' ') || '';
       
       await setDoc(doc(firestore, "professor_profile", user.uid), {
         firstName,
@@ -73,23 +73,33 @@ export default function RegisterPage() {
       await sendEmailVerification(user);
 
       toast({
-        title: "تم التسجيل بنجاح!",
-        description: "تم إرسال رابط التفعيل إلى بريدك الإلكتروني. الرجاء التحقق منه لتفعيل حسابك.",
+        title: "تم التسجيل بنجاح! خطوة أخيرة...",
+        description: "تم إرسال رابط التفعيل إلى بريدك الإلكتروني. الرجاء التحقق منه لتفعيل حسابك قبل تسجيل الدخول.",
         duration: 9000,
       });
 
       router.push("/login");
     } catch (error: any) {
       let description = "حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.";
-      if (error.code === 'auth/email-already-in-use') {
-          description = "هذا البريد الإلكتروني مسجل بالفعل.";
-      } else if (error.code === 'auth/weak-password') {
-          description = "كلمة المرور يجب أن تتكون من 6 أحرف على الأقل.";
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          description = "هذا البريد الإلكتروني مسجل بالفعل. يرجى استخدام بريد آخر أو تسجيل الدخول.";
+          break;
+        case 'auth/weak-password':
+          description = "كلمة المرور ضعيفة جدًا. يجب أن تتكون من 6 أحرف على الأقل.";
+          break;
+        case 'auth/invalid-email':
+          description = "صيغة البريد الإلكتروني غير صحيحة. يرجى التأكد من إدخال بريد إلكتروني صالح.";
+          break;
+        default:
+          description = "حدث خطأ غير معروف. يرجى المحاولة مرة أخرى.";
+          console.error("Registration Error:", error); // Log the full error for debugging
       }
       toast({
-        title: "فشل التسجيل",
+        title: "فشل إنشاء الحساب",
         description: description,
         variant: "destructive",
+        duration: 5000,
       });
     } finally {
       setIsLoading(false);

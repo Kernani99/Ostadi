@@ -27,10 +27,10 @@ function AuthHandler({ children }: { children: React.ReactNode }) {
               signOut(auth as Auth); // Type assertion for safety
               router.push('/login');
               toast({
-                  title: 'البريد الإلكتروني غير مفعل',
-                  description: 'لقد تم تسجيل خروجك. الرجاء تفعيل حسابك عبر الرابط المرسل إلى بريدك الإلكتروني ثم تسجيل الدخول مجدداً.',
+                  title: 'تنبيه: الحساب يتطلب التفعيل',
+                  description: 'لقد تم تسجيل خروجك لأن حسابك لم يتم تفعيله بعد. يرجى التحقق من بريدك الإلكتروني (بما في ذلك مجلد الرسائل غير المرغوب فيها) والنقر على رابط التفعيل. ثم حاول تسجيل الدخول مرة أخرى.',
                   variant: 'destructive',
-                  duration: 8000,
+                  duration: 10000,
               });
           }
       } else if (pathIsPublic && !pathname.startsWith('/evaluations-demo')) {

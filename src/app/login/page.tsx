@@ -48,13 +48,30 @@ export default function LoginPage() {
       // The redirect logic is handled by the AuthHandler in FirebaseClientProvider
     } catch (error: any) {
       let description = "حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        description = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
+       switch (error.code) {
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          description = "البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.";
+          break;
+        case 'auth/invalid-email':
+          description = "صيغة البريد الإلكتروني غير صحيحة. يرجى التأكد من إدخال بريد إلكتروني صالح.";
+          break;
+        case 'auth/too-many-requests':
+          description = "تم حظر الوصول مؤقتًا بسبب كثرة محاولات تسجيل الدخول الفاشلة. يرجى المحاولة مرة أخرى لاحقًا.";
+          break;
+        case 'auth/user-disabled':
+          description = "تم تعطيل هذا الحساب. يرجى التواصل مع الدعم الفني.";
+          break;
+        default:
+          description = "حدث خطأ غير معروف. يرجى المحاولة مرة أخرى.";
+          console.error("Login Error:", error); // Log the full error for debugging
       }
       toast({
         title: "فشل تسجيل الدخول",
         description,
         variant: "destructive",
+        duration: 5000,
       });
     } finally {
       setIsLoading(false);
