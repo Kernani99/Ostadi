@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useDoc, useFirestore } from "@/firebase";
+import { useDoc, useFirestore, useUser } from "@/firebase";
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { doc } from "firebase/firestore";
 import { useEffect } from "react";
@@ -77,9 +76,9 @@ const formSections = {
 export default function TechnicalCardPage() {
     const { toast } = useToast();
     const firestore = useFirestore();
+    const { user } = useUser();
     
-    // Using 'main_profile' as a fixed ID for the single professor profile
-    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData, isLoading: isLoadingData } = useDoc<TechnicalCardFormValues>(profileDocRef);
 
     const form = useForm<TechnicalCardFormValues>({
@@ -94,6 +93,10 @@ export default function TechnicalCardPage() {
     }, [profileData, form]);
 
     function onSubmit(data: TechnicalCardFormValues) {
+        if (!profileDocRef) {
+            toast({ title: "خطأ", description: "لا يمكن حفظ البيانات. المستخدم غير معروف.", variant: "destructive" });
+            return;
+        }
         // Sanitize data: replace undefined with empty strings
         const sanitizedData = Object.fromEntries(
             Object.entries(data).map(([key, value]) => [key, value === undefined ? '' : value])

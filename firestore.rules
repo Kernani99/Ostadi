@@ -113,16 +113,15 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows authenticated users to create, update, and delete ProfessorProfile documents.
-     * @path /professor_profile/{profileId}
-     * @allow (get, list) Allows anyone to read professor profile data.
-     * @allow (create, update, delete) Allows authenticated users to modify professor profile data.
-     * @deny (create, update, delete) Denies unauthenticated users from modifying professor profile data.
-     * @principle Allows authenticated users to manage their own professor profiles.
+     * @description Allows authenticated users to manage their own professor profiles.
+     * @path /professor_profile/{userId}
+     * @allow (read) Allows any authenticated user to read professor profile data.
+     * @allow (write) Allows an authenticated user to create, update, or delete their own profile data.
+     * @principle Enforces ownership for professor profile writes.
      */
-    match /professor_profile/{profileId} {
-       allow get, list: if true;
-       allow create, update, delete: if isSignedIn();
+    match /professor_profile/{userId} {
+       allow read: if isSignedIn();
+       allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     /**
@@ -163,7 +162,3 @@ service cloud.firestore {
   }
 
   // Helper function to determine if a user is signed in.
-  function isSignedIn() {
-    return request.auth != null;
-  }
-}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useDoc, useFirestore } from "@/firebase";
+import { useCollection, useDoc, useFirestore, useUser } from "@/firebase";
 import { useMemoFirebase } from "@/firebase/provider";
 import type { Student, Attendance, Institution, Department, ProfessorProfile } from "@/lib/types";
 import { collection, doc, query, where, setDoc, getDocs, writeBatch } from "firebase/firestore";
@@ -469,6 +469,7 @@ const ReportChartColors = ["#22c55e", "#ef4444"]; // Green for present, Red for 
 function AttendanceReports() {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const { user } = useUser();
     const [selectedInstitution, setSelectedInstitution] = useState<string>('');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [reportData, setReportData] = useState<LevelReport[] | null>(null);
@@ -478,7 +479,7 @@ function AttendanceReports() {
         useMemoFirebase(() => collection(firestore, 'institutions'), [firestore])
     );
 
-    const profileDocRef = useMemoFirebase(() => doc(firestore, 'professor_profile', 'main_profile'), [firestore]);
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
     const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
     
     const handleGenerateReport = async () => {
@@ -720,26 +721,4 @@ export default function AttendancePage() {
         <div className="container mx-auto p-4 space-y-6">
             <div className="flex flex-col items-center gap-2">
                 <h1 className="font-bold text-3xl text-center text-primary relative">
-                المناداة (الحضور والغياب)
-                <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
-                </h1>
-            </div>
-            
-            <Tabs defaultValue="registration" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="registration">تسجيل الحضور</TabsTrigger>
-                    <TabsTrigger value="reports">قسم التقارير</TabsTrigger>
-                </TabsList>
-                <TabsContent value="registration">
-                   <AttendanceRegistration />
-                </TabsContent>
-                <TabsContent value="reports">
-                    <AttendanceReports />
-                </TabsContent>
-            </Tabs>
-
-        </div>
-    );
-}
-
-    
+                المناداة (الحض

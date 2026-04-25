@@ -102,7 +102,7 @@ export function Header() {
   const { toast } = useToast();
   const { user } = useUser();
 
-  const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', 'main_profile') : null, [firestore, user]);
+  const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
   const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
   const professorName = profileData ? `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim() : user?.email || '...';
   

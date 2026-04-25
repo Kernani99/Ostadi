@@ -397,11 +397,11 @@
       },
       "description": "Stores grades. No authentication is needed."
     },
-    "/professor_profile/{profileId}": {
+    "/professor_profile/{userId}": {
       "schema": {
         "$ref": "#/backend/entities/ProfessorProfile"
       },
-      "description": "Stores the professor's profile data. Authentication might be required."
+      "description": "Stores the professor's profile data. Only the owner can read/write."
     },
     "/daily_logs/{logId}": {
         "schema": {
@@ -427,5 +427,4 @@
       },
       "description": "Stores session-based evaluations for students. Only the owner can read/write."
     }
-  }
-}
+  
