@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore, useUser } from "@/firebase";
-import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer, PlusCircle, ArrowRightLeft, ArrowLeft, CheckCircle2, Info } from "lucide-react";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer, PlusCircle, ArrowRightLeft, Info, Loader2 } from "lucide-react";
 import { collection, doc, query, where, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { deleteDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useToast } from "@/hooks/use-toast";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Label } from "@/components/ui/label";
@@ -76,13 +76,7 @@ const bulkStudentSchema = z.object({
 type BulkStudentFormValues = z.infer<typeof bulkStudentSchema>;
 
 
-interface StudentFormProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    student?: Student | null; 
-}
-
-const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
+const StudentForm: FC<{ open: boolean; onOpenChange: (open: boolean) => void; student?: Student | null }> = ({ open, onOpenChange, student }) => {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
@@ -94,17 +88,14 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const singleForm = useForm<StudentFormValues>({
         resolver: zodResolver(studentSchema),
         defaultValues: {
-            firstName: '', lastName: '', dateOfBirth: '', level: '', institutionId: '', departmentId: null,
+            firstName: '', lastName: '', dateOfBirth: '', level: '', institutionId: '', departmentId: null, status: 'active'
         }
     });
     
     const bulkForm = useForm<BulkStudentFormValues>({
         resolver: zodResolver(bulkStudentSchema),
         defaultValues: {
-            institutionId: '',
-            level: '',
-            departmentId: null,
-            status: 'active',
+            institutionId: '', level: '', departmentId: null, status: 'active',
             students: [{ fullName: '', gender: 'male', dateOfBirth: ''}]
         }
     });
@@ -132,10 +123,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                 });
             } else {
                 bulkForm.reset({
-                    institutionId: '',
-                    level: '',
-                    departmentId: null,
-                    status: 'active',
+                    institutionId: '', level: '', departmentId: null, status: 'active',
                     students: [{ fullName: '', gender: 'male', dateOfBirth: ''}]
                 });
             }
@@ -151,95 +139,51 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
         };
         const studentDocRef = doc(firestore, 'students', student.id);
         setDocumentNonBlocking(studentDocRef, finalData, { merge: true });
-        toast({
-            title: "تم التحديث بنجاح",
-            description: `تم تحديث بيانات التلميذ ${data.firstName} ${data.lastName}.`,
-            variant: 'success'
-        });
+        toast({ title: "تم التحديث", description: `تم تحديث بيانات التلميذ.`, variant: 'success' });
         onOpenChange(false);
     };
 
     const onBulkSubmit = async (data: BulkStudentFormValues) => {
-        if (!user) {
-            toast({ title: "غير مصرح به", description: "يجب تسجيل الدخول لإضافة التلاميذ.", variant: "destructive" });
-            return;
-        }
-
+        if (!user) return;
         const batch = writeBatch(firestore);
-        data.students.forEach(studentData => {
-            const nameParts = studentData.fullName.trim().split(/\s+/);
-            const lastName = nameParts[0] || '';
-            const firstName = nameParts.slice(1).join(' ') || '';
-
+        data.students.forEach(s => {
+            const parts = s.fullName.trim().split(/\s+/);
+            const lastName = parts[0] || '';
+            const firstName = parts.slice(1).join(' ') || '';
             if(firstName && lastName) {
-                const newStudentRef = doc(collection(firestore, 'students'));
-                const newStudentPayload = {
-                    lastName,
-                    firstName,
-                    gender: studentData.gender,
-                    dateOfBirth: studentData.dateOfBirth || '',
-                    institutionId: data.institutionId,
-                    level: data.level,
-                    status: data.status,
-                    departmentId: data.departmentId || null,
+                const ref = doc(collection(firestore, 'students'));
+                batch.set(ref, {
+                    lastName, firstName, gender: s.gender, dateOfBirth: s.dateOfBirth || '',
+                    institutionId: data.institutionId, level: data.level, status: data.status,
+                    departmentId: data.departmentId === '___none___' ? null : data.departmentId,
                     userId: user.uid,
-                };
-                batch.set(newStudentRef, newStudentPayload);
+                });
             }
         });
-
-        try {
-            await batch.commit();
-            toast({
-                title: "تم الحفظ بنجاح",
-                description: `تمت إضافة ${data.students.length} تلميذ/تلاميذ بنجاح.`,
-                variant: 'success'
-            });
-            onOpenChange(false);
-        } catch (error) {
-            console.error("Error bulk adding students:", error);
-            toast({ title: "خطأ", description: "حدث خطأ أثناء إضافة التلاميذ.", variant: "destructive" });
-        }
+        await batch.commit();
+        toast({ title: "تم الحفظ", description: `تمت إضافة التلاميذ بنجاح.`, variant: 'success' });
+        onOpenChange(false);
     };
     
-    if (!open) return null;
-
     if (student) {
         const singleAvailableDepts = departments?.filter(d => d.institutionId === singleForm.watch('institutionId') && d.level === singleForm.watch('level')) || [];
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>تعديل بيانات التلميذ</DialogTitle>
-                        <DialogDescription>
-                           قم بتحديث التفاصيل أدناه.
-                        </DialogDescription>
-                    </DialogHeader>
+                    <DialogHeader><DialogTitle>تعديل بيانات التلميذ</DialogTitle></DialogHeader>
                     <Form {...singleForm}>
                         <form onSubmit={singleForm.handleSubmit(onSingleSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
                             <FormField control={singleForm.control} name="lastName" render={({ field }) => (<FormItem><FormLabel>اللقب</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={singleForm.control} name="firstName" render={({ field }) => (<FormItem><FormLabel>الإسم</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={singleForm.control} name="dateOfBirth" render={({ field }) => (<FormItem><FormLabel>تاريخ الميلاد</FormLabel><FormControl><Input {...field} type="date" /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={singleForm.control} name="gender" render={({ field }) => (<FormItem><FormLabel>الجنس</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الجنس" /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">ذكر</SelectItem><SelectItem value="female">أنثى</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={singleForm.control} name="level" render={({ field }) => (<FormItem><FormLabel>المستوى</FormLabel><Select onValueChange={(val) => { field.onChange(val); singleForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={singleForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={(val) => { field.onChange(val); singleForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={singleForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="gender" render={({ field }) => (<FormItem><FormLabel>الجنس</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="الجنس" /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">ذكر</SelectItem><SelectItem value="female">أنثى</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="level" render={({ field }) => (<FormItem><FormLabel>المستوى</FormLabel><Select onValueChange={(val) => { field.onChange(val); singleForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={(val) => { field.onChange(val); singleForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                             <FormField control={singleForm.control} name="departmentId" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>القسم (اختياري)</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value || '___none___'}>
-                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="___none___">بلا قسم</SelectItem>
-                                            {singleAvailableDepts.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
+                                <FormItem><FormLabel>القسم (اختياري)</FormLabel><Select onValueChange={field.onChange} value={field.value || '___none___'}><FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl><SelectContent><SelectItem value="___none___">بلا قسم</SelectItem>{singleAvailableDepts.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                             )} />
-                            <DialogFooter className="col-span-1 md:col-span-2">
-                                <Button type="submit">حفظ التعديلات</Button>
-                            </DialogFooter>
+                            <DialogFooter className="col-span-1 md:col-span-2"><Button type="submit">حفظ التعديلات</Button></DialogFooter>
                         </form>
                     </Form>
                 </DialogContent>
@@ -250,116 +194,34 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
              <DialogContent className="sm:max-w-4xl">
-                <DialogHeader>
-                    <DialogTitle>إضافة تلاميذ جدد</DialogTitle>
-                    <DialogDescription>
-                        أضف تلميذاً أو أكثر. سيتم تطبيق البيانات المشتركة (المؤسسة، المستوى) على جميع التلاميذ في هذه القائمة.
-                    </DialogDescription>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>إضافة تلاميذ جدد</DialogTitle></DialogHeader>
                 <Form {...bulkForm}>
                     <form onSubmit={bulkForm.handleSubmit(onBulkSubmit)} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg bg-muted/30">
-                           <FormField control={bulkForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={(val) => { field.onChange(val); bulkForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                           <FormField control={bulkForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={(val) => { field.onChange(val); bulkForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                            <FormField control={bulkForm.control} name="level" render={({ field }) => (
-                               <FormItem>
-                                   <FormLabel className="flex items-center gap-2">
-                                        المستوى 
-                                        {availableDepartments.length > 1 && (
-                                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-[10px] px-1 h-4 border-yellow-200">
-                                                {availableDepartments.length} أقسام
-                                            </Badge>
-                                        )}
-                                   </FormLabel>
-                                   <Select onValueChange={(val) => { field.onChange(val); bulkForm.setValue('departmentId', null); }} value={field.value}>
-                                       <FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl>
-                                       <SelectContent>
-                                           <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                                           <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                                           <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                                           <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                                           <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                                       </SelectContent>
-                                   </Select>
-                                   <FormMessage />
-                               </FormItem>
+                               <FormItem><FormLabel className="flex items-center gap-2">المستوى {availableDepartments.length > 1 && <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-[10px] px-1 h-4 border-yellow-200">{availableDepartments.length} أقسام</Badge>}</FormLabel>
+                                   <Select onValueChange={(val) => { field.onChange(val); bulkForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                            )} />
                            <FormField control={bulkForm.control} name="departmentId" render={({ field }) => (
-                               <FormItem>
-                                   <FormLabel>القسم (اختياري)</FormLabel>
-                                   <Select onValueChange={field.onChange} value={field.value || '___none___'} disabled={!selectedLevel || !selectedInst}>
-                                       <FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl>
-                                       <SelectContent>
-                                            <SelectItem value="___none___">بلا قسم (عام)</SelectItem>
-                                            {availableDepartments.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
-                                       </SelectContent>
-                                   </Select>
-                                   <FormMessage />
-                               </FormItem>
+                               <FormItem><FormLabel>القسم (اختياري)</FormLabel><Select onValueChange={field.onChange} value={field.value || '___none___'} disabled={!selectedLevel || !selectedInst}><FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl><SelectContent><SelectItem value="___none___">بلا قسم (عام)</SelectItem>{availableDepartments.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
                            )} />
-                           <FormField control={bulkForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                           <FormField control={bulkForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
-
-                        {availableDepartments.length > 1 && (
-                            <div className="flex items-center gap-2 p-2 bg-blue-50 text-blue-800 rounded-md text-sm">
-                                <Info className="h-4 w-4" />
-                                <span>هذا المستوى يحتوي على أكثر من قسم ({availableDepartments.map(d => d.name).join('، ')}). يمكنك اختيار قسم محدد أعلاه للفصل بينهم.</span>
-                            </div>
-                        )}
-
                         <ScrollArea className="h-60 w-full rounded-md border p-4">
                             <div className="space-y-4">
                                {fields.map((field, index) => (
                                    <div key={field.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 items-start border-b pb-4">
-                                       <FormField
-                                            control={bulkForm.control}
-                                            name={`students.${index}.fullName`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>الاسم الكامل</FormLabel>
-                                                    <FormControl><Input placeholder="اللقب ثم الإسم" {...field} /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={bulkForm.control}
-                                            name={`students.${index}.gender`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>الجنس</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                                                        <SelectContent><SelectItem value="male">ذكر</SelectItem><SelectItem value="female">أنثى</SelectItem></SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={bulkForm.control}
-                                            name={`students.${index}.dateOfBirth`}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>تاريخ الميلاد</FormLabel>
-                                                    <FormControl><Input type="date" {...field} /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <Button type="button" variant="ghost" size="icon" className="text-red-500 mt-8" onClick={() => remove(index)}>
-                                           <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                       <FormField control={bulkForm.control} name={`students.${index}.fullName`} render={({ field }) => (<FormItem><FormLabel>الاسم الكامل</FormLabel><FormControl><Input placeholder="اللقب ثم الإسم" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                       <FormField control={bulkForm.control} name={`students.${index}.gender`} render={({ field }) => (<FormItem><FormLabel>الجنس</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">ذكر</SelectItem><SelectItem value="female">أنثى</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                                       <FormField control={bulkForm.control} name={`students.${index}.dateOfBirth`} render={({ field }) => (<FormItem><FormLabel>تاريخ الميلاد</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                       <Button type="button" variant="ghost" size="icon" className="text-red-500 mt-8" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                                    </div>
                                ))}
                             </div>
                         </ScrollArea>
-                         <Button type="button" variant="outline" onClick={() => append({ fullName: '', gender: 'male', dateOfBirth: '' })}>
-                           <PlusCircle className="me-2 h-4 w-4" /> إضافة تلميذ آخر
-                        </Button>
-
-                        <DialogFooter>
-                            <Button type="submit" disabled={bulkForm.formState.isSubmitting}>حفظ التلاميذ</Button>
-                        </DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => append({ fullName: '', gender: 'male', dateOfBirth: '' })}><PlusCircle className="me-2 h-4 w-4" /> إضافة تلميذ آخر</Button>
+                        <DialogFooter><Button type="submit" disabled={bulkForm.formState.isSubmitting}>حفظ التلاميذ</Button></DialogFooter>
                     </form>
                 </Form>
             </DialogContent>
@@ -367,97 +229,14 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     )
 }
 
-function PrintDialog({ open, onOpenChange, institutions }: { open: boolean, onOpenChange: (open: boolean) => void, institutions: Institution[] | null }) {
-    const [printLevel, setPrintLevel] = useState<string>('all');
-    const [printInstitution, setPrintInstitution] = useState<string>('all');
-    const { toast } = useToast();
-
-    const handleConfirmPrint = () => {
-        if (printInstitution === 'all' && printLevel === 'all') {
-            toast({
-                title: "الرجاء تحديد فلتر",
-                description: "اختر مؤسسة أو مستوى على الأقل لطباعة القائمة.",
-                variant: "destructive"
-            });
-            return;
-        }
-
-        const params = new URLSearchParams();
-        if (printLevel !== 'all') {
-            params.set('level', printLevel);
-        }
-        if (printInstitution !== 'all') {
-            params.set('institutionId', printInstitution);
-        }
-        const printWindow = window.open(`/students/print?${params.toString()}`, '_blank');
-        printWindow?.focus();
-        onOpenChange(false);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>طباعة قائمة التلاميذ</DialogTitle>
-                    <DialogDescription>
-                        اختر المؤسسة و/أو المستوى الدراسي لعرض القائمة المراد طباعتها.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="print-institution">المؤسسة</Label>
-                        <Select value={printInstitution} onValueChange={setPrintInstitution}>
-                            <SelectTrigger id="print-institution">
-                                <SelectValue placeholder="اختر المؤسسة" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">الكل</SelectItem>
-                                {institutions?.map(inst => (
-                                    <SelectItem key={inst.id} value={inst.id}>
-                                        {inst.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="print-level">المستوى</Label>
-                        <Select value={printLevel} onValueChange={setPrintLevel}>
-                            <SelectTrigger id="print-level">
-                                <SelectValue placeholder="اختر المستوى" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">الكل</SelectItem>
-                                <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                                <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                                <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                                <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                                <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-                    <Button type="button" onClick={handleConfirmPrint}>طباعة</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 function TransferStudentsTab({ students, institutions, departments }: { students: Student[] | null, institutions: Institution[] | null, departments: Department[] | null }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
-
-    // Source state
     const [srcInst, setSrcInst] = useState<string>('');
     const [srcLevel, setSrcLevel] = useState<string>('');
     const [srcDept, setSrcDept] = useState<string>('');
     const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
-
-    // Destination state
     const [destInst, setDestInst] = useState<string>('');
     const [destLevel, setDestLevel] = useState<string>('');
     const [destDept, setDestDept] = useState<string>('');
@@ -465,660 +244,155 @@ function TransferStudentsTab({ students, institutions, departments }: { students
 
     const sourceStudents = useMemo(() => {
         if (!students) return [];
-        return students.filter(s => 
-            (srcInst === '' || s.institutionId === srcInst) &&
-            (srcLevel === '' || s.level === srcLevel) &&
-            (srcDept === '' || (srcDept === 'none' ? !s.departmentId : s.departmentId === srcDept))
-        ).sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
+        return students.filter(s => (srcInst === '' || s.institutionId === srcInst) && (srcLevel === '' || s.level === srcLevel) && (srcDept === '' || (srcDept === 'none' ? !s.departmentId : s.departmentId === srcDept))).sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
     }, [students, srcInst, srcLevel, srcDept]);
 
-    const sourceDepts = useMemo(() => {
-        if (!departments || !srcInst || !srcLevel) return [];
-        return departments.filter(d => d.institutionId === srcInst && d.level === srcLevel);
-    }, [departments, srcInst, srcLevel]);
-
-    const destDepts = useMemo(() => {
-        if (!departments || !destInst || !destLevel) return [];
-        return departments.filter(d => d.institutionId === destInst && d.level === destLevel);
-    }, [departments, destInst, destLevel]);
-
-    const handleSelectStudent = (id: string) => {
-        setSelectedStudentIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    };
-
-    const handleSelectAll = () => {
-        if (selectedStudentIds.size === sourceStudents.length) setSelectedStudentIds(new Set());
-        else setSelectedStudentIds(new Set(sourceStudents.map(s => s.id)));
-    };
-
     const handleTransfer = async () => {
-        if (!user || selectedStudentIds.size === 0 || !destInst || !destLevel) {
-            toast({ title: "بيانات ناقصة", description: "الرجاء اختيار التلاميذ والوجهة الجديدة.", variant: "destructive" });
-            return;
-        }
-
+        if (!user || selectedStudentIds.size === 0 || !destInst || !destLevel) return;
         setIsTransferring(true);
         const batch = writeBatch(firestore);
-        
         selectedStudentIds.forEach(id => {
-            const studentRef = doc(firestore, 'students', id);
-            batch.update(studentRef, {
-                institutionId: destInst,
-                level: destLevel,
-                departmentId: destDept === 'none' || destDept === '' ? null : destDept
-            });
+            batch.update(doc(firestore, 'students', id), { institutionId: destInst, level: destLevel, departmentId: destDept === 'none' || destDept === '' ? null : destDept });
         });
-
-        try {
-            await batch.commit();
-            toast({ title: "تم التحويل بنجاح", description: `تم نقل ${selectedStudentIds.size} تلميذ/تلاميذ إلى الوجهة الجديدة.`, variant: 'success' });
-            setSelectedStudentIds(new Set());
-        } catch (error) {
-            console.error(error);
-            toast({ title: "خطأ", description: "حدث خطأ أثناء عملية التحويل.", variant: "destructive" });
-        } finally {
-            setIsTransferring(false);
-        }
+        await batch.commit();
+        toast({ title: "تم التحويل", description: `تم نقل ${selectedStudentIds.size} تلميذ بنجاح.`, variant: 'success' });
+        setSelectedStudentIds(new Set());
+        setIsTransferring(false);
     };
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="shadow-md">
-                <CardHeader className="bg-primary/5 border-b">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                        <ArrowLeft className="h-5 w-5 text-primary rotate-180" />
-                        المصدر (الحالي)
-                    </CardTitle>
-                    <CardDescription>حدد التلاميذ الذين تريد نقلهم</CardDescription>
-                </CardHeader>
+                <CardHeader className="bg-primary/5 border-b"><CardTitle className="text-lg flex items-center gap-2">المصدر (الحالي)</CardTitle></CardHeader>
                 <CardContent className="p-4 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                            <Label className="text-xs">المؤسسة</Label>
-                            <Select value={srcInst} onValueChange={(val) => { setSrcInst(val); setSrcDept(''); setSelectedStudentIds(new Set()); }}>
-                                <SelectTrigger><SelectValue placeholder="المؤسسة" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all_insts" disabled>اختر المؤسسة</SelectItem>
-                                    {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs">المستوى</Label>
-                            <Select value={srcLevel} onValueChange={(val) => { setSrcLevel(val); setSrcDept(''); setSelectedStudentIds(new Set()); }}>
-                                <SelectTrigger><SelectValue placeholder="المستوى" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                                    <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                                    <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                                    <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                                    <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs">القسم</Label>
-                            <Select value={srcDept} onValueChange={(val) => { setSrcDept(val); setSelectedStudentIds(new Set()); }}>
-                                <SelectTrigger><SelectValue placeholder="القسم" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all_depts">الكل</SelectItem>
-                                    <SelectItem value="none">بدون قسم</SelectItem>
-                                    {sourceDepts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        <Select value={srcInst} onValueChange={(val) => { setSrcInst(val); setSrcDept(''); setSelectedStudentIds(new Set()); }}><SelectTrigger><SelectValue placeholder="المؤسسة" /></SelectTrigger><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select>
+                        <Select value={srcLevel} onValueChange={(val) => { setSrcLevel(val); setSrcDept(''); setSelectedStudentIds(new Set()); }}><SelectTrigger><SelectValue placeholder="المستوى" /></SelectTrigger><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select>
+                        <Select value={srcDept} onValueChange={(val) => { setSrcDept(val); setSelectedStudentIds(new Set()); }}><SelectTrigger><SelectValue placeholder="القسم" /></SelectTrigger><SelectContent><SelectItem value="all_depts">الكل</SelectItem><SelectItem value="none">بدون قسم</SelectItem>{departments?.filter(d => d.institutionId === srcInst && d.level === srcLevel).map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select>
                     </div>
-
                     <div className="border rounded-md">
-                        <div className="bg-muted/50 p-2 border-b flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <Checkbox checked={sourceStudents.length > 0 && selectedStudentIds.size === sourceStudents.length} onCheckedChange={handleSelectAll} />
-                                <span className="text-sm font-medium">تحديد الكل</span>
-                            </div>
-                            <Badge variant="outline">{selectedStudentIds.size} / {sourceStudents.length}</Badge>
-                        </div>
-                        <ScrollArea className="h-[400px]">
-                            {sourceStudents.length > 0 ? (
-                                <div className="divide-y">
-                                    {sourceStudents.map(s => (
-                                        <div key={s.id} className="flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors">
-                                            <Checkbox checked={selectedStudentIds.has(s.id)} onCheckedChange={() => handleSelectStudent(s.id)} />
-                                            <div className="flex flex-col">
-                                                <span className="font-medium text-sm">{s.lastName} {s.firstName}</span>
-                                                <span className="text-[10px] text-muted-foreground">{s.level} - {departments?.find(d => d.id === s.departmentId)?.name || 'بدون قسم'}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="p-8 text-center text-muted-foreground text-sm">لا يوجد تلاميذ مطابقين لهذه الفلاتر.</div>
-                            )}
-                        </ScrollArea>
+                        <div className="bg-muted/50 p-2 border-b flex justify-between items-center"><div className="flex items-center gap-2"><Checkbox checked={sourceStudents.length > 0 && selectedStudentIds.size === sourceStudents.length} onCheckedChange={() => setSelectedStudentIds(selectedStudentIds.size === sourceStudents.length ? new Set() : new Set(sourceStudents.map(s => s.id)))} /><span className="text-sm font-medium">تحديد الكل</span></div><Badge variant="outline">{selectedStudentIds.size}</Badge></div>
+                        <ScrollArea className="h-[400px]">{sourceStudents.length > 0 ? <div className="divide-y">{sourceStudents.map(s => <div key={s.id} className="flex items-center gap-3 p-3 hover:bg-muted/30"><Checkbox checked={selectedStudentIds.has(s.id)} onCheckedChange={() => { const n = new Set(selectedStudentIds); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); setSelectedStudentIds(n); }} /><div className="flex flex-col"><span className="font-medium text-sm">{s.lastName} {s.firstName}</span></div></div>)}</div> : <div className="p-8 text-center text-muted-foreground text-sm">لا يوجد تلاميذ.</div>}</ScrollArea>
                     </div>
                 </CardContent>
             </Card>
-
             <Card className="shadow-md">
-                <CardHeader className="bg-accent/10 border-b">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                        <ArrowLeft className="h-5 w-5 text-accent-foreground" />
-                        الوجهة (الجديدة)
-                    </CardTitle>
-                    <CardDescription>حدد المكان الجديد للتلاميذ المختارين</CardDescription>
-                </CardHeader>
+                <CardHeader className="bg-accent/10 border-b"><CardTitle className="text-lg">الوجهة (الجديدة)</CardTitle></CardHeader>
                 <CardContent className="p-6 space-y-6">
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>المؤسسة المستقبلة</Label>
-                            <Select value={destInst} onValueChange={(val) => { setDestInst(val); setDestDept(''); }}>
-                                <SelectTrigger className="h-12"><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger>
-                                <SelectContent>
-                                    {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>المستوى الجديد</Label>
-                            <Select value={destLevel} onValueChange={(val) => { setDestLevel(val); setDestDept(''); }}>
-                                <SelectTrigger className="h-12"><SelectValue placeholder="اختر المستوى" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                                    <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                                    <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                                    <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                                    <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>القسم الجديد</Label>
-                            <Select value={destDept} onValueChange={setDestDept} disabled={!destLevel || !destInst}>
-                                <SelectTrigger className="h-12"><SelectValue placeholder="اختر القسم" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">بدون قسم (عام)</SelectItem>
-                                    {destDepts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div className="p-4 rounded-lg bg-accent/5 border border-accent/20 flex flex-col items-center justify-center text-center space-y-3">
-                        <div className="bg-accent/20 p-3 rounded-full">
-                            <ArrowRightLeft className="h-8 w-8 text-accent-foreground" />
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-accent-foreground">تأكيد عملية النقل</h4>
-                            <p className="text-xs text-muted-foreground">سيتم نقل {selectedStudentIds.size} تلميذ/تلاميذ بشكل دائم إلى الوجهة المحددة.</p>
-                        </div>
-                        <Button 
-                            className="w-full h-12 text-base font-bold bg-accent text-accent-foreground hover:bg-accent/90" 
-                            disabled={selectedStudentIds.size === 0 || !destInst || !destLevel || isTransferring}
-                            onClick={handleTransfer}
-                        >
-                            {isTransferring ? "جاري النقل..." : "تنفيذ عملية التحويل"}
-                        </Button>
-                    </div>
+                    <Select value={destInst} onValueChange={(val) => { setDestInst(val); setDestDept(''); }}><SelectTrigger className="h-12"><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select>
+                    <Select value={destLevel} onValueChange={(val) => { setDestLevel(val); setDestDept(''); }}><SelectTrigger className="h-12"><SelectValue placeholder="اختر المستوى" /></SelectTrigger><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select>
+                    <Select value={destDept} onValueChange={setDestDept} disabled={!destLevel || !destInst}><SelectTrigger className="h-12"><SelectValue placeholder="اختر القسم" /></SelectTrigger><SelectContent><SelectItem value="none">بدون قسم (عام)</SelectItem>{departments?.filter(d => d.institutionId === destInst && d.level === destLevel).map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select>
+                    <Button className="w-full h-12 text-base font-bold bg-accent text-accent-foreground" disabled={selectedStudentIds.size === 0 || !destInst || !destLevel || isTransferring} onClick={handleTransfer}>{isTransferring ? "جاري النقل..." : "تنفيذ عملية التحويل"}</Button>
                 </CardContent>
             </Card>
         </div>
     );
 }
 
-
 export default function StudentsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  
-  const studentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'students'), where('userId', '==', user.uid)) : null, [firestore, user]);
-  const { data: students, isLoading } = useCollection<Student>(studentsQuery);
-  
-  const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
-  const { data: institutions } = useCollection<Institution>(institutionsQuery);
+  const { data: students, isLoading: loadingStudents } = useCollection<Student>(useMemoFirebase(() => user ? query(collection(firestore, 'students'), where('userId', '==', user.uid)) : null, [firestore, user]));
+  const { data: institutions } = useCollection<Institution>(useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]));
+  const { data: departments } = useCollection<Department>(useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)) : null, [firestore, user]));
 
-  const departmentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)) : null, [firestore, user]);
-  const { data: departments } = useCollection<Department>(departmentsQuery);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
   const [searchTerm, setSearchTerm] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
-  const [genderFilter, setGenderFilter] = useState('all');
-  const [institutionFilter, setInstitutionFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [instFilter, setInstFilter] = useState('all');
+  const [deptFilter, setDeptFilter] = useState('all');
 
-  const [isFormOpen, setFormOpen] = useState(false);
-  const [isPrintDialogOpen, setPrintDialogOpen] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isAddOpen, setAddOpen] = useState(false);
+  const [isEditOpen, setEditOpen] = useState(false);
+  const [studentToEdit, setStudentToEdit] = useState<Student | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
-
-  const stats = useMemo(() => {
-    if (!students) return { total: 0, males: 0, females: 0, active: 0, exempt: 0 };
-    return {
-        total: students.length,
-        males: students.filter(s => s.gender === 'male').length,
-        females: students.filter(s => s.gender === 'female').length,
-        active: students.filter(s => s.status === 'active').length,
-        exempt: students.filter(s => s.status === 'exempt').length,
-    }
-  }, [students]);
-
-  const institutionMap = useMemo(() => {
-    if (!institutions) return new Map();
-    return new Map(institutions.map(inst => [inst.id, inst.name]));
-  }, [institutions]);
-
-  const departmentMap = useMemo(() => {
-    if (!departments) return new Map<string, string>();
-    return new Map(departments.map(d => [d.id, d.name]));
-  }, [departments]);
-
-  const deptsLookupMap = useMemo(() => {
-      const map = new Map<string, string>();
-      departments?.forEach(d => {
-          const key = `${d.institutionId}_${d.level}_${d.name.trim().toLowerCase()}`;
-          map.set(key, d.id);
-      });
-      return map;
-  }, [departments]);
 
   const filteredStudents = useMemo(() => {
     if (!students) return [];
-    return students.filter(student =>
-      (`${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (levelFilter === 'all' || student.level === levelFilter) &&
-      (genderFilter === 'all' || student.gender === genderFilter) &&
-      (institutionFilter === 'all' || student.institutionId === institutionFilter) &&
-      (statusFilter === 'all' || student.status === statusFilter)
-    );
-  }, [students, searchTerm, levelFilter, genderFilter, institutionFilter, statusFilter]);
+    return students.filter(s => 
+      (`${s.firstName} ${s.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (levelFilter === 'all' || s.level === levelFilter) &&
+      (instFilter === 'all' || s.institutionId === instFilter) &&
+      (deptFilter === 'all' || (deptFilter === 'none' ? !s.departmentId : s.departmentId === deptFilter))
+    ).sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
+  }, [students, searchTerm, levelFilter, instFilter, deptFilter]);
 
-  const handleAddNew = () => {
-    setSelectedStudent(null);
-    setFormOpen(true);
-  };
-
-  const handleEdit = (student: Student) => {
-    setSelectedStudent(student);
-    setFormOpen(true);
-  };
-  
-  const handleDelete = (student: Student) => {
-      setStudentToDelete(student);
-      setDeleteAlertOpen(true);
-  };
-  
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
       if (studentToDelete) {
-          const studentDocRef = doc(firestore, 'students', studentToDelete.id);
-          deleteDocumentNonBlocking(studentDocRef);
-          toast({ title: "تم الحذف", description: `تم حذف التلميذ ${studentToDelete.firstName} ${studentToDelete.lastName}.`, variant: 'success' });
+          await deleteDocumentNonBlocking(doc(firestore, 'students', studentToDelete.id));
+          toast({ title: "تم الحذف", variant: 'success' });
+          setStudentToDelete(null);
       }
-      setDeleteAlertOpen(false);
-      setStudentToDelete(null);
-  };
-
-  const handleSelectStudent = (studentId: string) => {
-    setSelectedStudents(prev => {
-        const newSelection = new Set(prev);
-        if (newSelection.has(studentId)) {
-            newSelection.delete(studentId);
-        } else {
-            newSelection.add(studentId);
-        }
-        return newSelection;
-    });
-  };
-
-  const handleSelectAll = () => {
-      if (selectedStudents.size === filteredStudents.length && filteredStudents.length > 0) {
-          setSelectedStudents(new Set());
-      } else {
-          setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
-      }
-  };
-
-  const handleDeleteSelected = () => {
-    if (confirm(`هل أنت متأكد من أنك تريد حذف ${selectedStudents.size} تلميذ/تلاميذ؟`)) {
-        const batch = writeBatch(firestore);
-        selectedStudents.forEach(id => {
-            const studentRef = doc(firestore, 'students', id);
-            batch.delete(studentRef);
-        });
-        batch.commit().then(() => {
-             toast({ title: "تم الحذف", description: `تم حذف ${selectedStudents.size} تلميذ/تلاميذ بنجاح.`, variant: 'success' });
-             setSelectedStudents(new Set());
-        }).catch(err => {
-            console.error(err);
-            toast({ title: "خطأ", description: "حدث خطأ أثناء حذف التلاميذ.", variant: "destructive" });
-        });
-    }
-  };
-
-  const exportToXLSX = (data: Student[], fileName: string) => {
-    const dataToExport = data.map(student => ({
-      'اللقب': student.lastName,
-      'الإسم': student.firstName,
-      'تاريخ الميلاد': student.dateOfBirth ?? '',
-      'المستوى': student.level ?? '',
-      'القسم': departmentMap.get(student.departmentId || '') || '',
-      'الجنس': student.gender === 'male' ? 'ذكر' : 'أنثى',
-      'المؤسسة': institutionMap.get(student.institutionId) ?? student.institutionId,
-      'الحالة': student.status === 'active' ? 'يمارس' : 'معفي',
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "التلاميذ");
-    XLSX.writeFile(workbook, fileName);
-  };
-
-  const handleExportSelected = () => {
-    const selectedData = students?.filter(s => selectedStudents.has(s.id)) || [];
-    if (selectedData.length > 0) {
-        exportToXLSX(selectedData, 'قائمة_التلاميذ_المحددين.xlsx');
-    } else {
-        toast({ title: "لا توجد بيانات", description: "الرجاء تحديد التلاميذ للتصدير." });
-    }
-  };
-  
-  const handleDownloadAll = () => {
-    if (students && students.length > 0) {
-        exportToXLSX(students, 'قائمة_كل_التلاميذ.xlsx');
-    } else {
-        toast({ title: "لا توجد بيانات", description: "لا يوجد تلاميذ مسجلين للتصدير." });
-    }
-  };
-
-  const handleImportClick = () => {
-      fileInputRef.current?.click();
-  };
-
-  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) {
-        toast({ title: "غير مصرح به", description: "يجب تسجيل الدخول لاستيراد التلاميذ.", variant: "destructive" });
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: 'binary' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const importedStudents: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-            const batch = writeBatch(firestore);
-            let count = 0;
-            
-            const institutionsMapByName = new Map(institutions?.map(inst => [inst.name.trim().toLowerCase(), inst.id]));
-
-            importedStudents.forEach(row => {
-                const instId = institutionsMapByName.get(String(row['المؤسسة'] || '').trim().toLowerCase()) || '';
-                const levelName = row['المستوى'] || '';
-                const deptName = String(row['القسم'] || '').trim().toLowerCase();
-                const deptId = deptsLookupMap.get(`${instId}_${levelName}_${deptName}`) || null;
-
-                const studentData = {
-                    lastName: String(row['اللقب'] || '').trim(),
-                    firstName: String(row['الإسم'] || '').trim(),
-                    dateOfBirth: row['تاريخ الميلاد'] || '',
-                    gender: (row['الجنس'] === 'ذكر' ? 'male' : (row['الجنس'] === 'أنثى' ? 'female' : 'male')),
-                    level: levelName,
-                    institutionId: instId,
-                    departmentId: deptId,
-                    status: (row['الحالة'] === 'يمارس' ? 'active' : (row['الحالة'] === 'معفي' ? 'exempt' : 'active')),
-                    userId: user.uid,
-                };
-
-                if (studentData.firstName && studentData.lastName && studentData.institutionId) {
-                    const newStudentRef = doc(collection(firestore, 'students'));
-                    batch.set(newStudentRef, studentData);
-                    count++;
-                }
-            });
-
-            if (count > 0) {
-                batch.commit().then(() => {
-                    toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ مع تعيين الأقسام المتاحة.`, variant: 'success' });
-                }).catch(err => {
-                    console.error(err);
-                    toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ. تأكد من صحة أسماء المؤسسات والأقسام.", variant: "destructive" });
-                });
-            } else {
-                toast({ title: "لا توجد بيانات صالحة للاستيراد", description: "يرجى التحقق من تنسيق الملف ومحتواه (اللقب، الإسم، المؤسسة).", variant: "destructive" });
-            }
-        } catch(error) {
-            console.error(error);
-            toast({ title: "خطأ في قراءة الملف", description: "تأكد من أن الملف بتنسيق XLSX صحيح.", variant: "destructive" });
-        }
-    };
-    reader.readAsBinaryString(file);
-    if(fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
     <div className="container mx-auto p-4 space-y-6">
-      <div className="flex flex-col items-center gap-2">
-        <h1 className="font-bold text-3xl text-center text-primary relative">
-          إدارة التلاميذ
-          <span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span>
-        </h1>
-      </div>
-
-       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            <StatCard title="إجمالي التلاميذ" value={stats.total} icon={Users} />
-            <StatCard title="عدد الذكور" value={stats.males} icon={PersonStanding} />
-            <StatCard title="عدد الإناث" value={stats.females} icon={PersonStanding} />
-            <StatCard title="التلاميذ الممارسون" value={stats.active} icon={Activity} />
-            <StatCard title="التلاميذ المعفيون" value={stats.exempt} icon={ShieldOff} />
+      <div className="flex flex-col items-center gap-2"><h1 className="font-bold text-3xl text-primary relative">إدارة التلاميذ<span className="absolute -bottom-2 start-1/2 -translate-x-1/2 w-20 h-1 bg-accent rounded-full"></span></h1></div>
+       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard title="إجمالي التلاميذ" value={students?.length || 0} icon={Users} />
+            <StatCard title="الذكور" value={students?.filter(s => s.gender === 'male').length || 0} icon={PersonStanding} color="bg-blue-500" />
+            <StatCard title="الإناث" value={students?.filter(s => s.gender === 'female').length || 0} icon={PersonStanding} color="bg-pink-500" />
+            <StatCard title="المؤسسات" value={institutions?.length || 0} icon={Users} color="bg-orange-500" />
         </div>
-
         <Tabs defaultValue="list" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto mb-6 h-12">
-                <TabsTrigger value="list" className="gap-2"><Users className="h-4 w-4" /> قائمة التلاميذ</TabsTrigger>
-                <TabsTrigger value="transfer" className="gap-2"><ArrowRightLeft className="h-4 w-4" /> تحويل التلاميذ</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="list" className="space-y-6">
-                <Card className="shadow-md">
-                    <CardContent className="p-4 flex flex-col gap-4">
+            <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto mb-6 h-12"><TabsTrigger value="list" className="gap-2"><Users className="h-4 w-4" /> قائمة التلاميذ</TabsTrigger><TabsTrigger value="transfer" className="gap-2"><ArrowRightLeft className="h-4 w-4" /> تحويل التلاميذ</TabsTrigger></TabsList>
+            <TabsContent value="list" className="space-y-4">
+                <Card className="shadow-md"><CardContent className="p-4 space-y-4">
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button onClick={handleAddNew} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
-                            <UserPlus className="me-2" />
-                            تسجيل تلميذ
-                            </Button>
-                            <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
-                            <PrintDialog open={isPrintDialogOpen} onOpenChange={setPrintDialogOpen} institutions={institutions} />
-                        <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-                            <FileText className="me-2" />
-                            تحميل الكل (Excel)
-                        </Button>
-                        <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-                            <FileUp className="me-2" />
-                            استيراد (Excel)
-                        </Button>
-                        <Button onClick={() => setPrintDialogOpen(true)} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-                            <Printer className="me-2" />
-                            طباعة القائمة
-                        </Button>
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            onChange={handleFileImport}
-                            className="hidden" 
-                            accept=".xlsx"
-                        />
-                        {selectedStudents.size > 0 && (
-                            <>
-                                <Button variant="destructive" onClick={handleDeleteSelected} className="rounded-full">
-                                    <Trash2 className="me-2" />
-                                    حذف المحدد ({selectedStudents.size})
-                                </Button>
-                                <Button variant="outline" onClick={handleExportSelected} className="rounded-full border-green-600 text-green-600 hover:bg-green-50">
-                                    <FileDown className="me-2" />
-                                    تصدير المحدد ({selectedStudents.size})
-                                </Button>
-                            </>
-                        )}
-                        <div className="relative ms-auto">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                            <Input 
-                            placeholder="ابحث عن تلميذ..." 
-                            className="ps-10 rounded-full"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+                            <Button onClick={() => setAddOpen(true)} className="bg-accent text-accent-foreground rounded-full"><UserPlus className="me-2" /> تسجيل تلاميذ</Button>
+                            <div className="relative ms-auto"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input placeholder="ابحث..." className="ps-10 rounded-full w-full md:w-64" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <Select value={instFilter} onValueChange={(v) => { setInstFilter(v); setDeptFilter('all'); }}><SelectTrigger><SelectValue placeholder="فلترة حسب المؤسسة" /></SelectTrigger><SelectContent><SelectItem value="all">كل المؤسسات</SelectItem>{institutions?.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent></Select>
+                            <Select value={levelFilter} onValueChange={(v) => { setLevelFilter(v); setDeptFilter('all'); }}><SelectTrigger><SelectValue placeholder="فلترة حسب المستوى" /></SelectTrigger><SelectContent><SelectItem value="all">كل المستويات</SelectItem><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select>
+                            <Select value={deptFilter} onValueChange={setDeptFilter} disabled={instFilter === 'all' || levelFilter === 'all'}><SelectTrigger><SelectValue placeholder="فلترة حسب القسم" /></SelectTrigger><SelectContent><SelectItem value="all">كل الأقسام</SelectItem><SelectItem value="none">بدون قسم</SelectItem>{departments?.filter(d => d.institutionId === instFilter && d.level === levelFilter).map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-5 items-center gap-2">
-                            <Select value={levelFilter} onValueChange={setLevelFilter}>
-                                <SelectTrigger><SelectValue placeholder="فلترة حسب المستوى" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">الكل</SelectItem>
-                                    <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                                    <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                                    <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                                    <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                                    <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={genderFilter} onValueChange={setGenderFilter}>
-                                <SelectTrigger><SelectValue placeholder="فلترة حسب الجنس" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">الكل</SelectItem>
-                                    <SelectItem value="male">ذكر</SelectItem>
-                                    <SelectItem value="female">أنثى</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={institutionFilter} onValueChange={setInstitutionFilter}>
-                                <SelectTrigger><SelectValue placeholder="فلترة حسب المؤسسة" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">الكل</SelectItem>
-                                    {institutions?.map(inst => (
-                                        <SelectItem key={inst.id} value={inst.id}>
-                                            {inst.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger><SelectValue placeholder="فلترة حسب الحالة" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">الكل</SelectItem>
-                                    <SelectItem value="active">يمارس</SelectItem>
-                                    <SelectItem value="exempt">معفي</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <div className="flex items-center gap-2">
-                            <Button onClick={() => {
-                                setLevelFilter('all');
-                                setGenderFilter('all');
-                                setInstitutionFilter('all');
-                                setStatusFilter('all');
-                                setSearchTerm('');
-                            }} variant="ghost">إلغاء الفلاتر</Button>
-                            <Badge variant="secondary" className="px-3 py-1">
-                                العدد: {filteredStudents.length}
-                            </Badge>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
+                    </CardContent></Card>
                 <div className="overflow-x-auto border rounded-lg">
                     <Table className="bg-card">
-                        <TableHeader className="bg-primary text-primary-foreground">
-                        <TableRow>
-                            <TableHead className="w-[50px] text-center">
-                                <Checkbox 
-                                    checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
-                                    onCheckedChange={handleSelectAll}
-                                    aria-label="Select all"
-                                />
-                            </TableHead>
-                            <TableHead className="text-white">#</TableHead>
-                            <TableHead className="text-white">الإسم الكامل</TableHead>
-                            <TableHead className="text-white">تاريخ الميلاد</TableHead>
-                            <TableHead className="text-white">المستوى</TableHead>
-                            <TableHead className="text-white">القسم</TableHead>
-                            <TableHead className="text-white">الجنس</TableHead>
-                            <TableHead className="text-white">المؤسسة</TableHead>
-                            <TableHead className="text-white">الحالة</TableHead>
-                            <TableHead className="text-white text-center">إجراءات</TableHead>
-                        </TableRow>
+                        {/* اتجاه الجدول المعكوس: الإجراءات أولاً ثم البيانات */}
+                        <TableHeader className="bg-primary">
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="text-white text-center w-[120px]">الإجراءات</TableHead>
+                                <TableHead className="text-white">الحالة</TableHead>
+                                <TableHead className="text-white">القسم</TableHead>
+                                <TableHead className="text-white">المستوى</TableHead>
+                                <TableHead className="text-white">اللقب والإسم</TableHead>
+                                <TableHead className="text-white">#</TableHead>
+                                <TableHead className="w-[50px] text-center">
+                                    <Checkbox checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length} onCheckedChange={() => setSelectedStudents(selectedStudents.size === filteredStudents.length ? new Set() : new Set(filteredStudents.map(s => s.id)))} className="border-white" />
+                                </TableHead>
+                            </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {isLoading && <TableRow><TableCell colSpan={10} className="text-center h-32"><PlusCircle className="animate-spin h-8 w-8 mx-auto text-primary" /></TableCell></TableRow>}
-                        {!isLoading && filteredStudents?.map((student, index) => (
-                            <TableRow key={student.id} className="hover:bg-muted/50" data-state={selectedStudents.has(student.id) ? "selected" : ""}>
-                            <TableCell className="text-center">
-                                <Checkbox
-                                    checked={selectedStudents.has(student.id)}
-                                    onCheckedChange={() => handleSelectStudent(student.id)}
-                                    aria-label={`Select student ${student.firstName}`}
-                                />
-                            </TableCell>
-                            <TableCell>{index + 1}</TableCell>
-                            <TableCell className="font-medium">{student.lastName} {student.firstName}</TableCell>
-                            <TableCell>{student.dateOfBirth || 'غير محدد'}</TableCell>
-                            <TableCell>{student.level ?? 'غير محدد'}</TableCell>
-                            <TableCell>{departmentMap.get(student.departmentId || '') || '-'}</TableCell>
-                            <TableCell>
-                                {student.gender === 'male' ? 'ذكر' : 'أنثى'}
-                            </TableCell>
-                            <TableCell>{institutionMap.get(student.institutionId) ?? 'غير محدد'}</TableCell>
-                            <TableCell>
-                                <Badge variant={student.status === 'active' ? 'default' : 'destructive'} className={student.status === 'active' ? 'bg-green-500' : 'bg-red-500'}>
-                                {student.status === 'active' ? 'يمارس' : 'معفي'}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="text-center">
-                                <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700" onClick={() => handleEdit(student)}>
-                                <Pencil className="h-5 w-5" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(student)}>
-                                <Trash2 className="h-5 w-5" />
-                                </Button>
-                            </TableCell>
+                        {loadingStudents ? (
+                            <TableRow><TableCell colSpan={7} className="text-center h-40"><Loader2 className="animate-spin h-8 w-8 mx-auto text-primary" /></TableCell></TableRow>
+                        ) : filteredStudents.map((s, idx) => (
+                            <TableRow key={s.id} className="hover:bg-muted/30">
+                                <TableCell className="text-center">
+                                    <Button variant="ghost" size="icon" className="text-blue-600 h-8 w-8" onClick={() => { setStudentToEdit(s); setEditOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                                    <Button variant="ghost" size="icon" className="text-red-500 h-8 w-8" onClick={() => setStudentToDelete(s)}><Trash2 className="h-4 w-4" /></Button>
+                                </TableCell>
+                                <TableCell><Badge variant={s.status === 'active' ? 'default' : 'destructive'} className={s.status === 'active' ? 'bg-green-500' : ''}>{s.status === 'active' ? 'يمارس' : 'معفي'}</Badge></TableCell>
+                                <TableCell>{departments?.find(d => d.id === s.departmentId)?.name || '-'}</TableCell>
+                                <TableCell><Badge variant="outline">{s.level}</Badge></TableCell>
+                                <TableCell className="font-semibold">{s.lastName} {s.firstName}</TableCell>
+                                <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                                <TableCell className="text-center">
+                                    <Checkbox checked={selectedStudents.has(s.id)} onCheckedChange={() => { const n = new Set(selectedStudents); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); setSelectedStudents(n); }} />
+                                </TableCell>
                             </TableRow>
                         ))}
-                        {filteredStudents.length === 0 && !isLoading && (
-                            <TableRow><TableCell colSpan={10} className="text-center h-32 text-muted-foreground">لا يوجد تلاميذ مطابقين للبحث.</TableCell></TableRow>
-                        )}
                         </TableBody>
                     </Table>
                 </div>
             </TabsContent>
-
-            <TabsContent value="transfer">
-                <TransferStudentsTab students={students} institutions={institutions} departments={departments} />
-            </TabsContent>
+            <TabsContent value="transfer"><TransferStudentsTab students={students} institutions={institutions} departments={departments} /></TabsContent>
         </Tabs>
-
-       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>هل أنت متأكد من الحذف؟</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        هذا الإجراء لا يمكن التراجع عنه. سيؤدي هذا إلى حذف بيانات التلميذ بشكل دائم.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                    <AlertDialogAction onClick={confirmDelete}>تأكيد الحذف</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+        <StudentForm open={isAddOpen} onOpenChange={setAddOpen} />
+        <StudentForm open={isEditOpen} onOpenChange={setEditOpen} student={studentToEdit} />
+        <AlertDialog open={!!studentToDelete} onOpenChange={() => setStudentToDelete(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>تأكيد الحذف</AlertDialogTitle><AlertDialogDescription>هل أنت متأكد من حذف هذا التلميذ نهائياً؟</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-destructive text-white">تأكيد الحذف</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }
