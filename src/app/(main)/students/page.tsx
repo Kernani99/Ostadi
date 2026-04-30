@@ -1,11 +1,11 @@
 
 'use client';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useFirestore, useUser } from "@/firebase";
-import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer, PlusCircle } from "lucide-react";
+import { UserPlus, Search, Trash2, Pencil, FileDown, FileUp, FileText, Users, Activity, ShieldOff, PersonStanding, Printer, PlusCircle, ArrowRightLeft, ArrowLeft, CheckCircle2, Info } from "lucide-react";
 import { collection, doc, query, where, writeBatch } from "firebase/firestore";
 import { useMemoFirebase } from "@/firebase/provider";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocki
 import { useToast } from "@/hooks/use-toast";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const studentSchema = z.object({
   firstName: z.string().min(1, { message: "الإسم مطلوب" }),
@@ -56,7 +57,7 @@ const studentSchema = z.object({
   level: z.string().min(1, { message: "المستوى مطلوب" }),
   institutionId: z.string().min(1, { message: "المؤسسة مطلوبة" }),
   status: z.enum(['active', 'exempt'], { required_error: "الحالة مطلوبة" }),
-  departmentId: z.string().optional(),
+  departmentId: z.string().optional().nullable(),
 });
 
 type StudentFormValues = z.infer<typeof studentSchema>;
@@ -64,6 +65,7 @@ type StudentFormValues = z.infer<typeof studentSchema>;
 const bulkStudentSchema = z.object({
   institutionId: z.string().min(1, { message: "المؤسسة مطلوبة" }),
   level: z.string().min(1, { message: "المستوى مطلوب" }),
+  departmentId: z.string().optional().nullable(),
   status: z.enum(['active', 'exempt'], { required_error: "الحالة مطلوبة" }),
   students: z.array(z.object({
     fullName: z.string().min(3, { message: "الاسم الكامل يجب أن يكون 3 أحرف على الأقل" }),
@@ -92,7 +94,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const singleForm = useForm<StudentFormValues>({
         resolver: zodResolver(studentSchema),
         defaultValues: {
-            firstName: '', lastName: '', dateOfBirth: '', level: '', institutionId: '', departmentId: '',
+            firstName: '', lastName: '', dateOfBirth: '', level: '', institutionId: '', departmentId: null,
         }
     });
     
@@ -101,6 +103,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
         defaultValues: {
             institutionId: '',
             level: '',
+            departmentId: null,
             status: 'active',
             students: [{ fullName: '', gender: 'male', dateOfBirth: ''}]
         }
@@ -111,18 +114,27 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
         name: "students"
     });
 
+    const selectedInst = bulkForm.watch('institutionId');
+    const selectedLevel = bulkForm.watch('level');
+
+    const availableDepartments = useMemo(() => {
+        if (!departments || !selectedInst || !selectedLevel) return [];
+        return departments.filter(d => d.institutionId === selectedInst && d.level === selectedLevel);
+    }, [departments, selectedInst, selectedLevel]);
+
     useEffect(() => {
         if (open) {
             if (student) {
                 singleForm.reset({
                     ...student,
                     dateOfBirth: student.dateOfBirth || '',
-                    departmentId: student.departmentId || '',
+                    departmentId: student.departmentId || null,
                 });
             } else {
                 bulkForm.reset({
                     institutionId: '',
                     level: '',
+                    departmentId: null,
                     status: 'active',
                     students: [{ fullName: '', gender: 'male', dateOfBirth: ''}]
                 });
@@ -169,7 +181,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                     institutionId: data.institutionId,
                     level: data.level,
                     status: data.status,
-                    departmentId: null,
+                    departmentId: data.departmentId || null,
                     userId: user.uid,
                 };
                 batch.set(newStudentRef, newStudentPayload);
@@ -193,6 +205,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     if (!open) return null;
 
     if (student) {
+        const singleAvailableDepts = departments?.filter(d => d.institutionId === singleForm.watch('institutionId') && d.level === singleForm.watch('level')) || [];
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-lg">
@@ -208,10 +221,22 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                             <FormField control={singleForm.control} name="firstName" render={({ field }) => (<FormItem><FormLabel>الإسم</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={singleForm.control} name="dateOfBirth" render={({ field }) => (<FormItem><FormLabel>تاريخ الميلاد</FormLabel><FormControl><Input {...field} type="date" /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={singleForm.control} name="gender" render={({ field }) => (<FormItem><FormLabel>الجنس</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الجنس" /></SelectTrigger></FormControl><SelectContent><SelectItem value="male">ذكر</SelectItem><SelectItem value="female">أنثى</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={singleForm.control} name="level" render={({ field }) => (<FormItem><FormLabel>المستوى</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={singleForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="level" render={({ field }) => (<FormItem><FormLabel>المستوى</FormLabel><Select onValueChange={(val) => { field.onChange(val); singleForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={(val) => { field.onChange(val); singleForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                             <FormField control={singleForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                            <FormField control={singleForm.control} name="departmentId" render={({ field }) => (<FormItem><FormLabel>القسم (اختياري)</FormLabel><Select onValueChange={field.onChange} value={field.value ?? ''}><FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl><SelectContent><SelectItem value="___none___">بلا قسم</SelectItem>{departments?.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                            <FormField control={singleForm.control} name="departmentId" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>القسم (اختياري)</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value || '___none___'}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="___none___">بلا قسم</SelectItem>
+                                            {singleAvailableDepts.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
                             <DialogFooter className="col-span-1 md:col-span-2">
                                 <Button type="submit">حفظ التعديلات</Button>
                             </DialogFooter>
@@ -233,11 +258,53 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                 </DialogHeader>
                 <Form {...bulkForm}>
                     <form onSubmit={bulkForm.handleSubmit(onBulkSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
-                           <FormField control={bulkForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة (مشترك)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                           <FormField control={bulkForm.control} name="level" render={({ field }) => (<FormItem><FormLabel>المستوى (مشترك)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl><SelectContent><SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem><SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem><SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem><SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem><SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                           <FormField control={bulkForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة (مشترك)</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg bg-muted/30">
+                           <FormField control={bulkForm.control} name="institutionId" render={({ field }) => (<FormItem><FormLabel>المؤسسة</FormLabel><Select onValueChange={(val) => { field.onChange(val); bulkForm.setValue('departmentId', null); }} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger></FormControl><SelectContent>{institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                           <FormField control={bulkForm.control} name="level" render={({ field }) => (
+                               <FormItem>
+                                   <FormLabel className="flex items-center gap-2">
+                                        المستوى 
+                                        {availableDepartments.length > 1 && (
+                                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-[10px] px-1 h-4 border-yellow-200">
+                                                {availableDepartments.length} أقسام
+                                            </Badge>
+                                        )}
+                                   </FormLabel>
+                                   <Select onValueChange={(val) => { field.onChange(val); bulkForm.setValue('departmentId', null); }} value={field.value}>
+                                       <FormControl><SelectTrigger><SelectValue placeholder="اختر المستوى" /></SelectTrigger></FormControl>
+                                       <SelectContent>
+                                           <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                                           <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                                           <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                                           <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                                           <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                                       </SelectContent>
+                                   </Select>
+                                   <FormMessage />
+                               </FormItem>
+                           )} />
+                           <FormField control={bulkForm.control} name="departmentId" render={({ field }) => (
+                               <FormItem>
+                                   <FormLabel>القسم (اختياري)</FormLabel>
+                                   <Select onValueChange={field.onChange} value={field.value || '___none___'} disabled={!selectedLevel || !selectedInst}>
+                                       <FormControl><SelectTrigger><SelectValue placeholder="اختر القسم" /></SelectTrigger></FormControl>
+                                       <SelectContent>
+                                            <SelectItem value="___none___">بلا قسم (عام)</SelectItem>
+                                            {availableDepartments.map(dept => <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>)}
+                                       </SelectContent>
+                                   </Select>
+                                   <FormMessage />
+                               </FormItem>
+                           )} />
+                           <FormField control={bulkForm.control} name="status" render={({ field }) => (<FormItem><FormLabel>الحالة</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر الحالة" /></SelectTrigger></FormControl><SelectContent><SelectItem value="active">يمارس</SelectItem><SelectItem value="exempt">معفي</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
+
+                        {availableDepartments.length > 1 && (
+                            <div className="flex items-center gap-2 p-2 bg-blue-50 text-blue-800 rounded-md text-sm">
+                                <Info className="h-4 w-4" />
+                                <span>هذا المستوى يحتوي على أكثر من قسم ({availableDepartments.map(d => d.name).join('، ')}). يمكنك اختيار قسم محدد أعلاه للفصل بينهم.</span>
+                            </div>
+                        )}
 
                         <ScrollArea className="h-60 w-full rounded-md border p-4">
                             <div className="space-y-4">
@@ -379,6 +446,229 @@ function PrintDialog({ open, onOpenChange, institutions }: { open: boolean, onOp
     );
 }
 
+function TransferStudentsTab({ students, institutions, departments }: { students: Student[] | null, institutions: Institution[] | null, departments: Department[] | null }) {
+    const firestore = useFirestore();
+    const { user } = useUser();
+    const { toast } = useToast();
+
+    // Source state
+    const [srcInst, setSrcInst] = useState<string>('');
+    const [srcLevel, setSrcLevel] = useState<string>('');
+    const [srcDept, setSrcDept] = useState<string>('');
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+
+    // Destination state
+    const [destInst, setDestInst] = useState<string>('');
+    const [destLevel, setDestLevel] = useState<string>('');
+    const [destDept, setDestDept] = useState<string>('');
+    const [isTransferring, setIsTransferring] = useState(false);
+
+    const sourceStudents = useMemo(() => {
+        if (!students) return [];
+        return students.filter(s => 
+            (srcInst === '' || s.institutionId === srcInst) &&
+            (srcLevel === '' || s.level === srcLevel) &&
+            (srcDept === '' || (srcDept === 'none' ? !s.departmentId : s.departmentId === srcDept))
+        ).sort((a,b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
+    }, [students, srcInst, srcLevel, srcDept]);
+
+    const sourceDepts = useMemo(() => {
+        if (!departments || !srcInst || !srcLevel) return [];
+        return departments.filter(d => d.institutionId === srcInst && d.level === srcLevel);
+    }, [departments, srcInst, srcLevel]);
+
+    const destDepts = useMemo(() => {
+        if (!departments || !destInst || !destLevel) return [];
+        return departments.filter(d => d.institutionId === destInst && d.level === destLevel);
+    }, [departments, destInst, destLevel]);
+
+    const handleSelectStudent = (id: string) => {
+        setSelectedStudentIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleSelectAll = () => {
+        if (selectedStudentIds.size === sourceStudents.length) setSelectedStudentIds(new Set());
+        else setSelectedStudentIds(new Set(sourceStudents.map(s => s.id)));
+    };
+
+    const handleTransfer = async () => {
+        if (!user || selectedStudentIds.size === 0 || !destInst || !destLevel) {
+            toast({ title: "بيانات ناقصة", description: "الرجاء اختيار التلاميذ والوجهة الجديدة.", variant: "destructive" });
+            return;
+        }
+
+        setIsTransferring(true);
+        const batch = writeBatch(firestore);
+        
+        selectedStudentIds.forEach(id => {
+            const studentRef = doc(firestore, 'students', id);
+            batch.update(studentRef, {
+                institutionId: destInst,
+                level: destLevel,
+                departmentId: destDept === 'none' || destDept === '' ? null : destDept
+            });
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: "تم التحويل بنجاح", description: `تم نقل ${selectedStudentIds.size} تلميذ/تلاميذ إلى الوجهة الجديدة.`, variant: 'success' });
+            setSelectedStudentIds(new Set());
+        } catch (error) {
+            console.error(error);
+            toast({ title: "خطأ", description: "حدث خطأ أثناء عملية التحويل.", variant: "destructive" });
+        } finally {
+            setIsTransferring(false);
+        }
+    };
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="shadow-md">
+                <CardHeader className="bg-primary/5 border-b">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        <ArrowLeft className="h-5 w-5 text-primary rotate-180" />
+                        المصدر (الحالي)
+                    </CardTitle>
+                    <CardDescription>حدد التلاميذ الذين تريد نقلهم</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                            <Label className="text-xs">المؤسسة</Label>
+                            <Select value={srcInst} onValueChange={(val) => { setSrcInst(val); setSrcDept(''); setSelectedStudentIds(new Set()); }}>
+                                <SelectTrigger><SelectValue placeholder="المؤسسة" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all_insts" disabled>اختر المؤسسة</SelectItem>
+                                    {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">المستوى</Label>
+                            <Select value={srcLevel} onValueChange={(val) => { setSrcLevel(val); setSrcDept(''); setSelectedStudentIds(new Set()); }}>
+                                <SelectTrigger><SelectValue placeholder="المستوى" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                                    <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                                    <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                                    <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                                    <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">القسم</Label>
+                            <Select value={srcDept} onValueChange={(val) => { setSrcDept(val); setSelectedStudentIds(new Set()); }}>
+                                <SelectTrigger><SelectValue placeholder="القسم" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all_depts">الكل</SelectItem>
+                                    <SelectItem value="none">بدون قسم</SelectItem>
+                                    {sourceDepts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="border rounded-md">
+                        <div className="bg-muted/50 p-2 border-b flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <Checkbox checked={sourceStudents.length > 0 && selectedStudentIds.size === sourceStudents.length} onCheckedChange={handleSelectAll} />
+                                <span className="text-sm font-medium">تحديد الكل</span>
+                            </div>
+                            <Badge variant="outline">{selectedStudentIds.size} / {sourceStudents.length}</Badge>
+                        </div>
+                        <ScrollArea className="h-[400px]">
+                            {sourceStudents.length > 0 ? (
+                                <div className="divide-y">
+                                    {sourceStudents.map(s => (
+                                        <div key={s.id} className="flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors">
+                                            <Checkbox checked={selectedStudentIds.has(s.id)} onCheckedChange={() => handleSelectStudent(s.id)} />
+                                            <div className="flex flex-col">
+                                                <span className="font-medium text-sm">{s.lastName} {s.firstName}</span>
+                                                <span className="text-[10px] text-muted-foreground">{s.level} - {departments?.find(d => d.id === s.departmentId)?.name || 'بدون قسم'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-8 text-center text-muted-foreground text-sm">لا يوجد تلاميذ مطابقين لهذه الفلاتر.</div>
+                            )}
+                        </ScrollArea>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-md">
+                <CardHeader className="bg-accent/10 border-b">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        <ArrowLeft className="h-5 w-5 text-accent-foreground" />
+                        الوجهة (الجديدة)
+                    </CardTitle>
+                    <CardDescription>حدد المكان الجديد للتلاميذ المختارين</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>المؤسسة المستقبلة</Label>
+                            <Select value={destInst} onValueChange={(val) => { setDestInst(val); setDestDept(''); }}>
+                                <SelectTrigger className="h-12"><SelectValue placeholder="اختر المؤسسة" /></SelectTrigger>
+                                <SelectContent>
+                                    {institutions?.map(inst => <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>المستوى الجديد</Label>
+                            <Select value={destLevel} onValueChange={(val) => { setDestLevel(val); setDestDept(''); }}>
+                                <SelectTrigger className="h-12"><SelectValue placeholder="اختر المستوى" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                                    <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                                    <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                                    <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                                    <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>القسم الجديد</Label>
+                            <Select value={destDept} onValueChange={setDestDept} disabled={!destLevel || !destInst}>
+                                <SelectTrigger className="h-12"><SelectValue placeholder="اختر القسم" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">بدون قسم (عام)</SelectItem>
+                                    {destDepts.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="p-4 rounded-lg bg-accent/5 border border-accent/20 flex flex-col items-center justify-center text-center space-y-3">
+                        <div className="bg-accent/20 p-3 rounded-full">
+                            <ArrowRightLeft className="h-8 w-8 text-accent-foreground" />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-accent-foreground">تأكيد عملية النقل</h4>
+                            <p className="text-xs text-muted-foreground">سيتم نقل {selectedStudentIds.size} تلميذ/تلاميذ بشكل دائم إلى الوجهة المحددة.</p>
+                        </div>
+                        <Button 
+                            className="w-full h-12 text-base font-bold bg-accent text-accent-foreground hover:bg-accent/90" 
+                            disabled={selectedStudentIds.size === 0 || !destInst || !destLevel || isTransferring}
+                            onClick={handleTransfer}
+                        >
+                            {isTransferring ? "جاري النقل..." : "تنفيذ عملية التحويل"}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 
 export default function StudentsPage() {
   const firestore = useFirestore();
@@ -499,8 +789,8 @@ export default function StudentsPage() {
     if (confirm(`هل أنت متأكد من أنك تريد حذف ${selectedStudents.size} تلميذ/تلاميذ؟`)) {
         const batch = writeBatch(firestore);
         selectedStudents.forEach(id => {
-            const studentDocRef = doc(firestore, 'students', id);
-            batch.delete(studentDocRef);
+            const studentRef = doc(firestore, 'students', id);
+            batch.delete(studentRef);
         });
         batch.commit().then(() => {
              toast({ title: "تم الحذف", description: `تم حذف ${selectedStudents.size} تلميذ/تلاميذ بنجاح.`, variant: 'success' });
@@ -617,7 +907,7 @@ export default function StudentsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="container mx-auto p-4 space-y-6">
       <div className="flex flex-col items-center gap-2">
         <h1 className="font-bold text-3xl text-center text-primary relative">
           إدارة التلاميذ
@@ -633,171 +923,187 @@ export default function StudentsPage() {
             <StatCard title="التلاميذ المعفيون" value={stats.exempt} icon={ShieldOff} />
         </div>
 
-      <Card className="shadow-md">
-        <CardContent className="p-4 flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={handleAddNew} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
-                <UserPlus className="me-2" />
-                تسجيل تلميذ
-                </Button>
-                <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
-                 <PrintDialog open={isPrintDialogOpen} onOpenChange={setPrintDialogOpen} institutions={institutions} />
-            <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-                <FileText className="me-2" />
-                تحميل الكل (Excel)
-            </Button>
-            <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-                <FileUp className="me-2" />
-                استيراد (Excel)
-            </Button>
-             <Button onClick={() => setPrintDialogOpen(true)} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
-                <Printer className="me-2" />
-                طباعة القائمة
-            </Button>
-            <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileImport}
-                className="hidden" 
-                accept=".xlsx"
-            />
-            {selectedStudents.size > 0 && (
-                <>
-                    <Button variant="destructive" onClick={handleDeleteSelected} className="rounded-full">
-                        <Trash2 className="me-2" />
-                        حذف المحدد ({selectedStudents.size})
-                    </Button>
-                    <Button variant="outline" onClick={handleExportSelected} className="rounded-full border-green-600 text-green-600 hover:bg-green-50">
-                        <FileDown className="me-2" />
-                        تصدير المحدد ({selectedStudents.size})
-                    </Button>
-                </>
-            )}
-            <div className="relative ms-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input 
-                placeholder="ابحث عن تلميذ..." 
-                className="ps-10 rounded-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 items-center gap-2">
-                <Select value={levelFilter} onValueChange={setLevelFilter}>
-                    <SelectTrigger><SelectValue placeholder="فلترة حسب المستوى" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">الكل</SelectItem>
-                        <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
-                        <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
-                        <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
-                        <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
-                        <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={genderFilter} onValueChange={setGenderFilter}>
-                    <SelectTrigger><SelectValue placeholder="فلترة حسب الجنس" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">الكل</SelectItem>
-                        <SelectItem value="male">ذكر</SelectItem>
-                        <SelectItem value="female">أنثى</SelectItem>
-                    </SelectContent>
-                </Select>
-                 <Select value={institutionFilter} onValueChange={setInstitutionFilter}>
-                    <SelectTrigger><SelectValue placeholder="فلترة حسب المؤسسة" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">الكل</SelectItem>
-                        {institutions?.map(inst => (
-                            <SelectItem key={inst.id} value={inst.id}>
-                                {inst.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger><SelectValue placeholder="فلترة حسب الحالة" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">الكل</SelectItem>
-                        <SelectItem value="active">يمارس</SelectItem>
-                        <SelectItem value="exempt">معفي</SelectItem>
-                    </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2">
-                 <Button onClick={() => {
-                     setLevelFilter('all');
-                     setGenderFilter('all');
-                     setInstitutionFilter('all');
-                     setStatusFilter('all');
-                     setSearchTerm('');
-                 }} variant="ghost">إلغاء الفلاتر</Button>
-                  <Badge variant="secondary" className="px-3 py-1">
-                    العدد: {filteredStudents.length}
-                  </Badge>
-                </div>
-            </div>
-        </CardContent>
-      </Card>
+        <Tabs defaultValue="list" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto mb-6 h-12">
+                <TabsTrigger value="list" className="gap-2"><Users className="h-4 w-4" /> قائمة التلاميذ</TabsTrigger>
+                <TabsTrigger value="transfer" className="gap-2"><ArrowRightLeft className="h-4 w-4" /> تحويل التلاميذ</TabsTrigger>
+            </TabsList>
 
-      <div className="overflow-x-auto">
-          <Table className="bg-card rounded-lg">
-            <TableHeader className="bg-primary text-primary-foreground">
-              <TableRow>
-                <TableHead className="w-[50px] text-center">
-                    <Checkbox 
-                        checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
-                        onCheckedChange={handleSelectAll}
-                        aria-label="Select all"
-                    />
-                </TableHead>
-                <TableHead className="text-white">#</TableHead>
-                <TableHead className="text-white">الإسم الكامل</TableHead>
-                <TableHead className="text-white">تاريخ الميلاد</TableHead>
-                <TableHead className="text-white">المستوى</TableHead>
-                <TableHead className="text-white">القسم</TableHead>
-                <TableHead className="text-white">الجنس</TableHead>
-                <TableHead className="text-white">المؤسسة</TableHead>
-                <TableHead className="text-white">الحالة</TableHead>
-                <TableHead className="text-white text-center">إجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={10} className="text-center">جاري تحميل التلاميذ...</TableCell></TableRow>}
-              {!isLoading && filteredStudents?.map((student, index) => (
-                <TableRow key={student.id} className="hover:bg-muted/50" data-state={selectedStudents.has(student.id) ? "selected" : ""}>
-                   <TableCell className="text-center">
-                    <Checkbox
-                        checked={selectedStudents.has(student.id)}
-                        onCheckedChange={() => handleSelectStudent(student.id)}
-                        aria-label={`Select student ${student.firstName}`}
-                    />
-                  </TableCell>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell className="font-medium">{student.lastName} {student.firstName}</TableCell>
-                  <TableCell>{student.dateOfBirth || 'غير محدد'}</TableCell>
-                  <TableCell>{student.level ?? 'غير محدد'}</TableCell>
-                  <TableCell>{departmentMap.get(student.departmentId || '') || '-'}</TableCell>
-                  <TableCell>
-                    {student.gender === 'male' ? 'ذكر' : 'أنثى'}
-                  </TableCell>
-                  <TableCell>{institutionMap.get(student.institutionId) ?? 'غير محدد'}</TableCell>
-                  <TableCell>
-                    <Badge variant={student.status === 'active' ? 'default' : 'destructive'} className={student.status === 'active' ? 'bg-green-500' : 'bg-red-500'}>
-                      {student.status === 'active' ? 'يمارس' : 'معفي'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700" onClick={() => handleEdit(student)}>
-                      <Pencil className="h-5 w-5" />
-                    </Button>
-                     <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(student)}>
-                      <Trash2 className="h-5 w-5" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-      </div>
+            <TabsContent value="list" className="space-y-6">
+                <Card className="shadow-md">
+                    <CardContent className="p-4 flex flex-col gap-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button onClick={handleAddNew} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full">
+                            <UserPlus className="me-2" />
+                            تسجيل تلميذ
+                            </Button>
+                            <StudentForm open={isFormOpen} onOpenChange={setFormOpen} student={selectedStudent} />
+                            <PrintDialog open={isPrintDialogOpen} onOpenChange={setPrintDialogOpen} institutions={institutions} />
+                        <Button onClick={handleDownloadAll} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+                            <FileText className="me-2" />
+                            تحميل الكل (Excel)
+                        </Button>
+                        <Button onClick={handleImportClick} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+                            <FileUp className="me-2" />
+                            استيراد (Excel)
+                        </Button>
+                        <Button onClick={() => setPrintDialogOpen(true)} variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10">
+                            <Printer className="me-2" />
+                            طباعة القائمة
+                        </Button>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileImport}
+                            className="hidden" 
+                            accept=".xlsx"
+                        />
+                        {selectedStudents.size > 0 && (
+                            <>
+                                <Button variant="destructive" onClick={handleDeleteSelected} className="rounded-full">
+                                    <Trash2 className="me-2" />
+                                    حذف المحدد ({selectedStudents.size})
+                                </Button>
+                                <Button variant="outline" onClick={handleExportSelected} className="rounded-full border-green-600 text-green-600 hover:bg-green-50">
+                                    <FileDown className="me-2" />
+                                    تصدير المحدد ({selectedStudents.size})
+                                </Button>
+                            </>
+                        )}
+                        <div className="relative ms-auto">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <Input 
+                            placeholder="ابحث عن تلميذ..." 
+                            className="ps-10 rounded-full"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-5 items-center gap-2">
+                            <Select value={levelFilter} onValueChange={setLevelFilter}>
+                                <SelectTrigger><SelectValue placeholder="فلترة حسب المستوى" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">الكل</SelectItem>
+                                    <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                                    <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                                    <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                                    <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                                    <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={genderFilter} onValueChange={setGenderFilter}>
+                                <SelectTrigger><SelectValue placeholder="فلترة حسب الجنس" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">الكل</SelectItem>
+                                    <SelectItem value="male">ذكر</SelectItem>
+                                    <SelectItem value="female">أنثى</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={institutionFilter} onValueChange={setInstitutionFilter}>
+                                <SelectTrigger><SelectValue placeholder="فلترة حسب المؤسسة" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">الكل</SelectItem>
+                                    {institutions?.map(inst => (
+                                        <SelectItem key={inst.id} value={inst.id}>
+                                            {inst.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                <SelectTrigger><SelectValue placeholder="فلترة حسب الحالة" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">الكل</SelectItem>
+                                    <SelectItem value="active">يمارس</SelectItem>
+                                    <SelectItem value="exempt">معفي</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <div className="flex items-center gap-2">
+                            <Button onClick={() => {
+                                setLevelFilter('all');
+                                setGenderFilter('all');
+                                setInstitutionFilter('all');
+                                setStatusFilter('all');
+                                setSearchTerm('');
+                            }} variant="ghost">إلغاء الفلاتر</Button>
+                            <Badge variant="secondary" className="px-3 py-1">
+                                العدد: {filteredStudents.length}
+                            </Badge>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <div className="overflow-x-auto border rounded-lg">
+                    <Table className="bg-card">
+                        <TableHeader className="bg-primary text-primary-foreground">
+                        <TableRow>
+                            <TableHead className="w-[50px] text-center">
+                                <Checkbox 
+                                    checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
+                                    onCheckedChange={handleSelectAll}
+                                    aria-label="Select all"
+                                />
+                            </TableHead>
+                            <TableHead className="text-white">#</TableHead>
+                            <TableHead className="text-white">الإسم الكامل</TableHead>
+                            <TableHead className="text-white">تاريخ الميلاد</TableHead>
+                            <TableHead className="text-white">المستوى</TableHead>
+                            <TableHead className="text-white">القسم</TableHead>
+                            <TableHead className="text-white">الجنس</TableHead>
+                            <TableHead className="text-white">المؤسسة</TableHead>
+                            <TableHead className="text-white">الحالة</TableHead>
+                            <TableHead className="text-white text-center">إجراءات</TableHead>
+                        </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {isLoading && <TableRow><TableCell colSpan={10} className="text-center h-32"><PlusCircle className="animate-spin h-8 w-8 mx-auto text-primary" /></TableCell></TableRow>}
+                        {!isLoading && filteredStudents?.map((student, index) => (
+                            <TableRow key={student.id} className="hover:bg-muted/50" data-state={selectedStudents.has(student.id) ? "selected" : ""}>
+                            <TableCell className="text-center">
+                                <Checkbox
+                                    checked={selectedStudents.has(student.id)}
+                                    onCheckedChange={() => handleSelectStudent(student.id)}
+                                    aria-label={`Select student ${student.firstName}`}
+                                />
+                            </TableCell>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell className="font-medium">{student.lastName} {student.firstName}</TableCell>
+                            <TableCell>{student.dateOfBirth || 'غير محدد'}</TableCell>
+                            <TableCell>{student.level ?? 'غير محدد'}</TableCell>
+                            <TableCell>{departmentMap.get(student.departmentId || '') || '-'}</TableCell>
+                            <TableCell>
+                                {student.gender === 'male' ? 'ذكر' : 'أنثى'}
+                            </TableCell>
+                            <TableCell>{institutionMap.get(student.institutionId) ?? 'غير محدد'}</TableCell>
+                            <TableCell>
+                                <Badge variant={student.status === 'active' ? 'default' : 'destructive'} className={student.status === 'active' ? 'bg-green-500' : 'bg-red-500'}>
+                                {student.status === 'active' ? 'يمارس' : 'معفي'}
+                                </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                                <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700" onClick={() => handleEdit(student)}>
+                                <Pencil className="h-5 w-5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(student)}>
+                                <Trash2 className="h-5 w-5" />
+                                </Button>
+                            </TableCell>
+                            </TableRow>
+                        ))}
+                        {filteredStudents.length === 0 && !isLoading && (
+                            <TableRow><TableCell colSpan={10} className="text-center h-32 text-muted-foreground">لا يوجد تلاميذ مطابقين للبحث.</TableCell></TableRow>
+                        )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </TabsContent>
+
+            <TabsContent value="transfer">
+                <TransferStudentsTab students={students} institutions={institutions} departments={departments} />
+            </TabsContent>
+        </Tabs>
 
        <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
             <AlertDialogContent>
