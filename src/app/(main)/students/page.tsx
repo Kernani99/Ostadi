@@ -89,7 +89,6 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     const departmentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)) : null, [firestore, user]);
     const { data: departments } = useCollection<Department>(departmentsQuery);
 
-    // Form for single student (edit)
     const singleForm = useForm<StudentFormValues>({
         resolver: zodResolver(studentSchema),
         defaultValues: {
@@ -97,7 +96,6 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
         }
     });
     
-    // Form for bulk students (add)
     const bulkForm = useForm<BulkStudentFormValues>({
         resolver: zodResolver(bulkStudentSchema),
         defaultValues: {
@@ -115,13 +113,13 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
 
     useEffect(() => {
         if (open) {
-            if (student) { // EDIT mode
+            if (student) {
                 singleForm.reset({
                     ...student,
                     dateOfBirth: student.dateOfBirth || '',
                     departmentId: student.departmentId || '',
                 });
-            } else { // ADD mode
+            } else {
                 bulkForm.reset({
                     institutionId: '',
                     level: '',
@@ -171,7 +169,7 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
                     institutionId: data.institutionId,
                     level: data.level,
                     status: data.status,
-                    departmentId: null, // Bulk add doesn't assign department
+                    departmentId: null,
                     userId: user.uid,
                 };
                 batch.set(newStudentRef, newStudentPayload);
@@ -194,7 +192,6 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
     
     if (!open) return null;
 
-    // EDIT MODE
     if (student) {
         return (
             <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,7 +222,6 @@ const StudentForm: FC<StudentFormProps> = ({ open, onOpenChange, student }) => {
         );
     }
     
-    // ADD MODE
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
              <DialogContent className="sm:max-w-4xl">
@@ -388,10 +384,16 @@ export default function StudentsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  
   const studentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'students'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
+  
   const institutionsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user]);
   const { data: institutions } = useCollection<Institution>(institutionsQuery);
+
+  const departmentsQuery = useMemoFirebase(() => user ? query(collection(firestore, 'departments'), where('userId', '==', user.uid)) : null, [firestore, user]);
+  const { data: departments } = useCollection<Department>(departmentsQuery);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -418,11 +420,24 @@ export default function StudentsPage() {
     }
   }, [students]);
 
-
   const institutionMap = useMemo(() => {
     if (!institutions) return new Map();
     return new Map(institutions.map(inst => [inst.id, inst.name]));
   }, [institutions]);
+
+  const departmentMap = useMemo(() => {
+    if (!departments) return new Map<string, string>();
+    return new Map(departments.map(d => [d.id, d.name]));
+  }, [departments]);
+
+  const deptsLookupMap = useMemo(() => {
+      const map = new Map<string, string>();
+      departments?.forEach(d => {
+          const key = `${d.institutionId}_${d.level}_${d.name.trim().toLowerCase()}`;
+          map.set(key, d.id);
+      });
+      return map;
+  }, [departments]);
 
   const filteredStudents = useMemo(() => {
     if (!students) return [];
@@ -503,6 +518,7 @@ export default function StudentsPage() {
       'الإسم': student.firstName,
       'تاريخ الميلاد': student.dateOfBirth ?? '',
       'المستوى': student.level ?? '',
+      'القسم': departmentMap.get(student.departmentId || '') || '',
       'الجنس': student.gender === 'male' ? 'ذكر' : 'أنثى',
       'المؤسسة': institutionMap.get(student.institutionId) ?? student.institutionId,
       'الحالة': student.status === 'active' ? 'يمارس' : 'معفي',
@@ -554,16 +570,22 @@ export default function StudentsPage() {
             const batch = writeBatch(firestore);
             let count = 0;
             
-            const institutionsMapByName = new Map(institutions?.map(inst => [inst.name.toLowerCase(), inst.id]));
+            const institutionsMapByName = new Map(institutions?.map(inst => [inst.name.trim().toLowerCase(), inst.id]));
 
             importedStudents.forEach(row => {
+                const instId = institutionsMapByName.get(String(row['المؤسسة'] || '').trim().toLowerCase()) || '';
+                const levelName = row['المستوى'] || '';
+                const deptName = String(row['القسم'] || '').trim().toLowerCase();
+                const deptId = deptsLookupMap.get(`${instId}_${levelName}_${deptName}`) || null;
+
                 const studentData = {
-                    lastName: row['اللقب'] || '',
-                    firstName: row['الإسم'] || '',
+                    lastName: String(row['اللقب'] || '').trim(),
+                    firstName: String(row['الإسم'] || '').trim(),
                     dateOfBirth: row['تاريخ الميلاد'] || '',
                     gender: (row['الجنس'] === 'ذكر' ? 'male' : (row['الجنس'] === 'أنثى' ? 'female' : 'male')),
-                    level: row['المستوى'] || '',
-                    institutionId: institutionsMapByName.get(String(row['المؤسسة'] || '').toLowerCase()) || '',
+                    level: levelName,
+                    institutionId: instId,
+                    departmentId: deptId,
                     status: (row['الحالة'] === 'يمارس' ? 'active' : (row['الحالة'] === 'معفي' ? 'exempt' : 'active')),
                     userId: user.uid,
                 };
@@ -577,13 +599,13 @@ export default function StudentsPage() {
 
             if (count > 0) {
                 batch.commit().then(() => {
-                    toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ.`, variant: 'success' });
+                    toast({ title: "تم الاستيراد بنجاح", description: `تمت إضافة ${count} تلميذ/تلاميذ مع تعيين الأقسام المتاحة.`, variant: 'success' });
                 }).catch(err => {
                     console.error(err);
-                    toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ. تأكد من صحة أسماء المؤسسات.", variant: "destructive" });
+                    toast({ title: "خطأ في الاستيراد", description: "حدث خطأ أثناء حفظ التلاميذ. تأكد من صحة أسماء المؤسسات والأقسام.", variant: "destructive" });
                 });
             } else {
-                toast({ title: "لا توجد بيانات صالحة للاستيراد", description: "يرجى التحقق من تنسيق الملف ومحتواه.", variant: "destructive" });
+                toast({ title: "لا توجد بيانات صالحة للاستيراد", description: "يرجى التحقق من تنسيق الملف ومحتواه (اللقب، الإسم، المؤسسة).", variant: "destructive" });
             }
         } catch(error) {
             console.error(error);
@@ -731,6 +753,7 @@ export default function StudentsPage() {
                 <TableHead className="text-white">الإسم الكامل</TableHead>
                 <TableHead className="text-white">تاريخ الميلاد</TableHead>
                 <TableHead className="text-white">المستوى</TableHead>
+                <TableHead className="text-white">القسم</TableHead>
                 <TableHead className="text-white">الجنس</TableHead>
                 <TableHead className="text-white">المؤسسة</TableHead>
                 <TableHead className="text-white">الحالة</TableHead>
@@ -738,7 +761,7 @@ export default function StudentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={9} className="text-center">جاري تحميل التلاميذ...</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={10} className="text-center">جاري تحميل التلاميذ...</TableCell></TableRow>}
               {!isLoading && filteredStudents?.map((student, index) => (
                 <TableRow key={student.id} className="hover:bg-muted/50" data-state={selectedStudents.has(student.id) ? "selected" : ""}>
                    <TableCell className="text-center">
@@ -752,6 +775,7 @@ export default function StudentsPage() {
                   <TableCell className="font-medium">{student.lastName} {student.firstName}</TableCell>
                   <TableCell>{student.dateOfBirth || 'غير محدد'}</TableCell>
                   <TableCell>{student.level ?? 'غير محدد'}</TableCell>
+                  <TableCell>{departmentMap.get(student.departmentId || '') || '-'}</TableCell>
                   <TableCell>
                     {student.gender === 'male' ? 'ذكر' : 'أنثى'}
                   </TableCell>
