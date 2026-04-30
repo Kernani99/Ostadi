@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2, ArrowLeft, Mail, Lock, ShieldCheck } from "lucide-react";
-import Image from "next/image";
 
 const AlgerianFlagIcon = () => (
     <div className="h-12 w-12 rounded-full overflow-hidden flex items-center justify-center animate-pulse flex-shrink-0">
@@ -45,8 +44,10 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // The redirect logic is handled by the AuthHandler in FirebaseClientProvider
+      // Success redirection is handled by AuthHandler in client-provider.tsx
+      // We don't set isLoading(false) here to keep the loader until redirect happens
     } catch (error: any) {
+      setIsLoading(false);
       let description = "حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.";
        switch (error.code) {
         case 'auth/user-not-found':
@@ -65,7 +66,7 @@ export default function LoginPage() {
           break;
         default:
           description = "حدث خطأ غير معروف. يرجى المحاولة مرة أخرى.";
-          console.error("Login Error:", error); // Log the full error for debugging
+          console.error("Login Error:", error);
       }
       toast({
         title: "فشل تسجيل الدخول",
@@ -73,8 +74,6 @@ export default function LoginPage() {
         variant: "destructive",
         duration: 5000,
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -109,7 +108,16 @@ export default function LoginPage() {
                 <Label htmlFor="email">البريد الإلكتروني</Label>
                 <div className="relative">
                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                   <Input id="email" type="email" placeholder="email@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} className="ps-10" />
+                   <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="email@example.com" 
+                    required 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                    className="ps-10" 
+                    disabled={isLoading}
+                   />
                 </div>
               </div>
               <div className="space-y-2">
@@ -121,14 +129,31 @@ export default function LoginPage() {
                 </div>
                  <div className="relative">
                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                   <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="ps-10" />
+                   <Input 
+                    id="password" 
+                    type="password" 
+                    required 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    className="ps-10" 
+                    disabled={isLoading}
+                   />
                 </div>
               </div>
             </div>
 
             <Button onClick={handleLogin} disabled={isLoading} className="w-full bg-primary text-white h-12 text-base">
-              {isLoading ? <Loader2 className="animate-spin" /> : "دخول للنظام"}
-              <ArrowLeft className="ms-2" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="me-2 h-5 w-5 animate-spin" />
+                  جاري تسجيل الدخول...
+                </>
+              ) : (
+                <>
+                  دخول للنظام
+                  <ArrowLeft className="ms-2" />
+                </>
+              )}
             </Button>
             
             <div className="mt-6 p-4 rounded-lg bg-accent/50 border border-accent">
@@ -139,7 +164,7 @@ export default function LoginPage() {
                     </p>
                     <Link href="/register" legacyBehavior>
                         <a className="w-full">
-                           <Button variant="outline" className="w-full bg-white hover:bg-gray-50 border-gray-300">
+                           <Button variant="outline" className="w-full bg-white hover:bg-gray-50 border-gray-300" disabled={isLoading}>
                             إنشاء حساب جديد
                           </Button>
                         </a>

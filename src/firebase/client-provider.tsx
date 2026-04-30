@@ -1,15 +1,16 @@
 
 'use client';
 
-import React, { useMemo, type ReactNode, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { FirebaseProvider, useFirebase } from '@/firebase/provider';
 import { initializeFirebase } from '@/firebase';
 import { usePathname, useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { signOut, Auth } from 'firebase/auth';
+import { Loader2, GraduationCap } from "lucide-react";
 
 function AuthHandler({ children }: { children: React.ReactNode }) {
-  const { user, isUserLoading, auth } = useFirebase(); // Get auth from context
+  const { user, isUserLoading, auth } = useFirebase();
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
@@ -18,26 +19,24 @@ function AuthHandler({ children }: { children: React.ReactNode }) {
     const publicPaths = ['/login', '/register', '/evaluations-demo'];
     const pathIsPublic = publicPaths.some(p => pathname.startsWith(p));
     
-    if (isUserLoading) return; // Wait until user status is resolved
+    if (isUserLoading) return;
 
-    if (user) { // User is authenticated
+    if (user) {
       if (!user.emailVerified) {
-          // Immediately sign out unverified users trying to access protected pages
           if (!pathIsPublic) {
-              signOut(auth as Auth); // Type assertion for safety
+              signOut(auth as Auth);
               router.push('/login');
               toast({
                   title: 'تنبيه: الحساب يتطلب التفعيل',
-                  description: 'لقد تم تسجيل خروجك لأن حسابك لم يتم تفعيله بعد. يرجى التحقق من بريدك الإلكتروني (بما في ذلك مجلد الرسائل غير المرغوب فيها) والنقر على رابط التفعيل. ثم حاول تسجيل الدخول مرة أخرى.',
+                  description: 'لقد تم تسجيل خروجك لأن حسابك لم يتم تفعيله بعد. يرجى التحقق من بريدك الإلكتروني والنقر على رابط التفعيل، ثم حاول تسجيل الدخول مرة أخرى.',
                   variant: 'destructive',
                   duration: 10000,
               });
           }
       } else if (pathIsPublic && !pathname.startsWith('/evaluations-demo')) {
-        // Verified user on a public auth page (login/register), redirect to home
         router.push('/');
       }
-    } else { // User is not authenticated
+    } else {
       if (!pathIsPublic) {
         router.push('/login');
       }
@@ -45,11 +44,22 @@ function AuthHandler({ children }: { children: React.ReactNode }) {
   }, [user, isUserLoading, router, pathname, toast, auth]);
 
   const publicPaths = ['/login', '/register', '/evaluations-demo'];
-  // To prevent flicker, we can show a loading screen while auth state is resolving on protected pages
-  if (isUserLoading && !publicPaths.some(p => pathname.startsWith(p))) {
+  const isAuthPage = publicPaths.some(p => pathname.startsWith(p));
+
+  // Show a professional loading screen while resolving auth status on non-public pages
+  if (isUserLoading && !isAuthPage) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <p>جاري تحميل المستخدم...</p>
+      <div className="flex flex-col h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
+            <div className="bg-primary p-4 rounded-full shadow-lg">
+                <GraduationCap className="h-12 w-12 text-white" />
+            </div>
+            <div className="flex items-center gap-2 text-primary font-bold text-xl">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span>جاري التحقق من الهوية...</span>
+            </div>
+            <p className="text-muted-foreground text-sm">فضلاً انتظر لحظات</p>
+        </div>
       </div>
     );
   }
