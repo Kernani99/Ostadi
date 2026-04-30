@@ -10,7 +10,8 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2, ArrowLeft, Mail, Lock, ShieldCheck } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Lock, ShieldCheck, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const AlgerianFlagIcon = () => (
     <div className="h-12 w-12 rounded-full overflow-hidden flex items-center justify-center animate-pulse flex-shrink-0">
@@ -35,44 +36,36 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLogin = async () => {
+    setLoginError(null);
     if (!email || !password) {
-      toast({ title: "خطأ", description: "الرجاء إدخال البريد الإلكتروني وكلمة المرور.", variant: "destructive" });
+      setLoginError("الرجاء إدخال البريد الإلكتروني وكلمة المرور.");
       return;
     }
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Success redirection is handled by AuthHandler in client-provider.tsx
-      // We don't set isLoading(false) here to keep the loader until redirect happens
     } catch (error: any) {
       setIsLoading(false);
-      let description = "حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.";
+      let errorMessage = "البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.";
        switch (error.code) {
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-        case 'auth/invalid-credential':
-          description = "البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من البيانات المدخلة.";
-          break;
         case 'auth/invalid-email':
-          description = "صيغة البريد الإلكتروني غير صحيحة. يرجى التأكد من إدخال بريد إلكتروني صالح.";
+          errorMessage = "صيغة البريد الإلكتروني غير صحيحة.";
           break;
         case 'auth/too-many-requests':
-          description = "تم حظر الوصول مؤقتًا بسبب كثرة محاولات تسجيل الدخول الفاشلة. يرجى المحاولة مرة أخرى لاحقًا.";
+          errorMessage = "تم حظر الوصول مؤقتًا بسبب كثرة المحاولات الفاشلة.";
           break;
         case 'auth/user-disabled':
-          description = "تم تعطيل هذا الحساب. يرجى التواصل مع الدعم الفني.";
+          errorMessage = "تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.";
           break;
-        default:
-          description = "حدث خطأ غير معروف. يرجى المحاولة مرة أخرى.";
-          console.error("Login Error:", error);
       }
+      setLoginError(errorMessage);
       toast({
         title: "فشل تسجيل الدخول",
-        description,
+        description: errorMessage,
         variant: "destructive",
-        duration: 5000,
       });
     }
   };
@@ -102,6 +95,14 @@ export default function LoginPage() {
                     أدخل بيانات الاعتماد الخاصة بك للوصول إلى لوحة التحكم.
                 </p>
             </div>
+
+            {loginError && (
+              <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>خطأ في الدخول</AlertTitle>
+                <AlertDescription>{loginError}</AlertDescription>
+              </Alert>
+            )}
           
             <div className="space-y-4">
               <div className="space-y-2">
@@ -114,7 +115,7 @@ export default function LoginPage() {
                     placeholder="email@example.com" 
                     required 
                     value={email} 
-                    onChange={(e) => setEmail(e.target.value)} 
+                    onChange={(e) => { setEmail(e.target.value); setLoginError(null); }} 
                     className="ps-10" 
                     disabled={isLoading}
                    />
@@ -134,7 +135,7 @@ export default function LoginPage() {
                     type="password" 
                     required 
                     value={password} 
-                    onChange={(e) => setPassword(e.target.value)} 
+                    onChange={(e) => { setPassword(e.target.value); setLoginError(null); }} 
                     className="ps-10" 
                     disabled={isLoading}
                    />
