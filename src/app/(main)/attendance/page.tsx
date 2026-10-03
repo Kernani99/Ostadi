@@ -1,0 +1,737 @@
+
+'use client';
+
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useCollection, useDoc, useFirestore, useUser } from "@/firebase";
+import { useMemoFirebase } from "@/firebase/provider";
+import type { Student, Attendance, Institution, Department, ProfessorProfile } from "@/lib/types";
+import { collection, doc, query, where, setDoc, getDocs, writeBatch } from "firebase/firestore";
+import { addMonths, subMonths, format, getWeeksInMonth } from 'date-fns';
+import { ar } from 'date-fns/locale';
+import { ChevronLeft, ChevronRight, Printer, Users, CalendarX, BarChart3, UserCheck, Clock, Filter, Search, Calendar as CalendarIcon, Eye, ArrowUpDown, FileDown, Activity, ShieldOff, Loader2 } from "lucide-react";
+import { useState, useMemo, useReducer, Fragment, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, PieChart, Pie, Cell, Legend, Tooltip } from "recharts"
+import { StatCard } from "@/components/dashboard/stat-card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+
+const getWeeksOfMonth = (date: Date) => {
+    if (date.getMonth() === 8) { // September
+        return [1];
+    }
+    const weeks = getWeeksInMonth(date, { weekStartsOn: 6 }); // Assuming Saturday is the start of the week for school context
+    return Array.from({ length: weeks }, (_, i) => i + 1);
+};
+
+function AttendanceRegistration() {
+    const firestore = useFirestore();
+    const { user } = useUser();
+    const { toast } = useToast();
+
+    // State for filters and date
+    const [selectedInstitution, setSelectedInstitution] = useState<string>('');
+    const [selectedLevel, setSelectedLevel] = useState<string>('');
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Fetching data from Firestore
+    const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
+        useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
+    );
+    
+    const studentsQuery = useMemoFirebase(() => 
+        firestore && selectedInstitution && selectedLevel && user ? 
+        query(
+            collection(firestore, 'students'), 
+            where('institutionId', '==', selectedInstitution),
+            where('level', '==', selectedLevel),
+            where('userId', '==', user.uid)
+        ) : null
+    , [firestore, selectedInstitution, selectedLevel, user]);
+    const { data: students, isLoading: loadingStudents } = useCollection<Student>(studentsQuery);
+
+    const filteredStudents = useMemo(() => {
+        if (!students) return [];
+        return students.filter(student =>
+            `${student.firstName} ${student.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [students, searchTerm]);
+
+    const startYear = new Date().getMonth() >= 8 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+    const schoolMonthsDates = useMemo(() => {
+        return [9, 10, 11, 12, 1, 2, 3, 4, 5].map(m => {
+            const year = m >= 9 ? startYear : startYear + 1;
+            return new Date(year, m - 1, 1);
+        });
+    }, [startYear]);
+
+    const monthStrings = useMemo(() => schoolMonthsDates.map(d => format(d, 'yyyy-MM')), [schoolMonthsDates]);
+    const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
+
+    const attendanceQuery = useMemoFirebase(() =>
+        firestore && user && selectedInstitution && selectedLevel
+            ? query(
+                collection(firestore, 'attendances'),
+                where('institutionId', '==', selectedInstitution),
+                where('level', '==', selectedLevel),
+                where('userId', '==', user.uid)
+              )
+            : null
+    , [firestore, user, selectedInstitution, selectedLevel]);
+    const { data: attendances, isLoading: loadingAttendances } = useCollection<Attendance>(attendanceQuery);
+    
+    // Memoize processed attendance data for performance
+    const attendanceMap = useMemo(() => {
+        const map = new Map<string, { [week_session: string]: string }>();
+        if (!attendances) return map;
+        attendances.forEach(att => {
+            if (typeof att.records === 'object' && att.records !== null) {
+                map.set(`${att.studentId}_${att.month}`, att.records);
+            }
+        });
+        return map;
+    }, [attendances]);
+
+
+    // Handlers
+    const handleInstitutionChange = (id: string) => {
+        setSelectedInstitution(id);
+        setSelectedLevel('');
+    };
+
+    const handleLevelChange = (level: string) => {
+        setSelectedLevel(level);
+    };
+
+    const handleAttendanceChange = async (student: Student, monthStr: string, week: number, session: 1 | 2, status: string) => {
+        if (!firestore || !user) return;
+        const studentId = student.id;
+        
+        const attendanceId = `${studentId}_${monthStr}`;
+        const attendanceRef = doc(firestore, 'attendances', attendanceId);
+        
+        const recordKey = `${week}_${session}`;
+        const existingRecords = attendanceMap.get(attendanceId) || {};
+        const newRecords = { ...existingRecords, [recordKey]: status };
+
+        try {
+            await setDoc(attendanceRef, {
+                studentId: studentId,
+                departmentId: student.departmentId || null,
+                month: monthStr,
+                records: newRecords,
+                institutionId: student.institutionId,
+                level: student.level,
+                userId: user.uid,
+            }, { merge: true });
+
+             toast({
+                title: "تم الحفظ",
+                description: `تم تسجيل حضور التلميذ للحصة ${session} من الأسبوع ${week}.`,
+                variant: 'success',
+                duration: 2000,
+             });
+        } catch (error) {
+            console.error("Failed to save attendance: ", error);
+             toast({
+                title: "خطأ",
+                description: "فشل في حفظ بيانات الحضور.",
+                variant: "destructive"
+             });
+        }
+    };
+    
+    const handleMarkAll = async (monthStr: string, week: number, session: 1 | 2, status: string) => {
+        if (!firestore || !students || students.length === 0 || !user) {
+            toast({ title: "لا يوجد تلاميذ لتسجيل حضورهم", variant: "destructive" });
+            return;
+        }
+
+        const statusTextMap = { present: 'حاضر', absent: 'غائب', justified: 'مبرر', 'no-outfit': 'بدون لباس' };
+        const statusText = statusTextMap[status as keyof typeof statusTextMap] || 'الحالة';
+
+        const batch = writeBatch(firestore);
+        const recordKey = `${week}_${session}`;
+
+        students.forEach(student => {
+            const attendanceId = `${student.id}_${monthStr}`;
+            const attendanceRef = doc(firestore, 'attendances', attendanceId);
+
+            const existingRecords = attendanceMap.get(attendanceId) || {};
+            const newRecords = { ...existingRecords, [recordKey]: status };
+            
+            batch.set(attendanceRef, {
+                studentId: student.id,
+                departmentId: student.departmentId || null,
+                month: monthStr,
+                records: newRecords,
+                institutionId: student.institutionId,
+                level: student.level,
+                userId: user.uid,
+            }, { merge: true });
+        });
+
+        try {
+            await batch.commit();
+            toast({
+                title: "تم التسجيل الجماعي",
+                description: `تم تسجيل كل التلاميذ كـ'${statusText}' للحصة ${session} من الأسبوع ${week}.`,
+                variant: 'success'
+            });
+        } catch (error) {
+            console.error("Failed to batch save attendance: ", error);
+            toast({ title: "خطأ", description: "فشل في حفظ بيانات الحضور الجماعية.", variant: "destructive" });
+        }
+    };
+    
+    const hasTwoSessions = ['رابعة ابتدائي', 'خامسة ابتدائي'].includes(selectedLevel);
+
+
+    const handlePrint = () => {
+        if (!selectedInstitution || !selectedLevel) {
+            toast({
+                title: "الرجاء اختيار المؤسسة والمستوى أولاً",
+                variant: "destructive"
+            });
+            return;
+        }
+       
+        const params = new URLSearchParams();
+        params.set('institutionId', selectedInstitution);
+        params.set('level', selectedLevel);
+       
+        const printWindow = window.open(`/attendance/print-annual?${params.toString()}`, '_blank');
+        printWindow?.focus();
+    }
+
+    const handleExport = async () => {
+        if (!students || students.length === 0) {
+            toast({ title: "لا توجد بيانات للتصدير", variant: "destructive" });
+            return;
+        }
+
+        const institutionName = institutions?.find(i => i.id === selectedInstitution)?.name || '';
+        const monthName = format(currentDate, 'MMMM yyyy', { locale: ar });
+        const fileName = `حضور-${selectedLevel}-${institutionName}-${monthName}.xlsx`;
+
+        const statusMap = { present: 'حاضر', absent: 'غائب', justified: 'مبرر', 'no-outfit': 'بدون لباس' };
+        
+        const dataToExport = students.map(student => {
+            const row: {[key: string]: any} = {
+                'الاسم واللقب': `${student.lastName} ${student.firstName}`,
+            };
+            schoolMonthsDates.forEach(date => {
+                const monthStr = format(date, 'yyyy-MM');
+                const monthNameAr = format(date, 'MMMM', { locale: ar });
+                const weeksOfMonth = getWeeksOfMonth(date);
+                const studentAttendance = attendanceMap.get(`${student.id}_${monthStr}`) || {};
+                
+                weeksOfMonth.forEach(week => {
+                    if (hasTwoSessions) {
+                        const statusKey1 = studentAttendance[`${week}_1`] as keyof typeof statusMap;
+                        row[`${monthNameAr} أ${week} (ح1)`] = statusKey1 ? statusMap[statusKey1] : '';
+                        const statusKey2 = studentAttendance[`${week}_2`] as keyof typeof statusMap;
+                        row[`${monthNameAr} أ${week} (ح2)`] = statusKey2 ? statusMap[statusKey2] : '';
+                    } else {
+                        const statusKey = studentAttendance[`${week}_1`] as keyof typeof statusMap; 
+                        row[`${monthNameAr} أ${week}`] = statusKey ? statusMap[statusKey] : '';
+                    }
+                });
+            });
+            return row;
+        });
+
+        // مكتبة الجداول ثقيلة: تُحمَّل عند أول تصدير فقط.
+
+        const XLSX = await import('xlsx');
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `حضور ${monthName}`);
+        XLSX.writeFile(workbook, fileName);
+    };
+    
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>اختيار المستوى</CardTitle>
+                    <CardDescription>اختر المؤسسة والمستوى لعرض سجل الحضور.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid md:grid-cols-2 gap-4">
+                    <Select onValueChange={handleInstitutionChange} value={selectedInstitution} disabled={loadingInstitutions}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="اختر المؤسسة..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {institutions?.map(inst => (
+                                <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                     <Select onValueChange={handleLevelChange} value={selectedLevel} disabled={!selectedInstitution}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="اختر المستوى..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="أولى ابتدائي">أولى ابتدائي</SelectItem>
+                            <SelectItem value="ثانية ابتدائي">ثانية ابتدائي</SelectItem>
+                            <SelectItem value="ثالثة ابتدائي">ثالثة ابتدائي</SelectItem>
+                            <SelectItem value="رابعة ابتدائي">رابعة ابتدائي</SelectItem>
+                            <SelectItem value="خامسة ابتدائي">خامسة ابتدائي</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </CardContent>
+            </Card>
+
+            {selectedLevel && (
+                <Card>
+                    <CardHeader>
+                        <div className="flex justify-between items-center mb-4">
+                             <div className="flex items-center gap-4">
+                                <h3 className="text-lg font-bold">
+                                    السنة الدراسية {startYear} - {startYear + 1}
+                                </h3>
+                            </div>
+                             <div className="flex items-center gap-2">
+                                <Button onClick={handleExport} variant="outline" size="icon">
+                                    <FileDown className="h-5 w-5 text-success"/>
+                                    <span className="sr-only">تصدير Excel</span>
+                                </Button>
+                                <Button onClick={handlePrint} variant="outline" size="icon">
+                                    <Printer className="h-5 w-5"/>
+                                    <span className="sr-only">طباعة</span>
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="relative w-full max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="البحث عن تلميذ..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="ps-10"
+                            />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                            <Table className="border">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="sticky left-0 bg-card z-30 border-e border-b w-px whitespace-nowrap px-4" rowSpan={2}>اسم التلميذ</TableHead>
+                                        {schoolMonthsDates.map(date => {
+                                            const monthStr = format(date, 'yyyy-MM');
+                                            const weeksOfMonth = getWeeksOfMonth(date);
+                                            return (
+                                                <TableHead key={monthStr} className="text-center border-e border-b bg-muted/50" colSpan={weeksOfMonth.length * (hasTwoSessions ? 2 : 1)}>
+                                                    {format(date, 'MMMM yyyy', { locale: ar })}
+                                                </TableHead>
+                                            );
+                                        })}
+                                    </TableRow>
+                                    <TableRow>
+                                        {schoolMonthsDates.map(date => {
+                                            const monthStr = format(date, 'yyyy-MM');
+                                            const weeksOfMonth = getWeeksOfMonth(date);
+                                            return weeksOfMonth.map(week => (
+                                                <TableHead key={`${monthStr}-w${week}`} className="text-center border-e text-xs border-b bg-muted/20" colSpan={hasTwoSessions ? 2 : 1}>
+                                                    أسبوع {week}
+                                                </TableHead>
+                                            ));
+                                        })}
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {loadingStudents || loadingAttendances ? (
+                                        <TableRow>
+                                            <TableCell colSpan={100} className="text-center h-24">
+                                                جاري تحميل البيانات...
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : filteredStudents && filteredStudents.length > 0 ? (
+                                        filteredStudents.map(student => (
+                                            <TableRow key={student.id} className="hover:bg-muted/10">
+                                                <TableCell className="sticky left-0 bg-card z-20 font-medium border-e whitespace-nowrap px-4 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{student.lastName} {student.firstName}</TableCell>
+                                                {schoolMonthsDates.map(date => {
+                                                    const monthStr = format(date, 'yyyy-MM');
+                                                    const weeksOfMonth = getWeeksOfMonth(date);
+                                                    return weeksOfMonth.map(week => (
+                                                        hasTwoSessions ? (
+                                                            <Fragment key={`${student.id}-${monthStr}-${week}`}>
+                                                                <TableCell className="p-0 text-center border-e border-b-0 min-w-[44px]">
+                                                                    <Select
+                                                                        value={attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_1`] || ''}
+                                                                        onValueChange={(status) => handleAttendanceChange(student, monthStr, week, 1, status)}
+                                                                    >
+                                                                        <SelectTrigger className="h-10 w-full border-0 shadow-none text-sm flex justify-center rounded-none focus:ring-0 focus:bg-accent/20 px-1 [&>svg]:hidden font-bold" style={{ color: attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_1`] === 'present' ? 'green' : attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_1`] === 'absent' ? 'red' : 'inherit' }}>
+                                                                            <SelectValue placeholder="" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="present">ح</SelectItem>
+                                                                            <SelectItem value="absent">غ</SelectItem>
+                                                                            <SelectItem value="justified">م</SelectItem>
+                                                                            <SelectItem value="none" className="text-muted-foreground">فارغ</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </TableCell>
+                                                                <TableCell className="p-0 text-center border-e border-b-0 min-w-[44px]">
+                                                                    <Select
+                                                                        value={attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_2`] || ''}
+                                                                        onValueChange={(status) => handleAttendanceChange(student, monthStr, week, 2, status)}
+                                                                    >
+                                                                        <SelectTrigger className="h-10 w-full border-0 shadow-none text-sm flex justify-center rounded-none focus:ring-0 focus:bg-accent/20 px-1 [&>svg]:hidden font-bold" style={{ color: attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_2`] === 'present' ? 'green' : attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_2`] === 'absent' ? 'red' : 'inherit' }}>
+                                                                            <SelectValue placeholder="" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="present">ح</SelectItem>
+                                                                            <SelectItem value="absent">غ</SelectItem>
+                                                                            <SelectItem value="justified">م</SelectItem>
+                                                                            <SelectItem value="none" className="text-muted-foreground">فارغ</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </TableCell>
+                                                            </Fragment>
+                                                        ) : (
+                                                            <TableCell key={`${student.id}-${monthStr}-${week}`} className="p-0 text-center border-e border-b-0 min-w-[56px]">
+                                                                <Select
+                                                                    value={attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_1`] || ''}
+                                                                    onValueChange={(status) => handleAttendanceChange(student, monthStr, week, 1, status)}
+                                                                >
+                                                                    <SelectTrigger className="h-10 w-full border-0 shadow-none text-sm flex justify-center rounded-none focus:ring-0 focus:bg-accent/20 px-1 [&>svg]:hidden font-bold" style={{ color: attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_1`] === 'present' ? 'green' : attendanceMap.get(`${student.id}_${monthStr}`)?.[`${week}_1`] === 'absent' ? 'red' : 'inherit' }}>
+                                                                        <SelectValue placeholder="" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="present">ح</SelectItem>
+                                                                        <SelectItem value="absent">غ</SelectItem>
+                                                                        <SelectItem value="justified">م</SelectItem>
+                                                                        <SelectItem value="none" className="text-muted-foreground">فارغ</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </TableCell>
+                                                        )
+                                                    ));
+                                                })}
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={100} className="text-center h-24">
+                                               لا يوجد تلاميذ مطابقون للبحث أو في هذا المستوى.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                            <div className="flex items-center gap-2"><span className="font-bold">ح:</span><span>حاضر</span></div>
+                            <div className="flex items-center gap-2"><span className="font-bold">غ:</span><span>غائب</span></div>
+                            <div className="flex items-center gap-2"><span className="font-bold">م:</span><span>مبرر</span></div>
+                            <div className="flex items-center gap-2"><span className="font-bold">ب.ل:</span><span>بدون لباس</span></div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    )
+}
+
+type LevelReport = {
+    level: string;
+    totalStudents: number;
+    totalAbsences: number;
+    attendancePercentage: number;
+    absencePercentage: number;
+    topAbsences: { studentName: string; absenceCount: number }[];
+};
+const ReportChartColors = ["#22c55e", "#ef4444"]; // Green for present, Red for absent
+
+
+function AttendanceReports() {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const { user } = useUser();
+    const [selectedInstitution, setSelectedInstitution] = useState<string>('');
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [reportData, setReportData] = useState<LevelReport[] | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const { data: institutions, isLoading: loadingInstitutions } = useCollection<Institution>(
+        useMemoFirebase(() => user ? query(collection(firestore, 'institutions'), where('userId', '==', user.uid)) : null, [firestore, user])
+    );
+
+    const profileDocRef = useMemoFirebase(() => user ? doc(firestore, 'professor_profile', user.uid) : null, [firestore, user]);
+    const { data: profileData } = useDoc<ProfessorProfile>(profileDocRef);
+    
+    const handleGenerateReport = async () => {
+        if (!selectedInstitution || !firestore || !user) {
+             toast({ title: "الرجاء اختيار المؤسسة أولاً", variant: "destructive" });
+            return;
+        }
+        
+        setIsLoading(true);
+        const monthStr = format(currentDate, 'yyyy-MM');
+        
+        const studentsQuery = query(collection(firestore, 'students'), where('institutionId', '==', selectedInstitution), where('userId', '==', user.uid));
+        const studentsSnapshot = await getDocs(studentsQuery);
+        const allStudentsInInst = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+
+        const attendanceQuery = query(
+            collection(firestore, 'attendances'), 
+            where('institutionId', '==', selectedInstitution),
+            where('month', '==', monthStr),
+            where('userId', '==', user.uid)
+        );
+        const attendanceSnapshot = await getDocs(attendanceQuery);
+        const allAttendancesInMonth = attendanceSnapshot.docs.map(doc => doc.data() as Attendance);
+
+        const levels = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي'];
+        const reports: LevelReport[] = [];
+
+        for (const level of levels) {
+            const studentsInLevel = allStudentsInInst.filter(s => s.level === level);
+            if (studentsInLevel.length === 0) continue;
+
+            const studentIdsInLevel = new Set(studentsInLevel.map(s => s.id));
+            const attendancesInLevel = allAttendancesInMonth.filter(a => studentIdsInLevel.has(a.studentId));
+            
+            let totalAbsences = 0;
+            const absencesByStudent = new Map<string, number>();
+
+            attendancesInLevel.forEach(att => {
+                Object.values(att.records).forEach(status => {
+                    if (status === 'absent') {
+                        totalAbsences++;
+                        absencesByStudent.set(att.studentId, (absencesByStudent.get(att.studentId) || 0) + 1);
+                    }
+                });
+            });
+
+            const hasTwoSessions = ['رابعة ابتدائي', 'خامسة ابتدائي'].includes(level);
+            const sessionsPerWeek = hasTwoSessions ? 2 : 1;
+            const totalPossibleAttendances = studentsInLevel.length * getWeeksInMonth(currentDate, {weekStartsOn: 6}) * sessionsPerWeek;
+            const attendanceCount = totalPossibleAttendances - totalAbsences;
+
+            const attendancePercentage = totalPossibleAttendances > 0 ? (attendanceCount / totalPossibleAttendances) * 100 : 100;
+            const absencePercentage = totalPossibleAttendances > 0 ? (totalAbsences / totalPossibleAttendances) * 100 : 0;
+            
+            const topAbsences = Array.from(absencesByStudent.entries()).map(([studentId, absenceCount]) => {
+                const student = studentsInLevel.find(s => s.id === studentId);
+                return {
+                    studentName: `${student?.lastName || ''} ${student?.firstName || ''}`,
+                    absenceCount
+                };
+            }).sort((a,b) => b.absenceCount - a.absenceCount).slice(0, 5); // Top 5
+
+            reports.push({
+                level,
+                totalStudents: studentsInLevel.length,
+                totalAbsences,
+                attendancePercentage,
+                absencePercentage,
+                topAbsences
+            });
+        }
+
+        setReportData(reports);
+        setIsLoading(false);
+        if (reports.length === 0) {
+             toast({ title: "لا توجد بيانات", description: "لم يتم العثور على تلاميذ أو سجلات حضور لهذا الشهر في المؤسسة المحددة." });
+        }
+    };
+    
+    const handlePrintReport = () => {
+        if (!reportData || !selectedInstitution) {
+            toast({
+                title: "لا توجد بيانات للطباعة",
+                description: "الرجاء إنشاء التقرير أولاً.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        try {
+            const institutionName = institutions?.find(i => i.id === selectedInstitution)?.name || '';
+            const printData = {
+                reportData,
+                institutionName,
+                month: format(currentDate, 'MMMM yyyy', { locale: ar }),
+                professorName: `${profileData?.firstName || ''} ${profileData?.lastName || ''}`.trim(),
+                schoolYear: profileData?.schoolYear || '',
+            };
+            sessionStorage.setItem('attendanceReportPrintData', JSON.stringify(printData));
+            const printWindow = window.open('/attendance/print-report', '_blank');
+            printWindow?.focus();
+        } catch (e) {
+            console.error("Failed to store print data:", e);
+            toast({
+                title: "خطأ في الطباعة",
+                description: "لم نتمكن من تحضير البيانات للطباعة.",
+                variant: "destructive"
+            });
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Filter className="h-5 w-5 text-primary"/>
+                        <CardTitle>إنشاء تقرير شهري</CardTitle>
+                    </div>
+                     <CardDescription>اختر المؤسسة والشهر لعرض تقرير الغيابات المفصل حسب المستوى الدراسي.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col md:flex-row items-center gap-4">
+                    <Select onValueChange={setSelectedInstitution} value={selectedInstitution} disabled={loadingInstitutions}>
+                        <SelectTrigger className="w-full md:w-[250px]">
+                            <SelectValue placeholder="اختر المؤسسة..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {institutions?.map(inst => (
+                                <SelectItem key={inst.id} value={inst.id}>{inst.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2">
+                         <Button size="icon" variant="outline" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <h3 className="text-lg font-bold text-primary w-32 text-center">
+                            {format(currentDate, 'MMMM yyyy', { locale: ar })}
+                        </h3>
+                        <Button size="icon" variant="outline" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <Button onClick={handleGenerateReport} disabled={isLoading}>
+                        <Search />
+                        {isLoading ? 'جاري العرض...' : 'عرض التقرير'}
+                    </Button>
+                     <Button variant="destructive" onClick={handlePrintReport} disabled={!reportData || reportData.length === 0}>
+                        <Printer />
+                        طباعة التقرير
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {isLoading ? (
+                 <div className="flex items-center justify-center h-60">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary"/>
+                    <p className="ms-2 text-muted-foreground">جاري إنشاء التقارير...</p>
+                </div>
+            ) : reportData ? (
+                <div className="space-y-8">
+                {reportData.map(report => (
+                    <Card key={report.level} >
+                        <CardHeader>
+                            <CardTitle className="text-lg">{report.level}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid md:grid-cols-3 gap-6">
+                            <div className="md:col-span-1 space-y-4">
+                                <StatCard title="إجمالي التلاميذ" value={report.totalStudents} icon={Users} description="في هذا المستوى"/>
+                                <StatCard title="إجمالي الغيابات" value={report.totalAbsences} icon={CalendarX} description="خلال هذا الشهر"/>
+                            </div>
+                             <div className="md:col-span-1">
+                                <h3 className="text-center font-semibold mb-2">نسبة الحضور والغياب</h3>
+                                <ResponsiveContainer width="100%" height={200}>
+                                    <PieChart>
+                                        <Pie
+                                            data={[
+                                                { name: 'حضور', value: report.attendancePercentage },
+                                                { name: 'غياب', value: report.absencePercentage }
+                                            ]}
+                                            dataKey="value"
+                                            nameKey="name"
+                                            cx="50%"
+                                            cy="50%"
+                                            outerRadius={80}
+                                            innerRadius={50}
+                                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                                            labelLine={false}
+                                        >
+                                           {[
+                                                { value: report.attendancePercentage },
+                                                { value: report.absencePercentage }
+                                            ].map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={ReportChartColors[index % ReportChartColors.length]} />
+                                           ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                                        <Legend iconType="circle"/>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <div className="md:col-span-1">
+                                 <h3 className="text-center font-semibold mb-2">التلاميذ الأكثر غياباً</h3>
+                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>التلميذ</TableHead>
+                                            <TableHead className="text-center">عدد الغيابات</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {report.topAbsences.length > 0 ? report.topAbsences.map(s => (
+                                            <TableRow key={s.studentName}>
+                                                <TableCell>{s.studentName}</TableCell>
+                                                <TableCell className="text-center"><Badge variant="destructive">{s.absenceCount}</Badge></TableCell>
+                                            </TableRow>
+                                        )) : (
+                                            <TableRow>
+                                                <TableCell colSpan={2} className="text-center h-24 text-muted-foreground">لا توجد غيابات مسجلة.</TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                 </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+                </div>
+            ) : (
+                <Card className="flex items-center justify-center h-60">
+                    <p className="text-muted-foreground">الرجاء اختيار مؤسسة وشهر ثم الضغط على "عرض التقرير".</p>
+                </Card>
+            )}
+        </div>
+    );
+}
+
+export default function AttendancePage() {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    if (!isMounted) return null;
+
+    return (
+        <div className="space-y-6">
+            <PageHeader title="المناداة" description="تسجيل الحضور والغياب أسبوعياً، واستخراج التقارير الشهرية." />
+            
+            <Tabs defaultValue="registration" className="w-full">
+                <TabsList className="grid w-full max-w-md grid-cols-2">
+                    <TabsTrigger value="registration"><Clock />التسجيل اليومي</TabsTrigger>
+                    <TabsTrigger value="reports"><BarChart3 />التقارير</TabsTrigger>
+                </TabsList>
+                <TabsContent value="registration">
+                   <AttendanceRegistration />
+                </TabsContent>
+                <TabsContent value="reports">
+                   <AttendanceReports />
+                </TabsContent>
+            </Tabs>
+        </div>
+    )
+}

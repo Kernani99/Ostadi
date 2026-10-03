@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * نظام التصميم — «أستاذي»
+ * كل الألوان معرّفة كرموز HSL هنا فقط؛ المكوّنات تستهلك الرموز ولا تكتب ألواناً مباشرة.
+ */
+@layer base {
+  :root {
+    --background: 150 14% 97%;
+    --foreground: 165 28% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 165 28% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 165 28% 10%;
+    --primary: 164 72% 22%;
+    --primary-foreground: 150 40% 98%;
+    --secondary: 150 14% 93%;
+    --secondary-foreground: 165 28% 14%;
+    --muted: 150 12% 94%;
+    --muted-foreground: 165 9% 40%;
+    --accent: 158 42% 92%;
+    --accent-foreground: 164 72% 18%;
+    --destructive: 2 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 62% 32%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 92% 44%;
+    --warning-foreground: 30 60% 10%;
+    --info: 212 78% 44%;
+    --info-foreground: 0 0% 100%;
+    --border: 150 12% 87%;
+    --input: 150 12% 82%;
+    --ring: 164 72% 30%;
+    --chart-1: 164 72% 28%;
+    --chart-2: 35 92% 50%;
+    --chart-3: 212 78% 50%;
+    --chart-4: 340 70% 52%;
+    --chart-5: 265 55% 55%;
+    --sidebar: 166 46% 9%;
+    --sidebar-foreground: 150 18% 82%;
+    --sidebar-muted: 150 10% 56%;
+    --sidebar-accent: 164 40% 16%;
+    --sidebar-border: 164 30% 15%;
+    --sidebar-primary: 158 64% 52%;
+    --radius: 0.625rem;
+    color-scheme: light;
+  }
+
+  @media screen {
+    .dark {
+      --background: 168 24% 6%;
+      --foreground: 150 16% 92%;
+      --card: 168 22% 9%;
+      --card-foreground: 150 16% 92%;
+      --popover: 168 22% 10%;
+      --popover-foreground: 150 16% 92%;
+      --primary: 158 62% 46%;
+      --primary-foreground: 168 40% 7%;
+      --secondary: 168 16% 14%;
+      --secondary-foreground: 150 16% 90%;
+      --muted: 168 16% 13%;
+      --muted-foreground: 150 8% 62%;
+      --accent: 164 34% 16%;
+      --accent-foreground: 158 62% 72%;
+      --destructive: 2 70% 56%;
+      --destructive-foreground: 0 0% 100%;
+      --success: 152 56% 44%;
+      --success-foreground: 168 40% 7%;
+      --warning: 38 92% 56%;
+      --warning-foreground: 30 60% 10%;
+      --info: 212 86% 64%;
+      --info-foreground: 168 40% 7%;
+      --border: 168 16% 17%;
+      --input: 168 16% 22%;
+      --ring: 158 62% 46%;
+      --chart-1: 158 62% 50%;
+      --chart-2: 38 92% 58%;
+      --chart-3: 212 86% 64%;
+      --chart-4: 340 76% 66%;
+      --chart-5: 265 70% 72%;
+      --sidebar: 168 28% 5%;
+      --sidebar-foreground: 150 16% 82%;
+      --sidebar-muted: 150 8% 54%;
+      --sidebar-accent: 164 30% 13%;
+      --sidebar-border: 168 18% 12%;
+      --sidebar-primary: 158 62% 52%;
+      color-scheme: dark;
+    }
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "kern", "liga";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans tracking-normal;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  input[type="date"], input[type="time"], input[type="number"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* شريط تمرير هادئ يتبع الرموز */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* زخرفة هندسية خفيفة للواجهات التعريفية (تسجيل الدخول) */
+  .pattern-zellij {
+    background-image:
+      linear-gradient(135deg, hsl(0 0% 100% / 0.045) 25%, transparent 25%),
+      linear-gradient(225deg, hsl(0 0% 100% / 0.045) 25%, transparent 25%),
+      linear-gradient(45deg, hsl(0 0% 100% / 0.045) 25%, transparent 25%),
+      linear-gradient(315deg, hsl(0 0% 100% / 0.045) 25%, transparent 25%);
+    background-position: 22px 0, 22px 0, 0 0, 0 0;
+    background-size: 44px 44px;
+  }
+}
+
+/* الطباعة: إخفاء هيكل التطبيق دائماً، وإجبار الألوان الفاتحة */
+@media print {
+  .no-print,
+  [data-app-chrome] {
+    display: none !important;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  [data-app-main] {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

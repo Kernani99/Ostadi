@@ -1,0 +1,489 @@
+
+{
+  "entities": {
+    "Institution": {
+      "title": "Institution",
+      "type": "object",
+      "description": "Represents an educational institution.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the institution."
+        },
+        "municipality": {
+          "type": "string",
+          "description": "Municipality where the institution is located."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of institution (e.g., 'ابتدائية')."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this institution."
+        }
+      },
+      "required": [
+        "name",
+        "municipality",
+        "userId"
+      ]
+    },
+    "Department": {
+      "title": "Department",
+      "type": "object",
+      "description": "Represents a department within an institution.",
+      "properties": {
+        "institutionId": {
+          "type": "string",
+          "description": "Reference to Institution. (Relationship: Institution 1:N Department)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the department."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this department."
+        }
+      },
+      "required": [
+        "institutionId",
+        "name",
+        "userId"
+      ]
+    },
+    "Student": {
+      "title": "Student",
+      "type": "object",
+      "description": "Represents a student.",
+      "properties": {
+        "firstName": {
+          "type": "string",
+          "description": "First name of the student."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the student."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of birth of the student."
+        },
+        "gender": {
+          "type": "string",
+          "description": "Gender of the student (male/female)."
+        },
+        "level": {
+          "type": "string",
+          "description": "The student's grade level (e.g., 'أولى ابتدائي')."
+        },
+        "institutionId": {
+          "type": "string",
+          "description": "Reference to Institution."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "exempt"
+          ],
+          "description": "The student's status (active/exempt)."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this student."
+        }
+      },
+      "required": [
+        "firstName",
+        "lastName",
+        "gender",
+        "level",
+        "institutionId",
+        "status",
+        "userId"
+      ]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "type": "object",
+      "description": "Represents the monthly attendance record of a student.",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student."
+        },
+        "departmentId": {
+          "type": "string",
+          "description": "Reference to Department."
+        },
+        "month": {
+          "type": "string",
+          "description": "The month of the record in 'YYYY-MM' format."
+        },
+        "institutionId": {
+            "type": "string",
+            "description": "Reference to the Institution."
+        },
+        "level": {
+            "type": "string",
+            "description": "The student's level at the time of attendance."
+        },
+        "records": {
+          "type": "object",
+          "description": "An object where keys are week and session (e.g., '1_1', '1_2') and values are the attendance status.",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["present", "absent", "justified", "no-outfit"]
+          }
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns this record."
+        }
+      },
+      "required": [
+        "studentId",
+        "month",
+        "records",
+        "institutionId",
+        "level",
+        "userId"
+      ]
+    },
+    "EvaluationCriteria": {
+      "title": "EvaluationCriteria",
+      "type": "object",
+      "description": "Represents criteria used for evaluating students.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the evaluation criteria (e.g., Skill, Behavior, Participation)."
+        },
+        "weight": {
+          "type": "number",
+          "description": "Weight of the evaluation criteria."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this criteria."
+        }
+      },
+      "required": [
+        "name",
+        "weight",
+        "userId"
+      ]
+    },
+    "Evaluation": {
+      "title": "Evaluation",
+      "type": "object",
+      "description": "Represents a student's evaluation for a specific criteria indicator.",
+      "properties": {
+        "studentId": { "type": "string" },
+        "criteriaId": { "type": "string" },
+        "indicatorId": { "type": "number" },
+        "semester": { "type": "string" },
+        "level": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "score": { "type": ["number", "null"] },
+        "userId": { "type": "string", "description": "The ID of the user who owns this evaluation." }
+      },
+      "required": ["studentId", "criteriaId", "indicatorId", "semester", "level", "institutionId", "userId"]
+    },
+    "Grade": {
+      "title": "Grade",
+      "type": "object",
+      "description": "Represents a student's grade for a specific evaluation criteria.",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student. (Relationship: Student 1:N Grade)"
+        },
+        "evaluationCriteriaId": {
+          "type": "string",
+          "description": "Reference to EvaluationCriteria. (Relationship: EvaluationCriteria 1:N Grade)"
+        },
+        "grade": {
+          "type": "number",
+          "description": "The grade value."
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this grade."
+        }
+      },
+      "required": [
+        "studentId",
+        "evaluationCriteriaId",
+        "grade",
+        "userId"
+      ]
+    },
+    "ProfessorProfile": {
+      "title": "ProfessorProfile",
+      "type": "object",
+      "description": "Stores the professor's technical card information.",
+      "properties": {
+        "lastName": {
+          "type": "string"
+        },
+        "firstName": {
+          "type": "string"
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "format": "date"
+        },
+        "placeOfBirth": {
+          "type": "string"
+        },
+        "maritalStatus": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "phoneNumber": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "rank": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "appointmentDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "confirmationDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "grade": {
+          "type": "string"
+        },
+        "certificateName": {
+          "type": "string"
+        },
+        "certificateNumber": {
+          "type": "string"
+        },
+        "specialization": {
+          "type": "string"
+        },
+        "issuingInstitution": {
+          "type": "string"
+        },
+        "certificationDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "wilaya": {
+          "type": "string",
+          "description": "The wilaya (province/state) for the institution."
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "The name of the school."
+        },
+        "schoolYear": {
+          "type": "string",
+          "description": "The current school year (e.g., 2023-2024)."
+        }
+      }
+    },
+    "DailyLog": {
+        "title": "DailyLog",
+        "type": "object",
+        "description": "Represents a daily log entry by a professor.",
+        "properties": {
+            "userId": { "type": "string", "description": "The ID of the user (professor) who created the log." },
+            "institutionId": { "type": "string", "description": "Reference to Institution." },
+            "level": { "type": "string", "description": "The grade level for the class." },
+            "date": { "type": "string", "format": "date", "description": "The date of the log entry." },
+            "startTime": { "type": "string", "format": "time", "description": "The start time of the class session." },
+            "endTime": { "type": "string", "format": "time", "description": "The end time of the class session." },
+            "field": { "type": "string", "description": "The educational field or subject." },
+            "memoNumber": { "type": "string", "description": "The memo or reference number." },
+            "learnings": { "type": "string", "description": "Description of learnings." },
+            "learningContent": { "type": "string", "description": "Content of the learning material." },
+            "observation": { "type": "string", "description": "General observations." }
+        },
+        "required": ["userId", "institutionId", "level", "date", "startTime", "endTime"]
+    },
+    "SportsEquipment": {
+      "title": "SportsEquipment",
+      "type": "object",
+      "description": "Represents a piece of sports equipment in the inventory.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the equipment (e.g., 'الأقماع')."
+        },
+        "totalQuantity": {
+          "type": "number",
+          "description": "The total quantity of this equipment."
+        },
+        "goodCondition": {
+          "type": "number",
+          "description": "The quantity of this equipment in good condition."
+        },
+        "badCondition": {
+          "type": "number",
+          "description": "The quantity of this equipment in bad condition."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns this equipment record."
+        }
+      },
+      "required": [
+        "name",
+        "totalQuantity",
+        "goodCondition",
+        "badCondition",
+        "userId"
+      ]
+    },
+    "TimetableEntry": {
+      "title": "TimetableEntry",
+      "type": "object",
+      "description": "Represents a single entry in the professor's timetable.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user (professor) who owns this entry."
+        },
+        "day": {
+          "type": "string",
+          "description": "The day of the week (e.g., 'الأحد')."
+        },
+        "timeSlot": {
+          "type": "string",
+          "description": "The time slot for the entry (e.g., '08:00 - 09:00')."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the timetable entry (e.g., class and school name)."
+        }
+      },
+      "required": [
+        "userId",
+        "day",
+        "timeSlot",
+        "content"
+      ]
+    },
+     "SessionEvaluation": {
+      "title": "SessionEvaluation",
+      "type": "object",
+      "description": "Represents a student's evaluation for each session in a month.",
+      "properties": {
+        "studentId": { "type": "string" },
+        "month": { "type": "string", "description": "Month in YYYY-MM format." },
+        "institutionId": { "type": "string" },
+        "level": { "type": "string" },
+        "scores": {
+          "type": "object",
+          "description": "Scores for each session, keyed by 'YYYY-MM-DD_session'.",
+          "additionalProperties": { "type": ["number", "null"] }
+        },
+        "userId": {
+            "type": "string",
+            "description": "The ID of the user who owns this evaluation."
+        }
+      },
+      "required": ["studentId", "month", "institutionId", "level", "scores", "userId"]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "/institutions/{institutionId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Institution"
+      },
+      "description": "Stores institution data. Only the owner can read/write."
+    },
+    "/departments/{departmentId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Department"
+      },
+      "description": "Stores department data. Only the owner can read/write."
+    },
+    "/students/{studentId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Student"
+      },
+      "description": "Stores student data. Only the owner can read/write."
+    },
+    "/attendances/{attendanceId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Attendance"
+      },
+      "description": "Stores attendance records. The ID is a composite of studentId and month (yyyy-MM). Only the owner can read/write."
+    },
+    "/evaluation_criteria/{evaluationCriteriaId}": {
+      "schema": {
+        "$ref": "#/backend/entities/EvaluationCriteria"
+      },
+      "description": "Stores evaluation criteria. Only the owner can read/write."
+    },
+    "/evaluations/{evaluationId}": {
+        "schema": {
+            "$ref": "#/backend/entities/Evaluation"
+        },
+        "description": "Stores student evaluations for criteria indicators. Only the owner can read/write."
+    },
+    "/grades/{gradeId}": {
+      "schema": {
+        "$ref": "#/backend/entities/Grade"
+      },
+      "description": "Stores grades. Only the owner can read/write."
+    },
+    "/professor_profile/{userId}": {
+      "schema": {
+        "$ref": "#/backend/entities/ProfessorProfile"
+      },
+      "description": "Stores the professor's profile data. Only the owner can read/write."
+    },
+    "/daily_logs/{logId}": {
+        "schema": {
+            "$ref": "#/backend/entities/DailyLog"
+        },
+        "description": "Stores the professor's daily log entries. Only the owner can read/write."
+    },
+    "/sports_equipment/{equipmentId}": {
+      "schema": {
+        "$ref": "#/backend/entities/SportsEquipment"
+      },
+      "description": "Stores sports equipment inventory data. Only the owner can read/write."
+    },
+    "/timetable_entries/{entryId}": {
+      "schema": {
+        "$ref": "#/backend/entities/TimetableEntry"
+      },
+      "description": "Stores timetable entries for each user. Only the owner can read/write."
+    },
+    "/session_evaluations/{evaluationId}": {
+      "schema": {
+        "$ref": "#/backend/entities/SessionEvaluation"
+      },
+      "description": "Stores session-based evaluations for students. Only the owner can read/write."
+    }
+  }
+}
+
+    

@@ -1,0 +1,227 @@
+/**
+ * قواعد أمان Firestore — منصة «أستاذي»
+ *
+ * المبادئ:
+ *  1. الرفض هو الأصل: أي مسار غير مذكور هنا مرفوض قراءةً وكتابةً.
+ *  2. كل مستند مملوك لصاحبه عبر الحقل userId، ولا يقرأه أو يكتبه غيره.
+ *  3. بيانات التلاميذ لا تُتاح إلا لحساب بريده مفعَّل (email_verified) — يُفرض هنا في الخادم
+ *     لا في الواجهة فقط.
+ *  4. الملكية ثابتة: لا يمكن تغيير userId عند التحديث، فلا يُنقل مستند إلى حساب آخر
+ *     ولا يُستولى على مستند موجود.
+ *  5. حدود على الأنواع والأحجام لمنع تخزين حمولات اعتباطية.
+ *
+ * النشر:  firebase deploy --only firestore:rules
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── دوال مساعدة ──────────────────────────────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    // المستند الموجود ملك للمستخدم الحالي.
+    function ownsExisting() {
+      return verified() && resource.data.userId == request.auth.uid;
+    }
+
+    // المستند المكتوب يُنسب للمستخدم الحالي.
+    function ownsIncoming() {
+      return verified()
+        && request.resource.data.userId is string
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    // التحديث لا يغيّر المالك.
+    function ownerUnchanged() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    function maxFields(n) {
+      return request.resource.data.keys().size() <= n;
+    }
+
+    // حقل نصي إلزامي بطول محدود.
+    function str(field, max) {
+      return request.resource.data[field] is string
+        && request.resource.data[field].size() > 0
+        && request.resource.data[field].size() <= max;
+    }
+
+    // حقل نصي اختياري (غائب أو null أو نص بطول محدود).
+    function optStr(field, max) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] == null
+        || (request.resource.data[field] is string && request.resource.data[field].size() <= max);
+    }
+
+    function optMap(field) {
+      return !(field in request.resource.data) || request.resource.data[field] is map;
+    }
+
+    // ── المؤسسات ────────────────────────────────────────────────
+    match /institutions/{institutionId} {
+      function valid() {
+        return maxFields(12) && str('name', 200) && optStr('municipality', 200) && optStr('type', 60);
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    // ── الأقسام (الأفواج) ───────────────────────────────────────
+    match /departments/{departmentId} {
+      function valid() {
+        return maxFields(12) && str('name', 120) && str('institutionId', 128) && str('level', 60);
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    // ── التلاميذ ────────────────────────────────────────────────
+    match /students/{studentId} {
+      function valid() {
+        return maxFields(20)
+          && str('lastName', 80) && str('firstName', 80)
+          && request.resource.data.gender in ['male', 'female']
+          && request.resource.data.status in ['active', 'exempt']
+          && str('institutionId', 128) && str('level', 60)
+          && optStr('departmentId', 128) && optStr('dateOfBirth', 20);
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    // ── المناداة: مستند لكل تلميذ/شهر ───────────────────────────
+    match /attendances/{attendanceId} {
+      function valid() {
+        return maxFields(12) && str('studentId', 128) && str('month', 7)
+          && request.resource.data.records is map
+          && request.resource.data.records.size() <= 40;
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    // ── التقييم المستمر ─────────────────────────────────────────
+    match /evaluations/{evaluationId} {
+      function valid() {
+        return maxFields(16) && str('studentId', 128) && str('criteriaId', 128)
+          && (request.resource.data.score == null || request.resource.data.score is number);
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    match /evaluation_criteria/{criteriaId} {
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && maxFields(16);
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && maxFields(16);
+    }
+
+    // ── التقييم بالحصة: مستند لكل تلميذ/شهر ─────────────────────
+    match /session_evaluations/{evaluationId} {
+      function valid() {
+        return maxFields(12) && str('studentId', 128) && str('month', 7)
+          && request.resource.data.scores is map
+          && request.resource.data.scores.size() <= 80;
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    // ── التقييم التشخيصي ────────────────────────────────────────
+    // معرّف المستند: diag_{uid}_{institutionId}_{level} — مستند واحد لكل قسم.
+    // القاعدة السابقة كانت «allow get: if isSignedIn()» فتسمح لأي مستخدم مسجَّل بقراءة
+    // تقييمات غيره، و«allow update» دون فحص المالك الحالي فتسمح بالاستيلاء على المستند.
+    match /diagnostic_evaluations/{evaluationId} {
+      function idBelongsToCaller() {
+        return evaluationId.matches('^diag_' + request.auth.uid + '_.+$');
+      }
+      function valid() {
+        return maxFields(10) && str('institutionId', 128) && str('level', 60) && optMap('ratings');
+      }
+      // القراءة بالمعرّف فقط. مستند غير موجود بعد يُسمح بطلبه إن كان معرّفه يخص المستخدم نفسه.
+      allow get: if verified()
+        && ((resource == null && idBelongsToCaller())
+          || (resource != null && resource.data.userId == request.auth.uid));
+      allow list: if false;
+      allow create: if ownsIncoming() && idBelongsToCaller() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+      allow delete: if ownsExisting();
+    }
+
+    match /grades/{gradeId} {
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && maxFields(12);
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && maxFields(12);
+    }
+
+    // ── البطاقة الفنية للأستاذ: المعرّف هو uid ───────────────────
+    // تُنشأ عند التسجيل قبل تفعيل البريد، لذا يكفي هنا تسجيل الدخول. لا تحتوي بيانات تلاميذ.
+    match /professor_profile/{userId} {
+      function isSelf() {
+        return signedIn() && request.auth.uid == userId;
+      }
+      function valid() {
+        return maxFields(40)
+          && optStr('firstName', 200) && optStr('lastName', 200)
+          && optStr('email', 254) && optStr('rank', 200) && optStr('wilaya', 200)
+          && optStr('address', 300) && optStr('phoneNumber', 40)
+          && optStr('schoolName', 200) && optStr('schoolYear', 40);
+      }
+      allow get: if isSelf();
+      allow list: if false;
+      allow create, update: if isSelf() && valid();
+      allow delete: if isSelf();
+    }
+
+    // ── الكراس اليومي ───────────────────────────────────────────
+    match /daily_logs/{logId} {
+      function valid() {
+        return maxFields(20) && str('institutionId', 128) && str('date', 10)
+          && optStr('level', 60) && optStr('startTime', 10) && optStr('endTime', 10)
+          && optStr('field', 2000) && optStr('memoNumber', 2000)
+          && optStr('learnings', 2000) && optStr('learningContent', 2000) && optStr('observation', 2000);
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    // ── العتاد الرياضي ──────────────────────────────────────────
+    match /sports_equipment/{equipmentId} {
+      function valid() {
+        return maxFields(12) && str('name', 200)
+          && request.resource.data.totalQuantity is number
+          && request.resource.data.goodCondition is number
+          && request.resource.data.badCondition is number;
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+
+    // ── جدول التوقيت ────────────────────────────────────────────
+    match /timetable_entries/{entryId} {
+      function valid() {
+        return maxFields(8) && str('day', 20) && str('timeSlot', 20)
+          && request.resource.data.content is string
+          && request.resource.data.content.size() <= 500;
+      }
+      allow read, delete: if ownsExisting();
+      allow create: if ownsIncoming() && valid();
+      allow update: if ownsExisting() && ownsIncoming() && ownerUnchanged() && valid();
+    }
+  }
+}
