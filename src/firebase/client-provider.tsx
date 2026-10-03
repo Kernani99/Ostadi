@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { signOut } from 'firebase/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
@@ -77,12 +77,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export function FirebaseClientProvider({ children }: { children: React.ReactNode }) {
-  const services = useMemo(() => {
-    const initialized = initializeFirebase();
-    // الكابتشا (App Check) تُفعَّل قبل أي طلب إلى المصادقة أو قاعدة البيانات.
-    startAppCheck(initialized.firebaseApp);
-    return initialized;
-  }, []);
+  const services = useMemo(() => initializeFirebase(), []);
+
+  // الكابتشا (App Check) تُفعَّل بعد اكتمال الـ hydration مباشرةً وقبل أي طلب إلى قاعدة البيانات.
+  // reCAPTCHA تضيف عنصراً إلى <body>؛ لو أُضيف أثناء الرسم الأول لاختلف الـ HTML عمّا أرسله الخادم،
+  // فيعيد React بناء الصفحة ويحذف ذلك العنصر (خطأ React #418 ثم «reCAPTCHA placeholder element»).
+  useLayoutEffect(() => {
+    startAppCheck(services.firebaseApp);
+  }, [services]);
 
   return (
     <FirebaseProvider firebaseApp={services.firebaseApp} auth={services.auth} firestore={services.firestore}>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/firebase";
+import { isCaptchaEnabled } from "@/firebase/app-check";
 
 // رسالة موحّدة لكل أخطاء بيانات الدخول حتى لا يُكشف أيّ البريدين مسجَّل.
 const GENERIC_ERROR = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
@@ -25,7 +26,10 @@ function messageFor(code: string | undefined): string {
     case 'auth/user-disabled':
       return "هذا الحساب معطَّل. تواصل مع المشرف.";
     case 'auth/network-request-failed':
-      return "تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.";
+      // مع الكابتشا مفعَّلة، هذا الخطأ يظهر أيضاً حين لا تحصل الصفحة على شهادة reCAPTCHA (بعد مهلة 30 ثانية).
+      return isCaptchaEnabled
+        ? "تعذّر الاتصال بالخادم أو تعذّر التحقق عبر reCAPTCHA. أعد تحميل الصفحة وحاول مجدداً، وعطّل مانع الإعلانات إن وُجد."
+        : "تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.";
     default:
       return GENERIC_ERROR;
   }
