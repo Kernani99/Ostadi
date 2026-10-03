@@ -3,6 +3,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { Loader2 } from "lucide-react";
+import { useUser } from "@/firebase";
 
 type LevelReport = {
     level: string;
@@ -14,6 +15,7 @@ type LevelReport = {
 };
 
 type PrintData = {
+    ownerUid?: string;
     reportData: LevelReport[];
     institutionName: string;
     month: string;
@@ -25,17 +27,24 @@ function PrintContent() {
     const [printData, setPrintData] = useState<PrintData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    const { user, isUserLoading } = useUser();
+
     useEffect(() => {
-        const data = sessionStorage.getItem('attendanceReportPrintData');
-        if (data) {
-            try {
-                setPrintData(JSON.parse(data));
-            } catch (e) {
-                console.error("Failed to parse print data from sessionStorage", e);
+        if (isUserLoading) return;
+        try {
+            const data = sessionStorage.getItem('attendanceReportPrintData');
+            const parsed: PrintData | null = data ? JSON.parse(data) : null;
+            // التقرير يُعرض فقط للحساب الذي أنشأه؛ أي تقرير لحساب آخر يُحذف دون عرضه.
+            if (parsed && user && parsed.ownerUid === user.uid) {
+                setPrintData(parsed);
+            } else if (parsed) {
+                sessionStorage.removeItem('attendanceReportPrintData');
             }
+        } catch {
+            // بيانات تالفة أو تخزين غير متاح: لا شيء للعرض
         }
         setIsLoading(false);
-    }, []);
+    }, [user, isUserLoading]);
 
     useEffect(() => {
         if (!isLoading && printData) {

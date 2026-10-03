@@ -66,6 +66,7 @@ export function AuthLayout({ title, description, children }: { title: string; de
             </p>
           )}
           <p>تطوير وبرمجة: قرناني عبد الحليم</p>
+          <p className="pt-1 text-sm font-medium text-primary">لا تنسونا من خالص دعائكم 🤲</p>
         </div>
       </main>
     </div>

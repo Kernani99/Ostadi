@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
-import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, sendEmailVerification, signOut, type User } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { AlertCircle, Check, Loader2, MailCheck } from "lucide-react";
 
@@ -68,35 +68,36 @@ export default function RegisterPage() {
     if (!canSubmit) return;
     setError(null);
     setIsLoading(true);
+    let created: User | null = null;
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      created = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
 
-      await setDoc(
-        doc(firestore, "professor_profile", user.uid),
-        {
-          firstName: firstName.trim().slice(0, 80),
-          lastName: lastName.trim().slice(0, 80),
-          rank,
-          wilaya,
-          email: user.email,
-        },
-        { merge: true }
-      );
+      await setDoc(doc(firestore, "professor_profile", created.uid), {
+        firstName: firstName.trim().slice(0, 80),
+        lastName: lastName.trim().slice(0, 80),
+        rank,
+        wilaya,
+        email: created.email,
+      });
 
-      await sendEmailVerification(user);
-      // لا جلسة قبل تفعيل البريد.
-      await signOut(auth);
-      setRegisteredEmail(user.email);
+      await sendEmailVerification(created);
+      setRegisteredEmail(created.email);
     } catch (err: unknown) {
-      setError(messageFor((err as { code?: string })?.code));
+      setError(
+        created
+          ? "أُنشئ الحساب لكن تعذّر إرسال رابط التفعيل. سجّل الدخول واضغط «إعادة إرسال رابط التفعيل»."
+          : messageFor((err as { code?: string })?.code)
+      );
     } finally {
+      // التفعيل إلزامي: لا تبقى أي جلسة مفتوحة قبل تأكيد البريد، حتى لو فشلت إحدى الخطوات.
+      if (created) await signOut(auth).catch(() => {});
       setIsLoading(false);
     }
   };
 
   if (registeredEmail) {
     return (
-      <AuthLayout title="بقيت خطوة واحدة" description="أُنشئ حسابك. فعّله من بريدك الإلكتروني لتتمكن من الدخول.">
+      <AuthLayout title="فعّل بريدك الإلكتروني" description="تفعيل البريد إلزامي: لا يمكن الدخول إلى المنصة قبل الضغط على رابط التفعيل.">
         <Alert variant="success">
           <MailCheck className="h-4 w-4" />
           <AlertTitle>أُرسل رابط التفعيل</AlertTitle>
@@ -112,7 +113,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthLayout title="إنشاء حساب" description="املأ بياناتك لإنشاء حساب أستاذ. الخدمة مجانية بالكامل.">
+    <AuthLayout title="إنشاء حساب" description="املأ بياناتك لإنشاء حساب أستاذ. الخدمة مجانية، وتفعيل البريد الإلكتروني إلزامي قبل أول دخول.">
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         {error && (
           <Alert variant="destructive" role="alert">

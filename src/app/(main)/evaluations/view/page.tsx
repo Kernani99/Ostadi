@@ -45,11 +45,12 @@ function EvaluationTable({ institutionId, level, semester }: { institutionId: st
        if (studentIds.length === 0 || !user) return null;
        return query(
            collection(firestore, 'evaluations'),
-           where('studentId', 'in', studentIds),
+           where('institutionId', '==', institutionId),
+           where('level', '==', level),
            where('semester', '==', semester),
            where('userId', '==', user.uid)
        )
-    }, [firestore, studentIds, semester, user]);
+    }, [firestore, studentIds, institutionId, level, semester, user]);
     const { data: existingEvals, isLoading: loadingEvals } = useCollection<Evaluation>(evaluationsQuery);
     
     useEffect(() => {

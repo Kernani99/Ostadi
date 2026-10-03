@@ -55,8 +55,8 @@ export default function SessionEvaluationPage() {
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
 
     const evaluationsQuery = useMemoFirebase(() =>
-        firestore && studentIds.length > 0 && user ? query(collection(firestore, 'session_evaluations'), where('studentId', 'in', studentIds), where('month', '==', monthStr), where('userId', '==', user.uid)) : null
-    , [firestore, studentIds, monthStr, user]);
+        firestore && studentIds.length > 0 && user ? query(collection(firestore, 'session_evaluations'), where('institutionId', '==', selectedInstitution), where('level', '==', selectedLevel), where('month', '==', monthStr), where('userId', '==', user.uid)) : null
+    , [firestore, studentIds, selectedInstitution, selectedLevel, monthStr, user]);
     const { data: fetchedEvaluations, isLoading: loadingEvaluations } = useCollection<SessionEvaluation>(evaluationsQuery);
 
     useEffect(() => {

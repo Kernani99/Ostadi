@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { signOut } from 'firebase/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { FirebaseProvider, useFirebase } from '@/firebase/provider';
@@ -13,6 +14,9 @@ const PUBLIC_ROOTS = ['/login', '/register', '/forgot-password', '/evaluations-d
 /** صفحات الدخول التي يُعاد توجيه المستخدم المسجَّل منها إلى لوحة التحكم. */
 const AUTH_ROOTS = ['/login', '/register', '/forgot-password'];
 
+/** مفاتيح sessionStorage التي تحمل بيانات خاصة بحساب. */
+export const PRIVATE_SESSION_KEYS = ['attendanceReportPrintData', 'evaluationDemoData'];
+
 const under = (pathname: string, roots: string[]) =>
   roots.some((root) => pathname === root || pathname.startsWith(root + '/'));
 
@@ -22,7 +26,7 @@ const under = (pathname: string, roots: string[]) =>
  * تفرضها قواعد Firestore (firestore.rules) على الخادم.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, isUserLoading } = useFirebase();
+  const { user, isUserLoading, auth } = useFirebase();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -35,10 +39,27 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (isVerified && isAuthPage) {
       router.replace('/');
     } else if (!isVerified && !isPublic) {
-      // غير مسجَّل، أو حساب لم يُفعَّل بريده: صفحة الدخول تتكفل بالشرح وإعادة إرسال رابط التفعيل.
+      // حساب لم يُفعَّل بريده لا يحتفظ بجلسة: يُخرَج فوراً، وصفحة الدخول تتكفل بإعادة إرسال رابط التفعيل.
+      if (user) void signOut(auth).catch(() => {});
       router.replace('/login');
     }
-  }, [isUserLoading, isVerified, isAuthPage, isPublic, router]);
+  }, [isUserLoading, isVerified, isAuthPage, isPublic, router, user, auth]);
+
+  // عزل الحسابات على الجهاز المشترك: أي بيانات مؤقتة خزّنها حساب في هذا التبويب
+  // (تقرير الغياب المعدّ للطباعة…) تُمحى عند الخروج أو عند دخول حساب آخر.
+  const lastUid = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (isUserLoading) return;
+    const uid = user?.uid ?? null;
+    if (lastUid.current !== undefined && lastUid.current !== uid) {
+      try {
+        for (const key of PRIVATE_SESSION_KEYS) sessionStorage.removeItem(key);
+      } catch {
+        // التخزين غير متاح
+      }
+    }
+    lastUid.current = uid;
+  }, [isUserLoading, user]);
 
   if (!isPublic && (isUserLoading || !isVerified)) {
     return (

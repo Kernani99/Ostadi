@@ -41,8 +41,8 @@ function PrintContent() {
     const studentIds = useMemo(() => students?.map(s => s.id) || [], [students]);
     const evaluationsQuery = useMemoFirebase(() => {
         if (studentIds.length === 0 || !semester || !user) return null;
-        return query(collection(firestore, 'evaluations'), where('studentId', 'in', studentIds), where('semester', '==', semester), where('userId', '==', user.uid));
-    }, [firestore, studentIds, semester, user]);
+        return query(collection(firestore, 'evaluations'), where('institutionId', '==', institutionId), where('level', '==', level), where('semester', '==', semester), where('userId', '==', user.uid));
+    }, [firestore, studentIds, institutionId, level, semester, user]);
     const { data: evaluations, isLoading: loadingEvals } = useCollection<Evaluation>(evaluationsQuery);
 
     // --- Data Processing ---

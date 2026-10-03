@@ -4,8 +4,8 @@
  * المبادئ:
  *  1. الرفض هو الأصل: أي مسار غير مذكور هنا مرفوض قراءةً وكتابةً.
  *  2. كل مستند مملوك لصاحبه عبر الحقل userId، ولا يقرأه أو يكتبه غيره.
- *  3. بيانات التلاميذ لا تُتاح إلا لحساب بريده مفعَّل (email_verified) — يُفرض هنا في الخادم
- *     لا في الواجهة فقط.
+ *  3. تفعيل البريد الإلكتروني إلزامي: لا قراءة ولا كتابة لأي بيانات قبل email_verified —
+ *     يُفرض هنا في الخادم لا في الواجهة فقط. الاستثناء الوحيد إنشاء البطاقة لحظة التسجيل.
  *  4. الملكية ثابتة: لا يمكن تغيير userId عند التحديث، فلا يُنقل مستند إلى حساب آخر
  *     ولا يُستولى على مستند موجود.
  *  5. حدود على الأنواع والأحجام لمنع تخزين حمولات اعتباطية.
@@ -168,10 +168,14 @@ service cloud.firestore {
     }
 
     // ── البطاقة الفنية للأستاذ: المعرّف هو uid ───────────────────
-    // تُنشأ عند التسجيل قبل تفعيل البريد، لذا يكفي هنا تسجيل الدخول. لا تحتوي بيانات تلاميذ.
+    // الإنشاء وحده مسموح قبل تفعيل البريد (يتم لحظة التسجيل). القراءة والتعديل والحذف
+    // تتطلب بريداً مفعَّلاً، فالحساب غير المفعَّل لا يصل إلى أي بيانات إطلاقاً.
     match /professor_profile/{userId} {
       function isSelf() {
         return signedIn() && request.auth.uid == userId;
+      }
+      function isVerifiedSelf() {
+        return verified() && request.auth.uid == userId;
       }
       function valid() {
         return maxFields(40)
@@ -180,10 +184,11 @@ service cloud.firestore {
           && optStr('address', 300) && optStr('phoneNumber', 40)
           && optStr('schoolName', 200) && optStr('schoolYear', 40);
       }
-      allow get: if isSelf();
+      allow get: if isVerifiedSelf();
       allow list: if false;
-      allow create, update: if isSelf() && valid();
-      allow delete: if isSelf();
+      allow create: if isSelf() && valid();
+      allow update: if isVerifiedSelf() && valid();
+      allow delete: if isVerifiedSelf();
     }
 
     // ── الكراس اليومي ───────────────────────────────────────────

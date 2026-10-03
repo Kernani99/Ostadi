@@ -562,6 +562,7 @@ function AttendanceReports() {
         try {
             const institutionName = institutions?.find(i => i.id === selectedInstitution)?.name || '';
             const printData = {
+                ownerUid: user?.uid, // صفحة الطباعة ترفض تقريراً لا يخص الحساب الحالي
                 reportData,
                 institutionName,
                 month: format(currentDate, 'MMMM yyyy', { locale: ar }),
