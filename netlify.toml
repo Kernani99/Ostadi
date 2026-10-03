@@ -3,7 +3,10 @@
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
+  # مفتاح الموقع لـ reCAPTCHA علني بطبيعته (يُرسل إلى كل متصفح)، فلا يُعامل كسرّ في فحص Netlify.
+  # المفتاح السري لـ reCAPTCHA لا يوضع في Netlify إطلاقاً؛ مكانه لوحة Firebase App Check فقط.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_RECAPTCHA_SITE_KEY"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
